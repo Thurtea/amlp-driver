@@ -140,6 +140,7 @@ typedef struct {
         struct {
             int arg_count;      /* Number of arguments */
             int target;         /* Function or method index */
+            char *name;         /* Function name for efun lookup */
         } call_operand;
     } operand;
 } VMInstruction;
@@ -184,6 +185,9 @@ typedef struct {
 
     /* Memory management */
     GC *gc;
+    
+    /* Efun registry */
+    struct EfunRegistry *efun_registry;
     
     /* Program data */
     VMFunction **functions;     /* Array of all functions */

@@ -652,7 +652,7 @@ static ASTNode* parser_parse_declaration(Parser *parser) {
     int line = parser->previous_token.line_number;
     int column = parser->previous_token.column_number;
 
-    if (!parser_match(parser, TOKEN_IDENTIFIER)) {
+    if (!parser_match(parser, TOKEN_IDENTIFIER) && !parser_match(parser, TOKEN_KEYWORD)) {
         parser_error(parser, "Expected identifier after type");
         free(type);
         return NULL;
@@ -671,7 +671,7 @@ static ASTNode* parser_parse_declaration(Parser *parser) {
         func->is_private = 0;
         func->is_static = 0;
 
-        /* Parse parameters */
+        /* Parse parameters (allow empty list) */
         if (!parser_check(parser, TOKEN_RPAREN)) {
             func->parameters = malloc(sizeof(struct {char *type; char *name;}) * 10);
             do {

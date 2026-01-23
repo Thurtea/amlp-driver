@@ -9,6 +9,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "vm.h"
+#include "efun.h"
 #include "object.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -53,6 +54,16 @@ VirtualMachine* vm_init(void) {
     vm->current_frame = NULL;
     vm->running = 0;
     vm->error_count = 0;
+    
+    vm->efun_registry = efun_init();
+    if (!vm->efun_registry) {
+        fprintf(stderr, "Warning: Efun registry initialization failed\n");
+    } else {
+        /* Register all built-in efuns */
+        if (efun_register_all(vm->efun_registry) != 0) {
+            fprintf(stderr, "Warning: Some efuns failed to register\n");
+        }
+    }
     
     vm->function_capacity = VM_FUNCTIONS_INIT;
     vm->function_count = 0;
@@ -633,9 +644,42 @@ static int vm_execute_instruction(VirtualMachine *vm, VMInstruction *instr) {
         }
         
         case OP_CALL: {
-            int func_idx = instr->operand.call_operand.target;
             int arg_count = instr->operand.call_operand.arg_count;
-            return vm_call_function(vm, func_idx, arg_count);
+            char *func_name = instr->operand.call_operand.name;
+            
+            if (func_name) {
+                /* Try to call as an efun first */
+                if (vm->efun_registry) {
+                    EfunEntry *efun_entry = efun_find(vm->efun_registry, func_name);
+                    if (efun_entry) {
+                        VMValue *args = NULL;
+                        if (arg_count > 0) {
+                            args = (VMValue *)malloc(sizeof(VMValue) * arg_count);
+                            if (!args) return -1;
+                            /* Pop arguments from stack in reverse order */
+                            for (int i = arg_count - 1; i >= 0; i--) {
+                                args[i] = vm_pop_value(vm);
+                            }
+                        }
+                        VMValue result = efun_entry->callback(vm, args, arg_count);
+                        if (args) free(args);
+                        return vm_push_value(vm, result);
+                    }
+                }
+                
+                /* Otherwise, try to call as a user-defined function */
+                for (int i = 0; i < vm->function_count; i++) {
+                    if (vm->functions[i] && strcmp(vm->functions[i]->name, func_name) == 0) {
+                        return vm_call_function(vm, i, arg_count);
+                    }
+                }
+                
+                fprintf(stderr, "[VM] OP_CALL: Unknown function: %s\n", func_name);
+                return -1;
+            } else {
+                int func_idx = instr->operand.call_operand.target;
+                return vm_call_function(vm, func_idx, arg_count);
+            }
         }
         
         case OP_RETURN:
