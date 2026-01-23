@@ -202,4 +202,8 @@ help:
 	@echo "  distclean     - Remove all generated files"
 	@echo "  help          - Display this help message"
 
-.PHONY: all test clean distclean help
+# Styled build with terminal UI
+build-ui:
+	@./tools/build_ui.sh
+
+.PHONY: all test clean distclean help build-ui
