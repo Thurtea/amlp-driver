@@ -19,6 +19,26 @@
 #include "compiler.h"
 #include "vm.h"
 #include "program_loader.h"
+#include "master_object.h"
+
+typedef struct {
+    VirtualMachine *vm;
+    int master_loaded;
+} DriverContext;
+
+static DriverContext *g_driver_ctx = NULL;
+
+static void driver_cleanup(void) {
+    if (g_driver_ctx) {
+        if (g_driver_ctx->master_loaded) {
+            master_object_free();
+        }
+        if (g_driver_ctx->vm) {
+            vm_free(g_driver_ctx->vm);
+        }
+        free(g_driver_ctx);
+    }
+}
 
 /* ========== Utility Functions ========== */
 
@@ -658,6 +678,23 @@ static void show_usage(const char *program_name) {
 /* ========== Main Entry Point ========== */
 
 int main(int argc, char *argv[]) {
+    // Initialize driver context
+    g_driver_ctx = calloc(1, sizeof(DriverContext));
+    if (!g_driver_ctx) {
+        fprintf(stderr, "Failed to allocate driver context\n");
+        return 1;
+    }
+    
+    g_driver_ctx->vm = vm_init();
+    if (!g_driver_ctx->vm) {
+        fprintf(stderr, "Failed to initialize VM\n");
+        free(g_driver_ctx);
+        return 1;
+    }
+    
+    g_driver_ctx->master_loaded = 0;
+    atexit(driver_cleanup);
+
     if (argc < 2) {
         show_usage(argv[0]);
         return 1;
@@ -667,6 +704,69 @@ int main(int argc, char *argv[]) {
     
     if (strcmp(command, "help") == 0 || strcmp(command, "--help") == 0 || strcmp(command, "-h") == 0) {
         show_usage(argv[0]);
+        return 0;
+    }
+    
+    // Master object command handlers
+    if (strcmp(command, "load_master") == 0) {
+        if (argc < 3) {
+            fprintf(stderr, "Usage: %s load_master <master_file.c>\n", argv[0]);
+            return 1;
+        }
+        
+        if (master_object_init(argv[2], g_driver_ctx->vm) == 0) {
+            g_driver_ctx->master_loaded = 1;
+            printf("Master object loaded successfully from: %s\n", argv[2]);
+            return 0;
+        } else {
+            fprintf(stderr, "Failed to load master object from: %s\n", argv[2]);
+            return 1;
+        }
+    }
+    
+    if (strcmp(command, "test_master") == 0) {
+        if (!g_driver_ctx->master_loaded) {
+            fprintf(stderr, "No master object loaded. Use 'load_master' first.\n");
+            return 1;
+        }
+        
+        printf("Master object is loaded and ready\n");
+        VMValue args[1];
+        VMValue result = master_call("create", args, 0);
+        (void)result; // Mark unused
+        printf("Called master create() function\n");
+        return 0;
+    }
+    
+    if (strcmp(command, "interactive") == 0) {
+        printf("AMLP Interactive Mode\n");
+        printf("Commands: load_master <file>, test_master, quit\n");
+        
+        char input[1024];
+        while (printf("> ") && fgets(input, sizeof(input), stdin)) {
+            // Remove newline
+            input[strcspn(input, "\n")] = 0;
+            
+            if (strcmp(input, "quit") == 0) {
+                break;
+            } else if (strncmp(input, "load_master ", 12) == 0) {
+                char *filename = input + 12;
+                if (master_object_init(filename, g_driver_ctx->vm) == 0) {
+                    g_driver_ctx->master_loaded = 1;
+                    printf("Master loaded: %s\n", filename);
+                } else {
+                    printf("Failed to load: %s\n", filename);
+                }
+            } else if (strcmp(input, "test_master") == 0) {
+                if (g_driver_ctx->master_loaded) {
+                    printf("Master is ready\n");
+                } else {
+                    printf("No master loaded\n");
+                }
+            } else {
+                printf("Unknown command: %s\n", input);
+            }
+        }
         return 0;
     }
     

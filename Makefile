@@ -5,6 +5,31 @@ CC = gcc
 CFLAGS = -Wall -Wextra  -g -O2 -std=c99 -Isrc
 LDFLAGS = -lm
 
+# Fancy build output formatting
+TOTAL_FILES = 15
+define show_header
+	@echo "╔══════════════════════════════════════════════════════════════════╗"
+	@echo "║                AMLP DRIVER - COMPILATION IN PROGRESS            ║"  
+	@echo "╚══════════════════════════════════════════════════════════════════╝"
+	@echo ""
+endef
+
+define show_progress
+	@echo "[$(1)/$(TOTAL_FILES)] Compiling $(2)... ✓"
+endef
+
+define show_link
+	@echo ""
+	@echo "[LINK] Creating driver executable... ✓"
+endef
+
+define show_success
+	@echo ""
+	@echo "╔══════════════════════════════════════════════════════════════════╗"
+	@echo "║                        ✓ BUILD SUCCESS                          ║"
+	@echo "╚══════════════════════════════════════════════════════════════════╝"
+endef
+
 # Directories
 SRC_DIR = src
 TEST_DIR = tests
