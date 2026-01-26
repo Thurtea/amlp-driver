@@ -2,7 +2,7 @@
 # Standard C project structure with src/, tests/, build/ directories
 
 CC = gcc
-CFLAGS = -Wall -Wextra  -g -O2 -std=c99 -Isrc
+CFLAGS = -Wall -Wextra -D_DEFAULT_SOURCE -g -O2 -std=c99 -Isrc
 LDFLAGS = -lm
 
 # Fancy build output formatting (color + UTF-8 borders)

@@ -60,12 +60,14 @@ typedef struct {
     time_t connect_time;              /* Connection timestamp */
     void *player_object;            /* Player's in-game object */
     char ip_address[INET_ADDRSTRLEN]; /* Client IP address */
+    int privilege_level;              /* 0=player, 1=wizard, 2=admin */
 } PlayerSession;
 
 /* Global state */
 static volatile sig_atomic_t server_running = 1;
 static VirtualMachine *global_vm = NULL;
 static PlayerSession *sessions[MAX_CLIENTS];
+static int first_player_created = 0;  /* Track if first player has logged in */
 
 /* Function prototypes */
 void handle_shutdown_signal(int sig);
@@ -190,6 +192,7 @@ void init_session(PlayerSession *session, int fd, const char *ip) {
     session->last_activity = time(NULL);
     session->connect_time = time(NULL);
     session->player_object = NULL;
+    session->privilege_level = 0;  /* Default to player */
     strncpy(session->ip_address, ip, INET_ADDRSTRLEN - 1);
     session->input_length = 0;
 }
@@ -240,14 +243,14 @@ void send_prompt(PlayerSession *session) {
             send_to_player(session,
                 "\r\n"
                 "╔═══════════════════════════════════════╗\r\n"
-                "║   AMLP Driver - Development Server   ║\r\n"
-                "║           Version 0.1.0               ║\r\n"
+                "║    AMLP Driver - Development Server    ║\r\n"
+                "║             Version 0.1.0             ║\r\n"
                 "╚═══════════════════════════════════════╝\r\n"
                 "\r\n"
                 "Welcome to the AMLP MUD!\r\n"
-                "\r\n");
+                "\r\n"
+                "Enter your name: ");
             session->state = STATE_GET_NAME;
-            send_to_player(session, "Enter your name: ");
             break;
             
         case STATE_GET_NAME:
@@ -323,7 +326,9 @@ VMValue execute_command(PlayerSession *session, const char *command) {
     
     if (strcmp(cmd, "help") == 0) {
         result.type = VALUE_STRING;
-        result.data.string_value = strdup(
+        
+        char help_text[2048];
+        strcpy(help_text, 
             "Available commands:\r\n"
             "  help                 - Show this help\r\n"
             "  look / l             - Look at your surroundings\r\n"
@@ -331,9 +336,26 @@ VMValue execute_command(PlayerSession *session, const char *command) {
             "  say <message>        - Say something\r\n"
             "  emote <action>       - Perform an emote\r\n"
             "  who                  - List players online\r\n"
+            "  stats                - Show your character stats\r\n"
             "  quit / logout        - Disconnect\r\n"
-            "\r\n"
-            "Movement: north, south, east, west, up, down (or n, s, e, w, u, d)\r\n");
+            "\r\nMovement: north, south, east, west, up, down (or n, s, e, w, u, d)\r\n");
+        
+        if (session->privilege_level >= 1) {
+            strcat(help_text,
+                "\r\nWIZARD COMMANDS (Level 1+):\r\n"
+                "  goto <room>         - Teleport to a room\r\n"
+                "  clone <object>      - Clone an object\r\n");
+        }
+        
+        if (session->privilege_level >= 2) {
+            strcat(help_text,
+                "\r\nADMIN COMMANDS (Level 2):\r\n"
+                "  promote <player> <level> - Promote player (0=player, 1=wizard, 2=admin)\r\n"
+                "  users                     - Show detailed user list\r\n"
+                "  shutdown [delay]          - Shutdown server (optional delay in seconds)\r\n");
+        }
+        
+        result.data.string_value = strdup(help_text);
         return result;
     }
     
@@ -392,8 +414,10 @@ VMValue execute_command(PlayerSession *session, const char *command) {
             if (sessions[i] && sessions[i]->state == STATE_PLAYING) {
                 char line[128];
                 time_t idle = time(NULL) - sessions[i]->last_activity;
-                snprintf(line, sizeof(line), "  %s (idle: %ld seconds)\r\n",
-                        sessions[i]->username, idle);
+                const char *priv = (sessions[i]->privilege_level == 2) ? "[Admin]" :
+                                  (sessions[i]->privilege_level == 1) ? "[Wiz]" : "";
+                snprintf(line, sizeof(line), "  %-20s %s(idle: %ld seconds)\r\n",
+                        sessions[i]->username, priv, idle);
                 strcat(msg, line);
                 count++;
             }
@@ -409,6 +433,26 @@ VMValue execute_command(PlayerSession *session, const char *command) {
         return result;
     }
     
+    if (strcmp(cmd, "stats") == 0) {
+        char msg[512];
+        const char *priv_name = (session->privilege_level == 2) ? "Admin" :
+                               (session->privilege_level == 1) ? "Wizard" : "Player";
+        snprintf(msg, sizeof(msg),
+            "Your stats:\r\n"
+            "  Name: %s\r\n"
+            "  Privilege Level: %d (%s)\r\n"
+            "  Level: 1\r\n"
+            "  HP: 100/100\r\n"
+            "  Strength: 10\r\n"
+            "  Dexterity: 10\r\n"
+            "  Intelligence: 10\r\n",
+            session->username, session->privilege_level, priv_name);
+        
+        result.type = VALUE_STRING;
+        result.data.string_value = strdup(msg);
+        return result;
+    }
+    
     /* Movement commands */
     const char *directions[] = {"north", "south", "east", "west", "up", "down", 
                                "n", "s", "e", "w", "u", "d", NULL};
@@ -418,6 +462,122 @@ VMValue execute_command(PlayerSession *session, const char *command) {
             result.data.string_value = strdup("You can't go that way.\r\n");
             return result;
         }
+    }
+    
+    /* Admin commands */
+    if (strcmp(cmd, "promote") == 0) {
+        if (session->privilege_level < 2) {
+            result.type = VALUE_STRING;
+            result.data.string_value = strdup("You don't have permission to use that command.\r\n");
+            return result;
+        }
+        
+        if (!args || *args == '\0') {
+            result.type = VALUE_STRING;
+            result.data.string_value = strdup(
+                "Usage: promote <player> <level>\r\n"
+                "Levels: 0=player, 1=wizard, 2=admin\r\n");
+            return result;
+        }
+        
+        char target_name[64];
+        int new_level;
+        if (sscanf(args, "%63s %d", target_name, &new_level) != 2) {
+            result.type = VALUE_STRING;
+            result.data.string_value = strdup(
+                "Usage: promote <player> <level>\r\n"
+                "Levels: 0=player, 1=wizard, 2=admin\r\n");
+            return result;
+        }
+        
+        if (new_level < 0 || new_level > 2) {
+            result.type = VALUE_STRING;
+            result.data.string_value = strdup("Invalid level. Use 0 (player), 1 (wizard), or 2 (admin).\r\n");
+            return result;
+        }
+        
+        // Find and promote player
+        int promoted = 0;
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            if (sessions[i] && sessions[i]->state == STATE_PLAYING &&
+                strcmp(sessions[i]->username, target_name) == 0) {
+                sessions[i]->privilege_level = new_level;
+                promoted = 1;
+                break;
+            }
+        }
+        
+        if (promoted) {
+            char msg[256];
+            const char *level_name = (new_level == 2) ? "Admin" : 
+                                     (new_level == 1) ? "Wizard" : "Player";
+            snprintf(msg, sizeof(msg), 
+                    "Promoted %s to %s (level %d).\r\n", 
+                    target_name, level_name, new_level);
+            result.type = VALUE_STRING;
+            result.data.string_value = strdup(msg);
+        } else {
+            result.type = VALUE_STRING;
+            result.data.string_value = strdup("Player not found.\r\n");
+        }
+        return result;
+    }
+    
+    if (strcmp(cmd, "users") == 0) {
+        if (session->privilege_level < 2) {
+            result.type = VALUE_STRING;
+            result.data.string_value = strdup("You don't have permission to use that command.\r\n");
+            return result;
+        }
+        
+        char msg[BUFFER_SIZE];
+        strcpy(msg, "Connected users:\r\n");
+        strcat(msg, "Name            Privilege      Idle\r\n");
+        strcat(msg, "----------------------------------------------\r\n");
+        
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            if (sessions[i] && sessions[i]->state == STATE_PLAYING) {
+                const char *priv_name = (sessions[i]->privilege_level == 2) ? "Admin" :
+                                       (sessions[i]->privilege_level == 1) ? "Wizard" : "Player";
+                time_t idle = time(NULL) - sessions[i]->last_activity;
+                char line[128];
+                snprintf(line, sizeof(line), "%-15s %-14s %ld sec\r\n",
+                        sessions[i]->username, priv_name, idle);
+                strcat(msg, line);
+            }
+        }
+        
+        result.type = VALUE_STRING;
+        result.data.string_value = strdup(msg);
+        return result;
+    }
+    
+    if (strcmp(cmd, "shutdown") == 0) {
+        if (session->privilege_level < 2) {
+            result.type = VALUE_STRING;
+            result.data.string_value = strdup("You don't have permission to use that command.\r\n");
+            return result;
+        }
+        
+        int delay = 0;
+        if (args && *args != '\0') {
+            delay = atoi(args);
+        }
+        
+        char msg[256];
+        snprintf(msg, sizeof(msg), 
+                "SYSTEM: Admin %s is shutting down the server%s%d second%s.\r\n",
+                session->username,
+                delay > 0 ? " in " : "",
+                delay,
+                delay == 1 ? "" : "s");
+        broadcast_message(msg, NULL);
+        
+        fprintf(stderr, "[Server] Shutdown initiated by %s\n", session->username);
+        server_running = 0;
+        result.type = VALUE_STRING;
+        result.data.string_value = strdup("Server shutdown initiated.\r\n");
+        return result;
     }
     
     /* Unknown command */
@@ -521,9 +681,23 @@ void process_login_state(PlayerSession *session, const char *input) {
                 return;
             }
             
-            send_to_player(session, 
-                "\r\nCharacter created successfully!\r\n"
-                "You materialize in the starting room.\r\n");
+            /* First player becomes admin */
+            if (!first_player_created) {
+                session->privilege_level = 2;  /* Admin */
+                first_player_created = 1;
+                fprintf(stderr, "[Server] First player created: %s (privilege: Admin)\n",
+                       session->username);
+                
+                send_to_player(session, 
+                    "\r\nCharacter created successfully!\r\n"
+                    "As the first player, you have been granted Admin privileges.\r\n"
+                    "You materialize in the starting room.\r\n");
+            } else {
+                session->privilege_level = 0;  /* Regular player */
+                send_to_player(session, 
+                    "\r\nCharacter created successfully!\r\n"
+                    "You materialize in the starting room.\r\n");
+            }
             
             memset(session->password_buffer, 0, sizeof(session->password_buffer));
             session->state = STATE_PLAYING;
