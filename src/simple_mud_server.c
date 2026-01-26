@@ -81,6 +81,8 @@ void send_prompt(PlayerSession *session);
 VMValue execute_command(PlayerSession *session, const char *command);
 void broadcast_message(const char *message, PlayerSession *exclude);
 void check_session_timeouts(void);
+void* create_player_object(const char *username, const char *password_hash);
+VMValue call_player_command(void *player_obj, const char *command);
 
 /* Signal handler */
 void handle_shutdown_signal(int sig) {
@@ -120,6 +122,64 @@ void cleanup_vm(void) {
         vm_free(global_vm);
         global_vm = NULL;
     }
+}
+
+/* Create player object through VM */
+void* create_player_object(const char *username, const char *password_hash) {
+    if (!global_vm) return NULL;
+    
+    fprintf(stderr, "[Server] Creating player object for: %s\n", username);
+    
+    /* TODO: Implement when object system is ready
+     * 
+     * VMValue path = vm_value_create_string("/std/player");
+     * vm_push_value(global_vm, path);
+     * 
+     * VMValue result = master_call("clone_object", &path, 1);
+     * 
+     * if (result.type == VALUE_OBJECT) {
+     *     Object *player = result.data.object_value;
+     *     
+     *     // Call setup_player(username, password_hash)
+     *     VMValue args[2];
+     *     args[0] = vm_value_create_string(username);
+     *     args[1] = vm_value_create_string(password_hash);
+     *     
+     *     object_call_method(player, "setup_player", args, 2);
+     *     
+     *     vm_value_free(&args[0]);
+     *     vm_value_free(&args[1]);
+     *     
+     *     return player;
+     * }
+     */
+    
+    /* For now, return placeholder */
+    return (void*)1;  /* Non-null to indicate "created" */
+}
+
+/* Call player object's process_command method */
+VMValue call_player_command(void *player_obj, const char *command) {
+    VMValue result;
+    result.type = VALUE_NULL;
+    
+    if (!player_obj || !global_vm) {
+        return result;
+    }
+    
+    fprintf(stderr, "[Server] Calling player command: %s\n", command);
+    
+    /* TODO: Implement when object system is ready
+     *
+     * VMValue cmd_arg = vm_value_create_string(command);
+     * vm_push_value(global_vm, cmd_arg);
+     * 
+     * result = object_call_method((Object*)player_obj, "process_command", &cmd_arg, 1);
+     * 
+     * vm_value_free(&cmd_arg);
+     */
+    
+    return result;
 }
 
 /* Initialize a new player session */
@@ -223,6 +283,18 @@ VMValue execute_command(PlayerSession *session, const char *command) {
     if (!global_vm || !session) {
         return result;
     }
+    
+    /* If player object exists, route command through it */
+    if (session->player_object) {
+        result = call_player_command(session->player_object, command);
+        
+        /* If VM returns valid result, use it */
+        if (result.type == VALUE_STRING && result.data.string_value) {
+            return result;
+        }
+    }
+    
+    /* Fallback to built-in commands if no player object or no result */
     
     char cmd_buffer[256];
     strncpy(cmd_buffer, command, sizeof(cmd_buffer) - 1);
@@ -434,6 +506,18 @@ void process_login_state(PlayerSession *session, const char *input) {
                 memset(session->password_buffer, 0, sizeof(session->password_buffer));
                 session->state = STATE_NEW_PASSWORD;
                 send_prompt(session);
+                return;
+            }
+            
+            /* Create player object */
+            session->player_object = create_player_object(
+                session->username, 
+                session->password_buffer);
+            
+            if (!session->player_object) {
+                send_to_player(session, 
+                    "\r\nError: Failed to create player object.\r\n");
+                session->state = STATE_DISCONNECTING;
                 return;
             }
             

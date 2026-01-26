@@ -1,67 +1,58 @@
-// AMLP Master Object
-
-#include <globals.h>
+// lib/secure/master.c - Master Object with Player Creation
 
 void create() {
-    write("Master object initialized\n");
+    write("Master object loaded.\n");
 }
 
-object connect() {
-    object login_ob;
-    mixed err;
+// Called when server starts
+void initialize() {
+    write("Initializing server systems...\n");
     
-    err = catch(login_ob = new(LOGIN_OB));
-    if (err) {
-        write("Failed to create login object.\n");
-        write(err);
-        return 0;
+    // Load base object system
+    load_object("/std/object");
+    load_object("/std/living");
+    load_object("/std/player");
+    
+    write("Server initialization complete.\n");
+}
+
+// Clone a new object
+object clone_object(string path) {
+    object ob;
+    
+    // Load object file and create instance
+    catch {
+        ob = load_object(path);
+        if (ob) {
+            ob = clone ob;  // Create instance
+            ob->create();   // Call create() on new instance
+        }
+    };
+    
+    return ob;
+}
+
+// Find player by name
+object find_player(string name) {
+    object *players = users();
+    foreach(object player : players) {
+        if (player->query_name() == name) {
+            return player;
+        }
     }
-    return login_ob;
+    return 0;
 }
 
-mixed compile_object(string filename) {
-    // Return the object to associate with this filename
-    return filename;
+// Shutdown server
+void shutdown(int delay) {
+    if (delay > 0) {
+        call_out("do_shutdown", delay);
+    } else {
+        do_shutdown();
+    }
 }
 
-void log_error(string file, string message) {
-    string logfile;
-    logfile = DIR_LOG + "/errors";
-    write_file(logfile, file + ": " + message + "\n");
-}
-
-string query_version() {
-    return "AMLP-MUD 1.0";
-}
-
-string query_mud_name() {
-    return "AMLP-MUD";
-}
-
-string get_root_uid() {
-    return ROOT_UID;
-}
-
-string creator_file(string file) {
-    return ROOT_UID;
-}
-
-int valid_read(string file, object ob) {
-    return 1;  // Allow all reads for now
-}
-
-int valid_write(string file, object ob) {
-    return 1;  // Allow all writes for now
-}
-
-void crash(string error, object command_giver, object current_object) {
-    log_error("CRASH", error);
-}
-
-void epilog(object ob) {
-    // Called after object creation
-}
-
-void prolog(string file) {
-    // Called before object compilation
+void do_shutdown() {
+    write("SERVER SHUTTING DOWN\n");
+    // Server will handle actual shutdown
 }

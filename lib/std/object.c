@@ -1,58 +1,51 @@
-// Base object - foundation for all objects
+// lib/std/object.c - Base class for all objects
 
-private string id_name;
 private string short_desc;
 private string long_desc;
+private string name;
+private object *inventory;
 private object environment;
 
-void create(void) {
-    id_name = "object";
+void create() {
     short_desc = "an object";
-    long_desc = "An ordinary object.";
+    long_desc = "You see nothing special.\n";
+    name = "object";
+    inventory = ({ });
+    environment = 0;
 }
 
-void set_id(string str) {
-    id_name = str;
-}
+// Descriptions
+string short() { return short_desc; }
+string long() { return long_desc; }
+void set_short(string desc) { short_desc = desc; }
+void set_long(string desc) { long_desc = desc; }
 
-string query_id(void) {
-    return id_name;
-}
+// Name
+string query_name() { return name; }
+void set_name(string n) { name = n; }
 
-void set_short(string str) {
-    short_desc = str;
-}
-
-string query_short(void) {
-    return short_desc;
-}
-
-void set_long(string str) {
-    long_desc = str;
-}
-
-string query_long(void) {
-    return long_desc;
-}
-
-void set_environment(object ob) {
-    environment = ob;
-}
-
-object query_environment(void) {
-    return environment;
-}
-
-void move(object dest) {
+// Container functions
+int move(object dest) {
     if (environment) {
-        environment->remove_object(this_object());
+        environment->remove_inventory(this_object());
     }
+    
+    environment = dest;
+    
     if (dest) {
-        dest->add_object(this_object());
-        environment = dest;
+        dest->add_inventory(this_object());
     }
+    
+    return 1;
 }
 
-void destruct_me(void) {
-    destruct(this_object());
+object query_environment() { return environment; }
+object *query_inventory() { return inventory; }
+
+void add_inventory(object ob) {
+    inventory += ({ ob });
+}
+
+void remove_inventory(object ob) {
+    inventory -= ({ ob });
 }
