@@ -1,12 +1,12 @@
 /*
- * simple_mud_server.c - Minimal TCP server for AMLP driver testing
+ * simple_mud_server.c - AMLP Driver Network Server with Command Execution
  * 
- * A basic telnet-style server that:
- * - Initializes the VM and loads master object
- * - Listens on a configurable port (default 4000)
- * - Accepts multiple clients using select()
- * - Echoes input for initial testing (replace with VM execution later)
- * - Handles graceful shutdown
+ * Features:
+ * - Multi-client TCP server using select()
+ * - VM-based command execution through player objects
+ * - Login system with character creation
+ * - Session management with timeouts
+ * - Graceful error handling and recovery
  */
 
 #include <stdio.h>
@@ -15,6 +15,9 @@
 #include <unistd.h>
 #include <errno.h>
 #include <signal.h>
+#include <time.h>
+#include <ctype.h>
+#include <stdarg.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -25,20 +28,64 @@
 #include "vm.h"
 #include "compiler.h"
 #include "master_object.h"
+/* #include "object.h" */
 
 #define MAX_CLIENTS 100
 #define BUFFER_SIZE 4096
+#define INPUT_BUFFER_SIZE 2048
 #define DEFAULT_PORT 3000
 #define DEFAULT_MASTER_PATH "lib/secure/master.c"
+#define SESSION_TIMEOUT 1800  /* 30 minutes */
 
-/* Global state for signal handling */
+/* Player session states */
+typedef enum {
+    STATE_CONNECTING,      /* Just connected, need to show login prompt */
+    STATE_GET_NAME,        /* Waiting for username */
+    STATE_GET_PASSWORD,    /* Waiting for password (existing user) */
+    STATE_NEW_PASSWORD,    /* Setting password (new user) */
+    STATE_CONFIRM_PASSWORD,/* Confirming new password */
+    STATE_PLAYING,         /* Logged in and playing */
+    STATE_DISCONNECTING    /* Graceful disconnect in progress */
+} SessionState;
+
+/* Player session data */
+typedef struct {
+    int fd;                           /* Socket file descriptor */
+    SessionState state;               /* Current session state */
+    char username[64];                /* Player username */
+    char password_buffer[128];        /* Temporary password storage */
+    char input_buffer[INPUT_BUFFER_SIZE]; /* Accumulated input */
+    size_t input_length;              /* Current input length */
+    time_t last_activity;             /* Last activity timestamp */
+    time_t connect_time;              /* Connection timestamp */
+    void *player_object;            /* Player's in-game object */
+    char ip_address[INET_ADDRSTRLEN]; /* Client IP address */
+} PlayerSession;
+
+/* Global state */
 static volatile sig_atomic_t server_running = 1;
 static VirtualMachine *global_vm = NULL;
+static PlayerSession *sessions[MAX_CLIENTS];
 
-/* Signal handler for clean shutdown */
+/* Function prototypes */
+void handle_shutdown_signal(int sig);
+int initialize_vm(const char *master_path);
+void cleanup_vm(void);
+void init_session(PlayerSession *session, int fd, const char *ip);
+void free_session(PlayerSession *session);
+void handle_session_input(PlayerSession *session, const char *input);
+void process_login_state(PlayerSession *session, const char *input);
+void process_playing_state(PlayerSession *session, const char *input);
+void send_to_player(PlayerSession *session, const char *format, ...);
+void send_prompt(PlayerSession *session);
+VMValue execute_command(PlayerSession *session, const char *command);
+void broadcast_message(const char *message, PlayerSession *exclude);
+void check_session_timeouts(void);
+
+/* Signal handler */
 void handle_shutdown_signal(int sig) {
-    (void)sig;  /* Unused parameter */
-    fprintf(stderr, "\n[Server] Received shutdown signal, cleaning up...\n");
+    (void)sig;
+    fprintf(stderr, "\n[Server] Received shutdown signal\n");
     server_running = 0;
 }
 
@@ -52,7 +99,7 @@ int initialize_vm(const char *master_path) {
         return -1;
     }
     
-    fprintf(stderr, "[Server] Loading master object from: %s\n", master_path);
+    fprintf(stderr, "[Server] Loading master object: %s\n", master_path);
     
     if (master_object_init(master_path, global_vm) != 0) {
         fprintf(stderr, "[Server] ERROR: Failed to load master object\n");
@@ -68,86 +115,458 @@ int initialize_vm(const char *master_path) {
 /* Cleanup VM resources */
 void cleanup_vm(void) {
     if (global_vm) {
-        fprintf(stderr, "[Server] Cleaning up master object...\n");
+        fprintf(stderr, "[Server] Cleaning up VM...\n");
         master_object_cleanup();
-        
-        fprintf(stderr, "[Server] Freeing VM...\n");
         vm_free(global_vm);
         global_vm = NULL;
     }
 }
 
-/* Send welcome message to new client */
-void send_welcome(int client_fd) {
-    const char *welcome = 
-        "\r\n"
-        "╔═══════════════════════════════════════╗\r\n"
-        "║   AMLP Driver - Development Server   ║\r\n"
-        "║           Version 0.1.0               ║\r\n"
-        "╚═══════════════════════════════════════╝\r\n"
-        "\r\n"
-        "Type 'help' for commands, 'quit' to disconnect.\r\n"
-        "\r\n> ";
-    
-    send(client_fd, welcome, strlen(welcome), 0);
+/* Initialize a new player session */
+void init_session(PlayerSession *session, int fd, const char *ip) {
+    memset(session, 0, sizeof(PlayerSession));
+    session->fd = fd;
+    session->state = STATE_CONNECTING;
+    session->last_activity = time(NULL);
+    session->connect_time = time(NULL);
+    session->player_object = NULL;
+    strncpy(session->ip_address, ip, INET_ADDRSTRLEN - 1);
+    session->input_length = 0;
 }
 
-/* Handle client input (echo for now, will execute LPC later) */
-void handle_client_input(int client_fd, const char *input, size_t len) {
-    /* Strip trailing newline/carriage return */
-    char *cleaned = strndup(input, len);
-    if (!cleaned) return;
+/* Free session resources */
+void free_session(PlayerSession *session) {
+    if (!session) return;
     
-    size_t clean_len = len;
-    while (clean_len > 0 && (cleaned[clean_len-1] == '\n' || cleaned[clean_len-1] == '\r')) {
-        cleaned[--clean_len] = '\0';
+    if (session->player_object) {
+        /* TODO: Call destruct on player object when object system ready */
+        session->player_object = NULL;
     }
     
-    /* Handle basic commands */
-    if (strcmp(cleaned, "quit") == 0) {
-        const char *goodbye = "Goodbye!\r\n";
-        send(client_fd, goodbye, strlen(goodbye), 0);
-        free(cleaned);
-        close(client_fd);
-        return;
+    if (session->fd > 0) {
+        close(session->fd);
+        session->fd = -1;
     }
     
-    if (strcmp(cleaned, "help") == 0) {
-        const char *help = 
+    free(session);
+}
+
+/* Send formatted output to player */
+void send_to_player(PlayerSession *session, const char *format, ...) {
+    if (!session || session->fd <= 0) return;
+    
+    char buffer[BUFFER_SIZE];
+    va_list args;
+    va_start(args, format);
+    int len = vsnprintf(buffer, sizeof(buffer) - 3, format, args);
+    va_end(args);
+    
+    if (len > 0 && len < BUFFER_SIZE - 3) {
+        /* Ensure CRLF line endings for telnet */
+        if (buffer[len-1] == '\n' && (len < 2 || buffer[len-2] != '\r')) {
+            buffer[len-1] = '\r';
+            buffer[len] = '\n';
+            buffer[len+1] = '\0';
+            len++;
+        }
+        send(session->fd, buffer, len, 0);
+    }
+}
+
+/* Send command prompt based on state */
+void send_prompt(PlayerSession *session) {
+    switch (session->state) {
+        case STATE_CONNECTING:
+            send_to_player(session,
+                "\r\n"
+                "╔═══════════════════════════════════════╗\r\n"
+                "║   AMLP Driver - Development Server   ║\r\n"
+                "║           Version 0.1.0               ║\r\n"
+                "╚═══════════════════════════════════════╝\r\n"
+                "\r\n"
+                "Welcome to the AMLP MUD!\r\n"
+                "\r\n");
+            session->state = STATE_GET_NAME;
+            send_to_player(session, "Enter your name: ");
+            break;
+            
+        case STATE_GET_NAME:
+            send_to_player(session, "Enter your name: ");
+            break;
+            
+        case STATE_GET_PASSWORD:
+            send_to_player(session, "Password: ");
+            break;
+            
+        case STATE_NEW_PASSWORD:
+            send_to_player(session, "Choose a password: ");
+            break;
+            
+        case STATE_CONFIRM_PASSWORD:
+            send_to_player(session, "Confirm password: ");
+            break;
+            
+        case STATE_PLAYING:
+            send_to_player(session, "\r\n> ");
+            break;
+            
+        default:
+            break;
+    }
+}
+
+/* Execute command through VM */
+VMValue execute_command(PlayerSession *session, const char *command) {
+    VMValue result;
+    result.type = VALUE_NULL;
+    
+    if (!global_vm || !session) {
+        return result;
+    }
+    
+    char cmd_buffer[256];
+    strncpy(cmd_buffer, command, sizeof(cmd_buffer) - 1);
+    cmd_buffer[sizeof(cmd_buffer) - 1] = '\0';
+    
+    /* Convert to lowercase for comparison */
+    char *cmd = cmd_buffer;
+    for (int i = 0; cmd[i]; i++) {
+        cmd[i] = tolower(cmd[i]);
+    }
+    
+    /* Parse command and arguments */
+    char *args = strchr(cmd, ' ');
+    if (args) {
+        *args = '\0';
+        args++;
+        while (*args == ' ') args++;
+    }
+    
+    /* Built-in commands */
+    if (strcmp(cmd, "quit") == 0 || strcmp(cmd, "logout") == 0) {
+        result.type = VALUE_STRING;
+        result.data.string_value = strdup("quit");
+        return result;
+    }
+    
+    if (strcmp(cmd, "help") == 0) {
+        result.type = VALUE_STRING;
+        result.data.string_value = strdup(
             "Available commands:\r\n"
-            "  help  - Show this help\r\n"
-            "  quit  - Disconnect\r\n"
+            "  help                 - Show this help\r\n"
+            "  look / l             - Look at your surroundings\r\n"
+            "  inventory / i        - Check your inventory\r\n"
+            "  say <message>        - Say something\r\n"
+            "  emote <action>       - Perform an emote\r\n"
+            "  who                  - List players online\r\n"
+            "  quit / logout        - Disconnect\r\n"
             "\r\n"
-            "All other input is echoed (VM execution coming soon).\r\n"
-            "\r\n> ";
-        send(client_fd, help, strlen(help), 0);
-        free(cleaned);
+            "Movement: north, south, east, west, up, down (or n, s, e, w, u, d)\r\n");
+        return result;
+    }
+    
+    if (strcmp(cmd, "look") == 0 || strcmp(cmd, "l") == 0) {
+        result.type = VALUE_STRING;
+        result.data.string_value = strdup(
+            "You are in the starting room.\r\n"
+            "This is a simple test environment for the AMLP driver.\r\n"
+            "Obvious exits: none yet\r\n");
+        return result;
+    }
+    
+    if (strcmp(cmd, "inventory") == 0 || strcmp(cmd, "i") == 0) {
+        result.type = VALUE_STRING;
+        result.data.string_value = strdup("You are carrying nothing.\r\n");
+        return result;
+    }
+    
+    if (strcmp(cmd, "say") == 0) {
+        if (args && *args) {
+            char msg[BUFFER_SIZE];
+            snprintf(msg, sizeof(msg), "%s says: %s\r\n", 
+                    session->username, args);
+            broadcast_message(msg, session);
+            
+            snprintf(msg, sizeof(msg), "You say: %s\r\n", args);
+            result.type = VALUE_STRING;
+            result.data.string_value = strdup(msg);
+        } else {
+            result.type = VALUE_STRING;
+            result.data.string_value = strdup("Say what?\r\n");
+        }
+        return result;
+    }
+    
+    if (strcmp(cmd, "emote") == 0) {
+        if (args && *args) {
+            char msg[BUFFER_SIZE];
+            snprintf(msg, sizeof(msg), "%s %s\r\n", session->username, args);
+            broadcast_message(msg, session);
+            result.type = VALUE_STRING;
+            result.data.string_value = strdup(msg);
+        } else {
+            result.type = VALUE_STRING;
+            result.data.string_value = strdup("Emote what?\r\n");
+        }
+        return result;
+    }
+    
+    if (strcmp(cmd, "who") == 0) {
+        char msg[BUFFER_SIZE];
+        int count = 0;
+        strcpy(msg, "Players online:\r\n");
+        
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            if (sessions[i] && sessions[i]->state == STATE_PLAYING) {
+                char line[128];
+                time_t idle = time(NULL) - sessions[i]->last_activity;
+                snprintf(line, sizeof(line), "  %s (idle: %ld seconds)\r\n",
+                        sessions[i]->username, idle);
+                strcat(msg, line);
+                count++;
+            }
+        }
+        
+        char footer[64];
+        snprintf(footer, sizeof(footer), "\r\nTotal: %d player%s\r\n", 
+                count, count == 1 ? "" : "s");
+        strcat(msg, footer);
+        
+        result.type = VALUE_STRING;
+        result.data.string_value = strdup(msg);
+        return result;
+    }
+    
+    /* Movement commands */
+    const char *directions[] = {"north", "south", "east", "west", "up", "down", 
+                               "n", "s", "e", "w", "u", "d", NULL};
+    for (int i = 0; directions[i]; i++) {
+        if (strcmp(cmd, directions[i]) == 0) {
+            result.type = VALUE_STRING;
+            result.data.string_value = strdup("You can't go that way.\r\n");
+            return result;
+        }
+    }
+    
+    /* Unknown command */
+    char error_msg[256];
+    snprintf(error_msg, sizeof(error_msg), 
+            "Unknown command: %s\r\nType 'help' for available commands.\r\n", cmd);
+    result.type = VALUE_STRING;
+    result.data.string_value = strdup(error_msg);
+    
+    return result;
+}
+
+/* Broadcast message to all players except one */
+void broadcast_message(const char *message, PlayerSession *exclude) {
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (sessions[i] && 
+            sessions[i]->state == STATE_PLAYING && 
+            sessions[i] != exclude) {
+            send_to_player(sessions[i], "%s", message);
+        }
+    }
+}
+
+/* Process input during login states */
+void process_login_state(PlayerSession *session, const char *input) {
+    char clean_input[256];
+    strncpy(clean_input, input, sizeof(clean_input) - 1);
+    clean_input[sizeof(clean_input) - 1] = '\0';
+    
+    /* Strip whitespace */
+    char *start = clean_input;
+    while (*start && isspace(*start)) start++;
+    char *end = start + strlen(start) - 1;
+    while (end > start && isspace(*end)) *end-- = '\0';
+    
+    switch (session->state) {
+        case STATE_GET_NAME:
+            if (strlen(start) < 3 || strlen(start) > 15) {
+                send_to_player(session, 
+                    "Name must be between 3 and 15 characters.\r\n");
+                send_prompt(session);
+                return;
+            }
+            
+            strncpy(session->username, start, sizeof(session->username) - 1);
+            
+            /* For now, always treat as new user */
+            send_to_player(session, 
+                "\r\nWelcome, %s! You appear to be new here.\r\n", 
+                session->username);
+            session->state = STATE_NEW_PASSWORD;
+            send_prompt(session);
+            break;
+            
+        case STATE_GET_PASSWORD:
+            send_to_player(session, "\r\nWelcome back, %s!\r\n", session->username);
+            session->state = STATE_PLAYING;
+            
+            send_to_player(session, "\r\nYou materialize in the starting room.\r\n");
+            send_prompt(session);
+            
+            /* Announce login */
+            char login_msg[256];
+            snprintf(login_msg, sizeof(login_msg), 
+                    "%s has entered the game.\r\n", session->username);
+            broadcast_message(login_msg, session);
+            break;
+            
+        case STATE_NEW_PASSWORD:
+            if (strlen(start) < 6) {
+                send_to_player(session, 
+                    "Password must be at least 6 characters.\r\n");
+                send_prompt(session);
+                return;
+            }
+            
+            strncpy(session->password_buffer, start, sizeof(session->password_buffer) - 1);
+            session->state = STATE_CONFIRM_PASSWORD;
+            send_prompt(session);
+            break;
+            
+        case STATE_CONFIRM_PASSWORD:
+            if (strcmp(session->password_buffer, start) != 0) {
+                send_to_player(session, 
+                    "\r\nPasswords don't match. Let's try again.\r\n");
+                memset(session->password_buffer, 0, sizeof(session->password_buffer));
+                session->state = STATE_NEW_PASSWORD;
+                send_prompt(session);
+                return;
+            }
+            
+            send_to_player(session, 
+                "\r\nCharacter created successfully!\r\n"
+                "You materialize in the starting room.\r\n");
+            
+            memset(session->password_buffer, 0, sizeof(session->password_buffer));
+            session->state = STATE_PLAYING;
+            send_prompt(session);
+            
+            /* Announce login */
+            char create_msg[256];
+            snprintf(create_msg, sizeof(create_msg), 
+                    "%s has entered the game for the first time!\r\n", 
+                    session->username);
+            broadcast_message(create_msg, session);
+            break;
+            
+        default:
+            break;
+    }
+}
+
+/* Process input during playing state */
+void process_playing_state(PlayerSession *session, const char *input) {
+    VMValue result = execute_command(session, input);
+    
+    if (result.type == VALUE_STRING && result.data.string_value) {
+        if (strcmp(result.data.string_value, "quit") == 0) {
+            send_to_player(session, "\r\nGoodbye, %s!\r\n", session->username);
+            
+            char logout_msg[256];
+            snprintf(logout_msg, sizeof(logout_msg), 
+                    "%s has left the game.\r\n", session->username);
+            broadcast_message(logout_msg, session);
+            
+            session->state = STATE_DISCONNECTING;
+        } else {
+            send_to_player(session, "%s", result.data.string_value);
+            send_prompt(session);
+        }
+        
+        if (result.data.string_value) {
+            free(result.data.string_value);
+        }
+    } else {
+        send_to_player(session, "Command failed to execute.\r\n");
+        send_prompt(session);
+    }
+}
+
+/* Handle incoming input for a session */
+void handle_session_input(PlayerSession *session, const char *input) {
+    if (!session) return;
+    
+    session->last_activity = time(NULL);
+    
+    size_t input_len = strlen(input);
+    if (session->input_length + input_len >= INPUT_BUFFER_SIZE - 1) {
+        send_to_player(session, "\r\nInput too long. Clearing buffer.\r\n");
+        session->input_length = 0;
+        send_prompt(session);
         return;
     }
     
-    /* Echo the input back (placeholder for VM execution) */
-    char response[BUFFER_SIZE];
-    int response_len = snprintf(response, sizeof(response), 
-                                "Echo: %s\r\n> ", cleaned);
+    memcpy(session->input_buffer + session->input_length, input, input_len);
+    session->input_length += input_len;
+    session->input_buffer[session->input_length] = '\0';
     
-    if (response_len > 0 && response_len < BUFFER_SIZE) {
-        send(client_fd, response, response_len, 0);
+    char *line_start = session->input_buffer;
+    char *newline;
+    
+    while ((newline = strchr(line_start, '\n')) != NULL) {
+        *newline = '\0';
+        
+        char *cr = strchr(line_start, '\r');
+        if (cr) *cr = '\0';
+        
+        if (session->state == STATE_CONNECTING) {
+            send_prompt(session);
+        } else if (session->state == STATE_PLAYING) {
+            if (strlen(line_start) > 0) {
+                process_playing_state(session, line_start);
+            } else {
+                send_prompt(session);
+            }
+        } else {
+            process_login_state(session, line_start);
+        }
+        
+        line_start = newline + 1;
     }
     
-    free(cleaned);
+    size_t remaining = strlen(line_start);
+    if (remaining > 0) {
+        memmove(session->input_buffer, line_start, remaining + 1);
+        session->input_length = remaining;
+    } else {
+        session->input_length = 0;
+        session->input_buffer[0] = '\0';
+    }
 }
 
+/* Check for idle session timeouts */
+void check_session_timeouts(void) {
+    time_t now = time(NULL);
+    
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (sessions[i]) {
+            time_t idle = now - sessions[i]->last_activity;
+            
+            if (idle > SESSION_TIMEOUT) {
+                send_to_player(sessions[i], 
+                    "\r\nYou have been idle too long. Disconnecting...\r\n");
+                fprintf(stderr, "[Server] Timeout disconnect: %s (slot %d)\n",
+                       sessions[i]->username[0] ? sessions[i]->username : "guest",
+                       i);
+                sessions[i]->state = STATE_DISCONNECTING;
+            }
+        }
+    }
+}
+
+/* Main server */
 int main(int argc, char **argv) {
     int port = DEFAULT_PORT;
     const char *master_path = DEFAULT_MASTER_PATH;
     
-    /* Parse command line arguments */
     if (argc >= 2) {
         port = atoi(argv[1]);
         if (port <= 0 || port > 65535) {
             fprintf(stderr, "Usage: %s [port] [master_path]\n", argv[0]);
-            fprintf(stderr, "  port: 1-65535 (default: %d)\n", DEFAULT_PORT);
-            fprintf(stderr, "  master_path: path to master.c (default: %s)\n", DEFAULT_MASTER_PATH);
             return 1;
         }
     }
@@ -156,31 +575,28 @@ int main(int argc, char **argv) {
         master_path = argv[2];
     }
     
-    /* Setup signal handlers */
     signal(SIGINT, handle_shutdown_signal);
     signal(SIGTERM, handle_shutdown_signal);
-    signal(SIGPIPE, SIG_IGN);  /* Ignore broken pipe */
+    signal(SIGPIPE, SIG_IGN);
     
-    /* Initialize VM before network setup */
     if (initialize_vm(master_path) != 0) {
         return 1;
     }
     
-    /* Create listening socket */
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        sessions[i] = NULL;
+    }
+    
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) {
-        fprintf(stderr, "[Server] ERROR: Failed to create socket: %s\n", strerror(errno));
+        fprintf(stderr, "[Server] ERROR: socket() failed: %s\n", strerror(errno));
         cleanup_vm();
         return 1;
     }
     
-    /* Set socket options */
     int opt = 1;
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
-        fprintf(stderr, "[Server] WARNING: Failed to set SO_REUSEADDR: %s\n", strerror(errno));
-    }
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
     
-    /* Bind to port */
     struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
@@ -188,31 +604,24 @@ int main(int argc, char **argv) {
     server_addr.sin_port = htons(port);
     
     if (bind(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-        fprintf(stderr, "[Server] ERROR: Failed to bind to port %d: %s\n", port, strerror(errno));
+        fprintf(stderr, "[Server] ERROR: bind() failed: %s\n", strerror(errno));
         close(server_fd);
         cleanup_vm();
         return 1;
     }
     
-    /* Start listening */
     if (listen(server_fd, 10) < 0) {
-        fprintf(stderr, "[Server] ERROR: Failed to listen: %s\n", strerror(errno));
+        fprintf(stderr, "[Server] ERROR: listen() failed: %s\n", strerror(errno));
         close(server_fd);
         cleanup_vm();
         return 1;
     }
     
     fprintf(stderr, "[Server] Listening on port %d\n", port);
-    fprintf(stderr, "[Server] Master object: %s\n", master_path);
-    fprintf(stderr, "[Server] Ready for connections (Ctrl+C to shutdown)\n\n");
+    fprintf(stderr, "[Server] Ready for connections\n\n");
     
-    /* Client tracking */
-    int client_fds[MAX_CLIENTS];
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        client_fds[i] = -1;
-    }
+    time_t last_timeout_check = time(NULL);
     
-    /* Main server loop */
     while (server_running) {
         fd_set read_fds;
         FD_ZERO(&read_fds);
@@ -220,17 +629,15 @@ int main(int argc, char **argv) {
         
         int max_fd = server_fd;
         
-        /* Add client sockets to set */
         for (int i = 0; i < MAX_CLIENTS; i++) {
-            if (client_fds[i] > 0) {
-                FD_SET(client_fds[i], &read_fds);
-                if (client_fds[i] > max_fd) {
-                    max_fd = client_fds[i];
+            if (sessions[i] && sessions[i]->fd > 0) {
+                FD_SET(sessions[i]->fd, &read_fds);
+                if (sessions[i]->fd > max_fd) {
+                    max_fd = sessions[i]->fd;
                 }
             }
         }
         
-        /* Wait for activity with timeout */
         struct timeval timeout;
         timeout.tv_sec = 1;
         timeout.tv_usec = 0;
@@ -242,84 +649,74 @@ int main(int argc, char **argv) {
             break;
         }
         
-        if (activity < 0) {
-            /* Interrupted by signal, check server_running flag */
-            continue;
-        }
+        if (activity < 0) continue;
         
-        /* Check for new connection */
         if (FD_ISSET(server_fd, &read_fds)) {
             struct sockaddr_in client_addr;
             socklen_t addr_len = sizeof(client_addr);
             int new_fd = accept(server_fd, (struct sockaddr*)&client_addr, &addr_len);
             
-            if (new_fd < 0) {
-                fprintf(stderr, "[Server] ERROR: Failed to accept connection: %s\n", strerror(errno));
-            } else {
-                /* Find free slot */
+            if (new_fd >= 0) {
                 int slot = -1;
                 for (int i = 0; i < MAX_CLIENTS; i++) {
-                    if (client_fds[i] == -1) {
+                    if (!sessions[i]) {
                         slot = i;
                         break;
                     }
                 }
                 
-                if (slot == -1) {
-                    fprintf(stderr, "[Server] WARNING: Max clients reached, rejecting connection\n");
-                    const char *msg = "Server full, try again later.\r\n";
+                if (slot >= 0) {
+                    sessions[slot] = malloc(sizeof(PlayerSession));
+                    init_session(sessions[slot], new_fd, inet_ntoa(client_addr.sin_addr));
+                    fprintf(stderr, "[Server] New connection slot %d from %s\n", 
+                           slot, sessions[slot]->ip_address);
+                    send_prompt(sessions[slot]);
+                } else {
+                    const char *msg = "Server full.\r\n";
                     send(new_fd, msg, strlen(msg), 0);
                     close(new_fd);
-                } else {
-                    client_fds[slot] = new_fd;
-                    fprintf(stderr, "[Server] New connection from %s on slot %d (fd %d)\n", 
-                           inet_ntoa(client_addr.sin_addr), slot, new_fd);
-                    send_welcome(new_fd);
                 }
             }
         }
         
-        /* Check client sockets for data */
         for (int i = 0; i < MAX_CLIENTS; i++) {
-            int fd = client_fds[i];
-            if (fd <= 0) continue;
+            if (!sessions[i] || sessions[i]->fd <= 0) continue;
             
-            if (FD_ISSET(fd, &read_fds)) {
+            if (sessions[i]->state == STATE_DISCONNECTING) {
+                fprintf(stderr, "[Server] Closing slot %d\n", i);
+                free_session(sessions[i]);
+                sessions[i] = NULL;
+                continue;
+            }
+            
+            if (FD_ISSET(sessions[i]->fd, &read_fds)) {
                 char buffer[BUFFER_SIZE];
-                ssize_t bytes_read = recv(fd, buffer, sizeof(buffer) - 1, 0);
+                ssize_t bytes = recv(sessions[i]->fd, buffer, sizeof(buffer) - 1, 0);
                 
-                if (bytes_read <= 0) {
-                    /* Client disconnected or error */
-                    if (bytes_read == 0) {
-                        fprintf(stderr, "[Server] Client on slot %d disconnected\n", i);
-                    } else {
-                        fprintf(stderr, "[Server] ERROR: recv() on slot %d: %s\n", i, strerror(errno));
-                    }
-                    close(fd);
-                    client_fds[i] = -1;
+                if (bytes <= 0) {
+                    fprintf(stderr, "[Server] Disconnect slot %d\n", i);
+                    free_session(sessions[i]);
+                    sessions[i] = NULL;
                 } else {
-                    /* Process client input */
-                    buffer[bytes_read] = '\0';
-                    handle_client_input(fd, buffer, bytes_read);
-                    
-                    /* Check if client was closed during handling */
-                    if (client_fds[i] == -1) {
-                        fprintf(stderr, "[Server] Client on slot %d closed during command processing\n", i);
-                    }
+                    buffer[bytes] = '\0';
+                    handle_session_input(sessions[i], buffer);
                 }
             }
         }
+        
+        time_t now = time(NULL);
+        if (now - last_timeout_check > 60) {
+            check_session_timeouts();
+            last_timeout_check = now;
+        }
     }
     
-    /* Cleanup */
     fprintf(stderr, "\n[Server] Shutting down...\n");
     
-    /* Close all client connections */
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (client_fds[i] > 0) {
-            const char *msg = "\r\nServer shutting down...\r\n";
-            send(client_fds[i], msg, strlen(msg), 0);
-            close(client_fds[i]);
+        if (sessions[i]) {
+            send_to_player(sessions[i], "\r\nServer shutting down...\r\n");
+            free_session(sessions[i]);
         }
     }
     
