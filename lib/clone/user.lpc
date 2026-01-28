@@ -56,9 +56,10 @@ void set_wizard_level(int level) {
                 write_file("/log/server.log", sprintf("[DEBUG user] clone_object succeeded: %s\n", file_name(wt)));
                 _wiztool = wt;
                 if (function_exists("attach", _wiztool)) {
+                    int attached = 0;
                     write_file("/log/server.log", sprintf("[DEBUG user] calling attach on %s\n", file_name(_wiztool)));
-                    catch(_wiztool->attach(this_object()));
-                    write_file("/log/server.log", sprintf("[DEBUG user] attach call completed for %s\n", (function_exists("query_name", this_object()) ? this_object()->query_name() : "<unknown>")));
+                    catch(attached = (int)_wiztool->attach(this_object()));
+                    write_file("/log/server.log", sprintf("[DEBUG user] attach call returned %d for %s\n", attached, (function_exists("query_name", this_object()) ? this_object()->query_name() : "<unknown>")));
                 } else {
                     write_file("/log/server.log", sprintf("[DEBUG user] wiztool has no attach() function: %s\n", file_name(_wiztool)));
                 }
@@ -171,12 +172,26 @@ int process_input(string input) {
 object query_wiztool() { return _wiztool; }
 
 // Explicit attach helper: allow callers (e.g. login) to set/attach a
-// pre-cloned wiztool object to this player.
-void attach_wiztool(object wt) {
-    if (!objectp(wt)) return;
+// pre-cloned wiztool object to this player. Return 1 on success, 0 on failure.
+int attach_wiztool(object wt) {
+    int attached = 0;
+    if (!objectp(wt)) {
+        write_file("/log/server.log", "[DEBUG user] attach_wiztool called with invalid object\n");
+        return 0;
+    }
     _wiztool = wt;
+    write_file("/log/server.log", sprintf("[DEBUG user] attach_wiztool called for %s with wiztool=%s\n",
+        (function_exists("query_name", this_object()) ? this_object()->query_name() : "<unknown>"),
+        file_name(wt)));
     if (function_exists("attach", _wiztool)) {
-        catch(_wiztool->attach(this_object()));
+        catch(attached = (int)_wiztool->attach(this_object()));
+        write_file("/log/server.log", sprintf("[DEBUG user] _wiztool->attach() returned %d for %s\n", attached,
+            (function_exists("query_name", this_object()) ? this_object()->query_name() : "<unknown>")));
+        return attached ? 1 : 0;
+    } else {
+        write_file("/log/server.log", sprintf("[DEBUG user] _wiztool has no attach() for %s\n",
+            (function_exists("query_name", this_object()) ? this_object()->query_name() : "<unknown>")));
+        return 0;
     }
 }
 

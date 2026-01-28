@@ -62,3 +62,8 @@ manual_test.sh
 robust_mud_test.py
 CURRENT_STATUS.md
 backup_*.tar.gz
+
+# Files the user requested ignored
+QUICK_TEST.md
+tomorrow-01-28.md
+artifacts/

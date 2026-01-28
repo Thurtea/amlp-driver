@@ -35,8 +35,8 @@ start_server() {
         if command -v lsof >/dev/null 2>&1; then
             pid=$(lsof -tiTCP:"$DEFAULT_PORT" -sTCP:LISTEN 2>/dev/null || true)
         elif command -v ss >/dev/null 2>&1; then
-            pid=$(ss -ltnp 2>/dev/null | awk -v port=":$DEFAULT_PORT" '
-                $4 ~ port { for(i=1;i<=NF;i++) if($i ~ /pid=/) { gsub("pid=","",$i); split($i,a,","); print a[1]; exit } }'
+                pid=$(ss -ltnp 2>/dev/null | awk -v port=":$DEFAULT_PORT" '
+                    $4 ~ port { for(i=1;i<=NF;i++) if($i ~ /pid=/) { gsub("pid=","",$i); split($i,a,","); print a[1]; exit } }')
         else
             pid=""
         fi
