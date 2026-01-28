@@ -110,6 +110,7 @@ make clean           # Remove build artifacts
 ## Documentation
 
 - [Administrator Guide](docs/ADMIN_GUIDE.md) - Complete server setup and management
+- [Wiztool Guide](docs/WIZTOOL.md) - In-game building and object creation
 - [Development Guide](docs/DEVELOPMENT.md) - Detailed phase documentation
 - [Build Summary](docs/BUILD_SUMMARY.md) - Build system details
 - [VM Implementation](docs/VM_IMPLEMENTATION_SUMMARY.md) - VM architecture

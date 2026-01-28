@@ -1,44 +1,72 @@
-// Wiz command - List wizard commands
+// /cmds/admin/wiz.lpc
+// Shorthand command for wiztool operations
+//
+// This is a convenience wrapper that calls the wiztool command
+// with arguments, so you can type "wiz help" instead of "wiztool help"
+//
+// Usage:
+//   wiz <command> [args] - Execute wiztool command
+//   wiz help             - Show all wiztool commands
+//   wiz                  - Show help (same as wiz help)
 
-#include <globals.h>
-
-int main(string arg) {
-    object user;
-    string output;
+int main(string args) {
+    object player = this_player();
+    object wiztool;
+    string cmd, cmd_args;
+    int space_pos;
     
-    user = previous_object();
-    
-    if (user->query_wizard_level() < WIZARD_LEVEL) {
-        tell_object(user, "You are not a wizard.\n");
+    if (!player) {
+        write("Error: No player context.\n");
         return 1;
     }
     
-    output = "\n";
-    output += "========================================\n";
-    output += "       Wizard Commands\n";
-    output += "========================================\n";
-    output += "\n";
-    output += "Building:\n";
-    output += "  goto <path>    - Teleport to room\n";
-    output += "  clone <path>   - Clone an object\n";
-    output += "  destruct <ob>  - Destroy an object\n";
-    output += "  update <path>  - Reload object\n";
-    output += "\n";
-    output += "Information:\n";
-    output += "  stat <object>  - Show object stats\n";
-    output += "  objects        - List loaded objects\n";
-    output += "  errors         - Show recent errors\n";
-    output += "\n";
-    output += "World Editing:\n";
-    output += "  ed <file>      - Edit file (opens editor)\n";
-    output += "  cat <file>     - Display file contents\n";
-    output += "  ls <dir>       - List directory\n";
-    output += "\n";
-    output += "System:\n";
-    output += "  shutdown       - Stop the server\n";
-    output += "  people         - List all users\n";
-    output += "\n";
+    // Check if player is wizard or admin
+    if (player->query_privilege_level() < 1) {
+        write("You don't have permission to use the wiztool.\n");
+        write("Ask an administrator to promote you: promote <name> 1\n");
+        return 1;
+    }
     
-    tell_object(user, output);
+    // Check if wiztool is loaded
+    wiztool = present("wiztool", player);
+    
+    if (!wiztool) {
+        write("You need to load your wiztool first.\n");
+        write("Type: wiztool\n");
+        return 1;
+    }
+    
+    // If no arguments, show help
+    if (!args || args == "") {
+        args = "help";
+    }
+    
+    // Parse command and arguments
+    space_pos = strstr(args, " ");
+    if (space_pos == -1) {
+        cmd = args;
+        cmd_args = "";
+    } else {
+        cmd = args[0..space_pos-1];
+        cmd_args = args[space_pos+1..];
+    }
+    
+    // Process the wiztool command
+    string result = wiztool->process_command(cmd, cmd_args);
+    write(result);
+    
     return 1;
+}
+
+void help() {
+    write("wiz - Quick wiztool command access\n\n");
+    write("Usage: wiz <command> [arguments]\n\n");
+    write("This is a shorthand for using the wiztool.\n");
+    write("Type 'wiz help' to see all available commands.\n\n");
+    write("First, load your wiztool:\n");
+    write("  > wiztool\n\n");
+    write("Then use wiz commands:\n");
+    write("  > wiz help\n");
+    write("  > wiz clone /std/object\n");
+    write("  > wiz cd /domains/start\n");
 }

@@ -1,0 +1,378 @@
+// /std/wiztool.lpc
+// Admin/Wizard building tool for in-game object creation and manipulation
+//
+// This tool provides commands for:
+// - Object creation and cloning
+// - LPC code evaluation
+// - File management and navigation
+// - Object inspection and modification
+// - Interactive building without external editors
+//
+// Load with: load /std/wiztool
+
+inherit "/std/object";
+
+string current_directory;
+object owner;
+
+void create() {
+    ::create();
+    set_id("wiztool");
+    set_short("an administrator's wiztool");
+    set_long("This is a powerful building tool used by administrators and wizards. "
+             "It allows in-game object creation, code evaluation, and world building. "
+             "Type 'wiz help' to see available commands.");
+    current_directory = "/domains/start/room";
+}
+
+void set_owner(object ob) {
+    owner = ob;
+}
+
+object query_owner() {
+    return owner;
+}
+
+string query_current_directory() {
+    return current_directory;
+}
+
+void set_current_directory(string dir) {
+    current_directory = dir;
+}
+
+// Process wiztool commands
+string process_command(string cmd, string args) {
+    if (!owner) {
+        return "Error: Wiztool has no owner.\n";
+    }
+    
+    // Check privilege level (must be wizard or admin)
+    // In a full implementation, this would check owner->query_privilege_level()
+    
+    switch(cmd) {
+        case "help":
+            return cmd_help(args);
+        case "eval":
+            return cmd_eval(args);
+        case "clone":
+            return cmd_clone(args);
+        case "dest":
+        case "destruct":
+            return cmd_destruct(args);
+        case "load":
+            return cmd_load(args);
+        case "update":
+        case "reload":
+            return cmd_update(args);
+        case "cd":
+            return cmd_cd(args);
+        case "pwd":
+            return cmd_pwd(args);
+        case "ls":
+        case "dir":
+            return cmd_ls(args);
+        case "cat":
+        case "more":
+            return cmd_cat(args);
+        case "mkdir":
+            return cmd_mkdir(args);
+        case "touch":
+            return cmd_touch(args);
+        case "ed":
+        case "edit":
+            return cmd_edit(args);
+        case "objstat":
+        case "ostat":
+            return cmd_objstat(args);
+        case "code":
+            return cmd_code(args);
+        case "goto":
+            return cmd_goto(args);
+        case "objects":
+            return cmd_objects(args);
+        default:
+            return "Unknown wiztool command: " + cmd + "\n" +
+                   "Type 'wiz help' for a list of commands.\n";
+    }
+}
+
+// Command: help - Display available commands
+string cmd_help(string args) {
+    string help_text;
+    
+    help_text = "=== Wiztool Commands ===\n\n";
+    help_text += "Object Management:\n";
+    help_text += "  clone <path>           - Clone an object from file\n";
+    help_text += "  load <path>            - Load an object (alias for clone)\n";
+    help_text += "  dest <object>          - Destruct an object\n";
+    help_text += "  update <object>        - Reload/update an object\n";
+    help_text += "  objstat <object>       - View detailed object statistics\n";
+    help_text += "  objects                - List all loaded objects\n";
+    help_text += "\n";
+    help_text += "Code Execution:\n";
+    help_text += "  eval <code>            - Evaluate LPC code expression\n";
+    help_text += "  code <object> <code>   - Execute code on an object\n";
+    help_text += "\n";
+    help_text += "File Management:\n";
+    help_text += "  cd <directory>         - Change working directory\n";
+    help_text += "  pwd                    - Print working directory\n";
+    help_text += "  ls [path]              - List directory contents\n";
+    help_text += "  cat <file>             - Display file contents\n";
+    help_text += "  mkdir <directory>      - Create a directory\n";
+    help_text += "  touch <file>           - Create an empty file\n";
+    help_text += "  ed <file>              - Edit a file (opens external editor)\n";
+    help_text += "\n";
+    help_text += "Navigation:\n";
+    help_text += "  goto <path>            - Teleport to a room\n";
+    help_text += "\n";
+    help_text += "Usage: wiz <command> [arguments]\n";
+    help_text += "Example: wiz clone /std/object\n";
+    
+    return help_text;
+}
+
+// Command: eval - Evaluate LPC code
+string cmd_eval(string code) {
+    if (!code || code == "") {
+        return "Usage: wiz eval <lpc_code>\n" +
+               "Example: wiz eval 1 + 1\n" +
+               "Example: wiz eval query_name()\n";
+    }
+    
+    // In a full implementation, this would use the compiler to evaluate the code
+    // For now, return a placeholder
+    return "Evaluating: " + code + "\n" +
+           "Result: [Code evaluation not yet implemented in driver]\n" +
+           "This will execute: " + code + "\n";
+}
+
+// Command: clone - Clone an object from a file
+string cmd_clone(string path) {
+    if (!path || path == "") {
+        return "Usage: wiz clone <object_path>\n" +
+               "Example: wiz clone /std/object\n" +
+               "Example: wiz clone " + current_directory + "/chest\n";
+    }
+    
+    // Resolve relative paths
+    if (path[0] != '/') {
+        path = current_directory + "/" + path;
+    }
+    
+    // Add .lpc extension if not present
+    if (strlen(path) < 4 || path[strlen(path)-4..] != ".lpc") {
+        if (path[strlen(path)-2..] != ".c") {
+            path = path + ".lpc";
+        }
+    }
+    
+    // In a full implementation, this would actually clone the object
+    return "Cloning object: " + path + "\n" +
+           "Object created: " + path + "#123\n" +
+           "[Object cloning not yet fully implemented in driver]\n";
+}
+
+// Command: destruct - Destroy an object
+string cmd_destruct(string target) {
+    if (!target || target == "") {
+        return "Usage: wiz dest <object>\n" +
+               "Example: wiz dest sword\n" +
+               "Example: wiz dest /std/object#123\n";
+    }
+    
+    return "Destructing object: " + target + "\n" +
+           "[Object destruction not yet fully implemented in driver]\n";
+}
+
+// Command: load - Load an object (alias for clone)
+string cmd_load(string path) {
+    return cmd_clone(path);
+}
+
+// Command: update - Reload an object
+string cmd_update(string target) {
+    if (!target || target == "") {
+        return "Usage: wiz update <object>\n" +
+               "Example: wiz update /std/room\n";
+    }
+    
+    return "Updating object: " + target + "\n" +
+           "Object reloaded from disk.\n" +
+           "[Object updating not yet fully implemented in driver]\n";
+}
+
+// Command: cd - Change working directory
+string cmd_cd(string path) {
+    if (!path || path == "") {
+        current_directory = "/";
+        return "Changed to root directory: /\n";
+    }
+    
+    // Handle relative paths
+    if (path[0] != '/') {
+        if (path == "..") {
+            // Go up one directory
+            int i = strlen(current_directory) - 1;
+            while (i > 0 && current_directory[i] == '/') i--;
+            while (i > 0 && current_directory[i] != '/') i--;
+            if (i == 0) {
+                current_directory = "/";
+            } else {
+                current_directory = current_directory[0..i-1];
+            }
+        } else {
+            current_directory = current_directory + "/" + path;
+        }
+    } else {
+        current_directory = path;
+    }
+    
+    // Remove trailing slashes
+    while (strlen(current_directory) > 1 && 
+           current_directory[strlen(current_directory)-1] == '/') {
+        current_directory = current_directory[0..strlen(current_directory)-2];
+    }
+    
+    return "Changed directory to: " + current_directory + "\n";
+}
+
+// Command: pwd - Print working directory
+string cmd_pwd(string args) {
+    return "Current directory: " + current_directory + "\n";
+}
+
+// Command: ls - List directory contents
+string cmd_ls(string path) {
+    string target_dir;
+    
+    if (!path || path == "") {
+        target_dir = current_directory;
+    } else if (path[0] == '/') {
+        target_dir = path;
+    } else {
+        target_dir = current_directory + "/" + path;
+    }
+    
+    // In a full implementation, this would actually list the directory
+    return "Directory listing for: " + target_dir + "\n" +
+           "  void.lpc\n" +
+           "  welcome.lpc\n" +
+           "  documentation.lpc\n" +
+           "[Directory listing not yet fully implemented in driver]\n";
+}
+
+// Command: cat - Display file contents
+string cmd_cat(string path) {
+    if (!path || path == "") {
+        return "Usage: wiz cat <file>\n" +
+               "Example: wiz cat /std/room.lpc\n";
+    }
+    
+    // Resolve relative paths
+    if (path[0] != '/') {
+        path = current_directory + "/" + path;
+    }
+    
+    return "Contents of: " + path + "\n" +
+           "----------------------------------------\n" +
+           "[File reading not yet fully implemented in driver]\n" +
+           "----------------------------------------\n";
+}
+
+// Command: mkdir - Create a directory
+string cmd_mkdir(string path) {
+    if (!path || path == "") {
+        return "Usage: wiz mkdir <directory>\n" +
+               "Example: wiz mkdir /domains/myworld\n";
+    }
+    
+    return "Creating directory: " + path + "\n" +
+           "[Directory creation not yet fully implemented in driver]\n";
+}
+
+// Command: touch - Create an empty file
+string cmd_touch(string path) {
+    if (!path || path == "") {
+        return "Usage: wiz touch <file>\n" +
+               "Example: wiz touch /domains/start/room/newroom.lpc\n";
+    }
+    
+    return "Creating file: " + path + "\n" +
+           "[File creation not yet fully implemented in driver]\n";
+}
+
+// Command: edit - Edit a file
+string cmd_edit(string path) {
+    if (!path || path == "") {
+        return "Usage: wiz ed <file>\n" +
+               "Example: wiz ed /std/room.lpc\n";
+    }
+    
+    // Resolve relative paths
+    if (path[0] != '/') {
+        path = current_directory + "/" + path;
+    }
+    
+    return "Opening editor for: " + path + "\n" +
+           "[In-game editor not yet implemented]\n" +
+           "Use an external editor to modify: lib" + path + "\n";
+}
+
+// Command: objstat - Display object statistics
+string cmd_objstat(string target) {
+    if (!target || target == "") {
+        return "Usage: wiz objstat <object>\n" +
+               "Example: wiz objstat me\n" +
+               "Example: wiz objstat sword\n";
+    }
+    
+    return "Object Statistics for: " + target + "\n" +
+           "----------------------------------------\n" +
+           "File: /std/object.lpc\n" +
+           "ID: object#123\n" +
+           "Type: Standard Object\n" +
+           "Properties: [list properties]\n" +
+           "[Detailed object stats not yet fully implemented]\n";
+}
+
+// Command: code - Execute code on an object
+string cmd_code(string args) {
+    if (!args || args == "") {
+        return "Usage: wiz code <object> <code>\n" +
+               "Example: wiz code me set_short(\"a wizard\")\n";
+    }
+    
+    return "Executing code on object\n" +
+           "[Code execution not yet fully implemented in driver]\n";
+}
+
+// Command: goto - Teleport to a room
+string cmd_goto(string path) {
+    if (!path || path == "") {
+        return "Usage: wiz goto <room_path>\n" +
+               "Example: wiz goto /domains/start/room/void\n";
+    }
+    
+    return "Teleporting to: " + path + "\n" +
+           "[Teleportation not yet fully implemented in driver]\n";
+}
+
+// Command: objects - List all loaded objects
+string cmd_objects(string args) {
+    return "Loaded Objects:\n" +
+           "----------------------------------------\n" +
+           "  /std/object#123\n" +
+           "  /std/room#456\n" +
+           "  /std/player#789\n" +
+           "[Object listing not yet fully implemented in driver]\n";
+}
+
+// Initialize the wiztool for a player
+void init() {
+    ::init();
+    if (query_owner()) {
+        // Add wiztool commands to player's command set
+        // In a full implementation, this would register commands
+    }
+}

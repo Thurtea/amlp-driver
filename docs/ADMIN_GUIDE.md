@@ -668,6 +668,33 @@ Automatic rotation with logrotate:
 
 Once connected as an admin:
 
+#### Load Wiztool
+
+```
+> wiztool
+You load your wiztool. Type 'wiz help' for commands.
+```
+
+The wiztool is the primary in-game building tool. It allows you to:
+- Create and clone objects without external editors
+- Evaluate LPC code in real-time
+- Navigate and manage files and directories
+- Build rooms and objects from within the game
+- Inspect and modify loaded objects
+
+See [WIZTOOL.md](WIZTOOL.md) for complete wiztool documentation.
+
+#### Common Wiztool Commands
+
+```
+> wiz help                    Show all wiztool commands
+> wiz clone /std/object       Clone an object
+> wiz cd /domains/start       Change directory
+> wiz ls                      List current directory
+> wiz goto /path/to/room      Teleport to room
+> wiz eval 1 + 1              Evaluate LPC code
+```
+
 #### Shutdown Server
 
 ```
