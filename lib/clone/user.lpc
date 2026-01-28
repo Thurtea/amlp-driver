@@ -7,6 +7,7 @@ inherit DIR_STD + "/living";
 private string race;
 private mapping languages;
 private int wizard_level;
+object _wiztool;
 
 void create() {
     ::create();
@@ -40,6 +41,17 @@ mapping query_all_languages() {
 
 void set_wizard_level(int level) {
     wizard_level = level;
+    if (wizard_level >= WIZARD_LEVEL) {
+        if (!objectp(_wiztool) && file_size(STD_WIZTOOL) > 0) {
+            object wt = 0;
+            catch(wt = clone_object(STD_WIZTOOL));
+            if (objectp(wt)) {
+                _wiztool = wt;
+                if (function_exists("attach", _wiztool))
+                    catch(_wiztool->attach(this_object()));
+            }
+        }
+    }
 }
 
 int query_wizard_level() {
@@ -96,39 +108,46 @@ void reconnect() {
 }
 
 int process_input(string input) {
+    if (!input || input == "") return 1;
+
+    /* Prefer using the command daemon when available so wiztool and global
+     * command routing works uniformly. */
+    if (objectp(COMMAND_D)) {
+        catch(COMMAND_D->execute_command(this_object(), input));
+        return 1;
+    }
+
+    /* Fallback to local command loading when daemon isn't present. */
     string verb, args;
     object cmd_ob;
     string cmd_path;
-    
-    if (!input || input == "") return 1;
-    
-    // Parse input
     if (sscanf(input, "%s %s", verb, args) != 2) {
         verb = input;
         args = "";
     }
-    
     verb = lower_case(verb);
-    
-    // Try admin commands first if wizard
     if (wizard_level >= WIZARD_LEVEL) {
         cmd_path = ADMIN_CMD_PREFIX + verb;
         catch(cmd_ob = load_object(cmd_path));
-        if (cmd_ob) {
-            return cmd_ob->main(args);
-        }
+        if (cmd_ob) return cmd_ob->main(args);
     }
-    
-    // Try regular commands
     cmd_path = CMD_PREFIX + verb;
     catch(cmd_ob = load_object(cmd_path));
-    
-    if (cmd_ob) {
-        return cmd_ob->main(args);
-    }
-    
+    if (cmd_ob) return cmd_ob->main(args);
     write("What?\n");
     return 1;
+}
+
+/* Wiztool helpers */
+int query_wiztool() { return objectp(_wiztool); }
+
+void detach_wiztool() {
+    if (objectp(_wiztool)) {
+        if (function_exists("detach", _wiztool))
+            catch(_wiztool->detach(this_object()));
+        destruct(_wiztool);
+    }
+    _wiztool = 0;
 }
 
 void remove() {

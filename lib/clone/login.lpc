@@ -148,7 +148,17 @@ void create_character() {
 void enter_game() {
     object user;
     mixed err;
-    
+    int is_first_player;
+
+    /* Determine if this is the first player by checking save directory */
+    is_first_player = 0;
+    if (file_size(DIR_SAVE + "/players") == -2) {
+        string *files = get_dir(DIR_SAVE + "/players/*");
+        if (!files || sizeof(files) == 0) {
+            is_first_player = 1;
+        }
+    }
+
     err = catch(user = new(USER_OB));
     if (err || !user) {
         write("Failed to create user object.\n");
@@ -161,7 +171,8 @@ void enter_game() {
     user->set_race(DEFAULT_RACE);
     user->set_language(DEFAULT_LANGUAGE, DEFAULT_FLUENCY);
     
-    if (player_name == "Admin" || creating_new == 2) {
+    /* If this is the very first created player, make them Admin */
+    if (player_name == "Admin" || creating_new == 2 || is_first_player) {
         user->set_wizard_level(ADMIN_LEVEL);
     }
     
