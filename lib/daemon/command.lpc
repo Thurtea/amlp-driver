@@ -160,10 +160,25 @@ private int execute_global_command(object player, string path, string verb, stri
         }
     }
     
-    // Execute the command
+    // Execute the command. Commands in this codebase use one of two
+    // common signatures: `int main(string args)` or
+    // `int main(object player, string args)`. Try the two-arg form
+    // first (preferred), and fall back to the single-arg form.
     if (function_exists("main", cmd)) {
-        result = cmd->main(player, args);
-        return result;
+        mixed res;
+
+        // Try (player, args)
+        if (!catch(res = (mixed)cmd->main(player, args))) {
+            return res;
+        }
+
+        // Fallback: try (args)
+        if (!catch(res = (mixed)cmd->main(args))) {
+            return res;
+        }
+
+        tell_object(player, "Error: Command '" + verb + "' failed to execute.");
+        return 0;
     }
     
     tell_object(player, "Error: Command '" + verb + "' is not properly implemented.");
