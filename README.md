@@ -63,14 +63,14 @@ make clean           # Remove build artifacts
 
 | Suite | Tests | Assertions | Status |
 |-------|-------|------------|--------|
-| Lexer | 20 | 41 | ✓ PASS |
-| Parser | 40 | 97 | ✓ PASS |
-| VM | 47 | 146 | ✓ PASS |
-| Object | 16 | 33 | ✓ PASS |
-| GC | 23 | 52 | ✓ PASS |
-| Efun | 28 | 57 | ✓ PASS |
-| Array | 23 | 70 | ✓ PASS |
-| Mapping | 23 | 69 | ✓ PASS |
+| Lexer | 20 | 41 | PASS |
+| Parser | 40 | 97 | PASS |
+| VM | 47 | 146 | PASS |
+| Object | 16 | 33 | PASS |
+| GC | 23 | 52 | PASS |
+| Efun | 28 | 57 | PASS |
+| Array | 23 | 70 | PASS |
+| Mapping | 23 | 69 | PASS |
 | **Total** | **220** | **565** | **100%** |
 
 ## Documentation

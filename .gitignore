@@ -34,6 +34,24 @@ Thumbs.db
 /REFERENCE*.md
 /*.md.backup
 
+# Internal documentation directories
+docs/sessions/
+docs/handoff/
+docs/phases/
+docs/PHASE*.txt
+docs/PHASE*.md
+docs/STATUS_REPORT.md
+docs/COMPLETION*.txt
+docs/MILESTONE*.md
+docs/PROMPT*.txt
+docs/REFERENCE*.md
+docs/INTEGRATION*.md
+docs/WINDOWS*.md
+docs/WSL*.md
+docs/NEXT_SESSION*.md
+docs/summary-*.md
+docs/SESSION_*.md
+
 # Process and control files
 *.pid
 *.ctl
