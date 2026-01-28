@@ -7,13 +7,17 @@
  * - Login system with character creation
  * - Session management and privilege system
  * - Command execution pipeline
+ * - WebSocket support for web clients
  * 
  * Usage:
- *   ./driver [port] [master_file]
+ *   ./driver [telnet_port] [ws_port] [master_file]
  * 
- * Default port: 3000
+ * Default telnet port: 3000
+ * Default WebSocket port: 3001
  * Default master: lib/secure/master.c
  */
+
+#define _GNU_SOURCE  /* for memmem(), strcasestr() */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,14 +38,23 @@
 #include "vm.h"
 #include "compiler.h"
 #include "master_object.h"
+#include "websocket.h"
 /* #include "object.h" */
 
 #define MAX_CLIENTS 100
 #define BUFFER_SIZE 4096
 #define INPUT_BUFFER_SIZE 2048
+#define WS_BUFFER_SIZE 65536
 #define DEFAULT_PORT 3000
+#define DEFAULT_WS_PORT 3001
 #define DEFAULT_MASTER_PATH "lib/secure/master.c"
 #define SESSION_TIMEOUT 1800  /* 30 minutes */
+
+/* Connection types */
+typedef enum {
+    CONN_TELNET,       /* Traditional telnet connection */
+    CONN_WEBSOCKET     /* WebSocket connection */
+} ConnectionType;
 
 /* Player session states */
 typedef enum {
@@ -58,10 +71,14 @@ typedef enum {
 typedef struct {
     int fd;                           /* Socket file descriptor */
     SessionState state;               /* Current session state */
+    ConnectionType connection_type;   /* Telnet or WebSocket */
+    WSState ws_state;                 /* WebSocket state (if WS) */
     char username[64];                /* Player username */
     char password_buffer[128];        /* Temporary password storage */
     char input_buffer[INPUT_BUFFER_SIZE]; /* Accumulated input */
     size_t input_length;              /* Current input length */
+    uint8_t ws_buffer[WS_BUFFER_SIZE]; /* WebSocket frame buffer */
+    size_t ws_buffer_length;          /* WebSocket buffer length */
     time_t last_activity;             /* Last activity timestamp */
     time_t connect_time;              /* Connection timestamp */
     void *player_object;            /* Player's in-game object */
@@ -79,9 +96,10 @@ static int first_player_created = 0;  /* Track if first player has logged in */
 void handle_shutdown_signal(int sig);
 int initialize_vm(const char *master_path);
 void cleanup_vm(void);
-void init_session(PlayerSession *session, int fd, const char *ip);
+void init_session(PlayerSession *session, int fd, const char *ip, ConnectionType conn_type);
 void free_session(PlayerSession *session);
 void handle_session_input(PlayerSession *session, const char *input);
+void handle_websocket_data(PlayerSession *session, const uint8_t *data, size_t len);
 void process_login_state(PlayerSession *session, const char *input);
 void process_playing_state(PlayerSession *session, const char *input);
 void send_to_player(PlayerSession *session, const char *format, ...);
@@ -91,6 +109,7 @@ void broadcast_message(const char *message, PlayerSession *exclude);
 void check_session_timeouts(void);
 void* create_player_object(const char *username, const char *password_hash);
 VMValue call_player_command(void *player_obj, const char *command);
+int setup_ws_listener(int port);
 
 /* Signal handler */
 void handle_shutdown_signal(int sig) {
@@ -133,7 +152,7 @@ void cleanup_vm(void) {
 }
 
 /* Create player object through VM */
-void* create_player_object(const char *username, const char *password_hash) {
+void* create_player_object(const char *username, const char *password_hash __attribute__((unused))) {
     if (!global_vm) return NULL;
     
     fprintf(stderr, "[Server] Creating player object for: %s\n", username);
@@ -191,16 +210,19 @@ VMValue call_player_command(void *player_obj, const char *command) {
 }
 
 /* Initialize a new player session */
-void init_session(PlayerSession *session, int fd, const char *ip) {
+void init_session(PlayerSession *session, int fd, const char *ip, ConnectionType conn_type) {
     memset(session, 0, sizeof(PlayerSession));
     session->fd = fd;
     session->state = STATE_CONNECTING;
+    session->connection_type = conn_type;
+    session->ws_state = (conn_type == CONN_WEBSOCKET) ? WS_STATE_CONNECTING : WS_STATE_CLOSED;
     session->last_activity = time(NULL);
     session->connect_time = time(NULL);
     session->player_object = NULL;
     session->privilege_level = 0;  /* Default to player */
     strncpy(session->ip_address, ip, INET_ADDRSTRLEN - 1);
     session->input_length = 0;
+    session->ws_buffer_length = 0;
 }
 
 /* Free session resources */
@@ -231,14 +253,38 @@ void send_to_player(PlayerSession *session, const char *format, ...) {
     va_end(args);
     
     if (len > 0 && len < BUFFER_SIZE - 3) {
-        /* Ensure CRLF line endings for telnet */
-        if (buffer[len-1] == '\n' && (len < 2 || buffer[len-2] != '\r')) {
-            buffer[len-1] = '\r';
-            buffer[len] = '\n';
-            buffer[len+1] = '\0';
-            len++;
+        if (session->connection_type == CONN_WEBSOCKET) {
+            /* WebSocket: send as text frame */
+            if (session->ws_state == WS_STATE_OPEN) {
+                /* Convert ANSI codes for web display */
+                char *web_text = ws_convert_ansi(buffer, 1);
+                if (web_text) {
+                    /* Normalize line endings for web */
+                    char *normalized = ws_normalize_line_endings(web_text);
+                    free(web_text);
+                    
+                    if (normalized) {
+                        size_t frame_len;
+                        uint8_t *frame = ws_encode_text(normalized, &frame_len);
+                        free(normalized);
+                        
+                        if (frame) {
+                            send(session->fd, frame, frame_len, 0);
+                            free(frame);
+                        }
+                    }
+                }
+            }
+        } else {
+            /* Telnet: ensure CRLF line endings */
+            if (buffer[len-1] == '\n' && (len < 2 || buffer[len-2] != '\r')) {
+                buffer[len-1] = '\r';
+                buffer[len] = '\n';
+                buffer[len+1] = '\0';
+                len++;
+            }
+            send(session->fd, buffer, len, 0);
         }
-        send(session->fd, buffer, len, 0);
     }
 }
 
@@ -587,9 +633,9 @@ VMValue execute_command(PlayerSession *session, const char *command) {
     }
     
     /* Unknown command */
-    char error_msg[256];
+    char error_msg[512];
     snprintf(error_msg, sizeof(error_msg), 
-            "Unknown command: %s\r\nType 'help' for available commands.\r\n", cmd);
+            "Unknown command: %.200s\r\nType 'help' for available commands.\r\n", cmd);
     result.type = VALUE_STRING;
     result.data.string_value = strdup(error_msg);
     
@@ -822,21 +868,194 @@ void check_session_timeouts(void) {
     }
 }
 
+/* Handle WebSocket data */
+void handle_websocket_data(PlayerSession *session, const uint8_t *data, size_t len) {
+    if (!session || !data) return;
+    
+    session->last_activity = time(NULL);
+    
+    /* Append to WebSocket buffer */
+    if (session->ws_buffer_length + len >= WS_BUFFER_SIZE) {
+        fprintf(stderr, "[Server] WebSocket buffer overflow, clearing\n");
+        session->ws_buffer_length = 0;
+        return;
+    }
+    
+    memcpy(session->ws_buffer + session->ws_buffer_length, data, len);
+    session->ws_buffer_length += len;
+    
+    /* Handle based on WebSocket state */
+    if (session->ws_state == WS_STATE_CONNECTING) {
+        /* Check for complete HTTP request (ends with \r\n\r\n) */
+        if (memmem(session->ws_buffer, session->ws_buffer_length, "\r\n\r\n", 4) != NULL) {
+            /* Null-terminate for string processing */
+            session->ws_buffer[session->ws_buffer_length] = '\0';
+            
+            WSHandshake handshake;
+            if (ws_handle_handshake((char*)session->ws_buffer, session->ws_buffer_length, &handshake) == 0) {
+                /* Send handshake response */
+                send(session->fd, handshake.response, handshake.response_len, 0);
+                ws_handshake_free(&handshake);
+                
+                session->ws_state = WS_STATE_OPEN;
+                session->ws_buffer_length = 0;
+                
+                fprintf(stderr, "[Server] WebSocket handshake complete for slot\n");
+                
+                /* Send welcome prompt */
+                send_prompt(session);
+            } else {
+                /* Invalid handshake */
+                fprintf(stderr, "[Server] WebSocket handshake failed\n");
+                session->state = STATE_DISCONNECTING;
+            }
+        }
+        return;
+    }
+    
+    /* Process WebSocket frames */
+    while (session->ws_buffer_length > 0 && session->ws_state == WS_STATE_OPEN) {
+        WSFrame frame;
+        size_t consumed;
+        
+        int result = ws_decode_frame(session->ws_buffer, session->ws_buffer_length, &frame, &consumed);
+        
+        if (result > 0) {
+            /* Need more data */
+            break;
+        }
+        
+        if (result < 0) {
+            /* Error */
+            fprintf(stderr, "[Server] WebSocket frame decode error\n");
+            session->state = STATE_DISCONNECTING;
+            break;
+        }
+        
+        /* Handle frame by opcode */
+        switch (frame.opcode) {
+            case WS_OPCODE_TEXT:
+                /* Process as normal input */
+                if (frame.payload && frame.payload_len > 0) {
+                    /* Add newline if not present (for command processing) */
+                    char input[INPUT_BUFFER_SIZE];
+                    size_t copy_len = frame.payload_len;
+                    if (copy_len >= sizeof(input) - 2) {
+                        copy_len = sizeof(input) - 2;
+                    }
+                    memcpy(input, frame.payload, copy_len);
+                    input[copy_len] = '\n';
+                    input[copy_len + 1] = '\0';
+                    
+                    handle_session_input(session, input);
+                }
+                break;
+                
+            case WS_OPCODE_BINARY:
+                /* Ignore binary frames for now */
+                break;
+                
+            case WS_OPCODE_CLOSE:
+                /* Client initiated close */
+                fprintf(stderr, "[Server] WebSocket close received\n");
+                {
+                    size_t close_len;
+                    uint8_t *close_frame = ws_encode_close(WS_CLOSE_NORMAL, "Goodbye", &close_len);
+                    if (close_frame) {
+                        send(session->fd, close_frame, close_len, 0);
+                        free(close_frame);
+                    }
+                }
+                session->ws_state = WS_STATE_CLOSED;
+                session->state = STATE_DISCONNECTING;
+                break;
+                
+            case WS_OPCODE_PING:
+                /* Respond with pong */
+                {
+                    size_t pong_len;
+                    uint8_t *pong_frame = ws_encode_pong(frame.payload, frame.payload_len, &pong_len);
+                    if (pong_frame) {
+                        send(session->fd, pong_frame, pong_len, 0);
+                        free(pong_frame);
+                    }
+                }
+                break;
+                
+            case WS_OPCODE_PONG:
+                /* Received pong, ignore */
+                break;
+        }
+        
+        ws_frame_free(&frame);
+        
+        /* Remove consumed bytes from buffer */
+        if (consumed < session->ws_buffer_length) {
+            memmove(session->ws_buffer, session->ws_buffer + consumed, 
+                    session->ws_buffer_length - consumed);
+            session->ws_buffer_length -= consumed;
+        } else {
+            session->ws_buffer_length = 0;
+        }
+    }
+}
+
+/* Setup WebSocket listener socket */
+int setup_ws_listener(int port) {
+    int ws_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (ws_fd < 0) {
+        fprintf(stderr, "[Server] ERROR: WebSocket socket() failed: %s\n", strerror(errno));
+        return -1;
+    }
+    
+    int opt = 1;
+    setsockopt(ws_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    
+    struct sockaddr_in ws_addr;
+    memset(&ws_addr, 0, sizeof(ws_addr));
+    ws_addr.sin_family = AF_INET;
+    ws_addr.sin_addr.s_addr = INADDR_ANY;
+    ws_addr.sin_port = htons(port);
+    
+    if (bind(ws_fd, (struct sockaddr*)&ws_addr, sizeof(ws_addr)) < 0) {
+        fprintf(stderr, "[Server] ERROR: WebSocket bind() failed: %s\n", strerror(errno));
+        close(ws_fd);
+        return -1;
+    }
+    
+    if (listen(ws_fd, 10) < 0) {
+        fprintf(stderr, "[Server] ERROR: WebSocket listen() failed: %s\n", strerror(errno));
+        close(ws_fd);
+        return -1;
+    }
+    
+    return ws_fd;
+}
+
 /* Main server */
 int main(int argc, char **argv) {
     int port = DEFAULT_PORT;
+    int ws_port = DEFAULT_WS_PORT;
     const char *master_path = DEFAULT_MASTER_PATH;
     
     if (argc >= 2) {
         port = atoi(argv[1]);
         if (port <= 0 || port > 65535) {
-            fprintf(stderr, "Usage: %s [port] [master_path]\n", argv[0]);
+            fprintf(stderr, "Usage: %s [telnet_port] [ws_port] [master_path]\n", argv[0]);
             return 1;
         }
     }
     
     if (argc >= 3) {
-        master_path = argv[2];
+        ws_port = atoi(argv[2]);
+        if (ws_port <= 0 || ws_port > 65535) {
+            fprintf(stderr, "Usage: %s [telnet_port] [ws_port] [master_path]\n", argv[0]);
+            return 1;
+        }
+    }
+    
+    if (argc >= 4) {
+        master_path = argv[3];
     }
     
     signal(SIGINT, handle_shutdown_signal);
@@ -881,7 +1100,16 @@ int main(int argc, char **argv) {
         return 1;
     }
     
-    fprintf(stderr, "[Server] Listening on port %d\n", port);
+    /* Setup WebSocket listener */
+    int ws_fd = setup_ws_listener(ws_port);
+    if (ws_fd < 0) {
+        fprintf(stderr, "[Server] WARNING: WebSocket listener failed, continuing with telnet only\n");
+    }
+    
+    fprintf(stderr, "[Server] Telnet listening on port %d\n", port);
+    if (ws_fd > 0) {
+        fprintf(stderr, "[Server] WebSocket listening on port %d\n", ws_port);
+    }
     fprintf(stderr, "[Server] Ready for connections\n\n");
     
     time_t last_timeout_check = time(NULL);
@@ -892,6 +1120,14 @@ int main(int argc, char **argv) {
         FD_SET(server_fd, &read_fds);
         
         int max_fd = server_fd;
+        
+        /* Add WebSocket listener to select set */
+        if (ws_fd > 0) {
+            FD_SET(ws_fd, &read_fds);
+            if (ws_fd > max_fd) {
+                max_fd = ws_fd;
+            }
+        }
         
         for (int i = 0; i < MAX_CLIENTS; i++) {
             if (sessions[i] && sessions[i]->fd > 0) {
@@ -915,6 +1151,7 @@ int main(int argc, char **argv) {
         
         if (activity < 0) continue;
         
+        /* Handle telnet connections */
         if (FD_ISSET(server_fd, &read_fds)) {
             struct sockaddr_in client_addr;
             socklen_t addr_len = sizeof(client_addr);
@@ -931,12 +1168,41 @@ int main(int argc, char **argv) {
                 
                 if (slot >= 0) {
                     sessions[slot] = malloc(sizeof(PlayerSession));
-                    init_session(sessions[slot], new_fd, inet_ntoa(client_addr.sin_addr));
-                    fprintf(stderr, "[Server] New connection slot %d from %s\n", 
+                    init_session(sessions[slot], new_fd, inet_ntoa(client_addr.sin_addr), CONN_TELNET);
+                    fprintf(stderr, "[Server] Telnet connection slot %d from %s\n", 
                            slot, sessions[slot]->ip_address);
                     send_prompt(sessions[slot]);
                 } else {
                     const char *msg = "Server full.\r\n";
+                    send(new_fd, msg, strlen(msg), 0);
+                    close(new_fd);
+                }
+            }
+        }
+        
+        /* Handle WebSocket connections */
+        if (ws_fd > 0 && FD_ISSET(ws_fd, &read_fds)) {
+            struct sockaddr_in client_addr;
+            socklen_t addr_len = sizeof(client_addr);
+            int new_fd = accept(ws_fd, (struct sockaddr*)&client_addr, &addr_len);
+            
+            if (new_fd >= 0) {
+                int slot = -1;
+                for (int i = 0; i < MAX_CLIENTS; i++) {
+                    if (!sessions[i]) {
+                        slot = i;
+                        break;
+                    }
+                }
+                
+                if (slot >= 0) {
+                    sessions[slot] = malloc(sizeof(PlayerSession));
+                    init_session(sessions[slot], new_fd, inet_ntoa(client_addr.sin_addr), CONN_WEBSOCKET);
+                    fprintf(stderr, "[Server] WebSocket connection slot %d from %s\n", 
+                           slot, sessions[slot]->ip_address);
+                    /* Don't send prompt yet - wait for handshake */
+                } else {
+                    const char *msg = "HTTP/1.1 503 Service Unavailable\r\n\r\n";
                     send(new_fd, msg, strlen(msg), 0);
                     close(new_fd);
                 }
@@ -962,8 +1228,14 @@ int main(int argc, char **argv) {
                     free_session(sessions[i]);
                     sessions[i] = NULL;
                 } else {
-                    buffer[bytes] = '\0';
-                    handle_session_input(sessions[i], buffer);
+                    if (sessions[i]->connection_type == CONN_WEBSOCKET) {
+                        /* Handle as WebSocket data */
+                        handle_websocket_data(sessions[i], (uint8_t*)buffer, bytes);
+                    } else {
+                        /* Handle as telnet data */
+                        buffer[bytes] = '\0';
+                        handle_session_input(sessions[i], buffer);
+                    }
                 }
             }
         }
@@ -985,6 +1257,9 @@ int main(int argc, char **argv) {
     }
     
     close(server_fd);
+    if (ws_fd > 0) {
+        close(ws_fd);
+    }
     cleanup_vm();
     
     fprintf(stderr, "[Server] Shutdown complete\n");

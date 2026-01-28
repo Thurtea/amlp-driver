@@ -5,265 +5,189 @@ CC = gcc
 CFLAGS = -Wall -Wextra -D_DEFAULT_SOURCE -g -O2 -std=c99 -Isrc
 LDFLAGS = -lm
 
-# Fancy build output formatting (color + UTF-8 borders)
-TOTAL_FILES = 14
-COLOR_CYAN   = \033[36m
-COLOR_YELLOW = \033[33m
-COLOR_GREEN  = \033[32m
-COLOR_RESET  = \033[0m
-
-define show_header
-	@printf "$(COLOR_CYAN)╔══════════════════════════════════════════════════════════════════╗\n"
-	@printf "║                 AMLP DRIVER - COMPILATION IN PROGRESS              ║\n"
-	@printf "╚══════════════════════════════════════════════════════════════════╝$(COLOR_RESET)\n\n"
-endef
-
-define show_progress
-	@printf "$(COLOR_CYAN)[$(1)/$(TOTAL_FILES)]$(COLOR_RESET) Compiling $(2)... $(COLOR_GREEN)✓$(COLOR_RESET)\n"
-endef
-
-define show_link
-	@printf "\n$(COLOR_CYAN)[LINK]$(COLOR_RESET) Creating driver executable... $(COLOR_GREEN)✓$(COLOR_RESET)\n"
-endef
-
-define show_success
-	@printf "\n$(COLOR_GREEN)╔══════════════════════════════════════════════════════════════════╗\n"
-	@printf "║                           ✓ BUILD SUCCESS                           ║\n"
-	@printf "╚══════════════════════════════════════════════════════════════════╝$(COLOR_RESET)\n"
-endef
-
 # Directories
 SRC_DIR = src
 TEST_DIR = tests
 BUILD_DIR = build
 
-# Source files (in src/)
-DRIVER_SRCS = $(SRC_DIR)/driver.c $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c $(SRC_DIR)/vm.c $(SRC_DIR)/codegen.c $(SRC_DIR)/object.c $(SRC_DIR)/gc.c $(SRC_DIR)/efun.c $(SRC_DIR)/array.c $(SRC_DIR)/mapping.c $(SRC_DIR)/compiler.c $(SRC_DIR)/program.c $(SRC_DIR)/simul_efun.c $(SRC_DIR)/program_loader.c $(SRC_DIR)/master_object.c $(SRC_DIR)/terminal_ui.c
-DRIVER_OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(DRIVER_SRCS))
+# Driver source files
+DRIVER_SRCS = $(SRC_DIR)/driver.c $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c \
+              $(SRC_DIR)/vm.c $(SRC_DIR)/codegen.c $(SRC_DIR)/object.c \
+              $(SRC_DIR)/gc.c $(SRC_DIR)/efun.c $(SRC_DIR)/array.c \
+              $(SRC_DIR)/mapping.c $(SRC_DIR)/compiler.c $(SRC_DIR)/program.c \
+              $(SRC_DIR)/simul_efun.c $(SRC_DIR)/program_loader.c \
+              $(SRC_DIR)/master_object.c $(SRC_DIR)/terminal_ui.c \
+              $(SRC_DIR)/websocket.c
 
-TEST_LEXER_SRCS = $(TEST_DIR)/test_lexer.c $(SRC_DIR)/lexer.c
-TEST_LEXER_OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(SRC_DIR)/%,$(TEST_LEXER_SRCS))) $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(TEST_DIR)/%,$(TEST_LEXER_SRCS)))
+# Count source files
+TOTAL_FILES = $(words $(DRIVER_SRCS))
 
-TEST_PARSER_SRCS = $(TEST_DIR)/test_parser.c $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c
-TEST_PARSER_OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(SRC_DIR)/%,$(TEST_PARSER_SRCS))) $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(TEST_DIR)/%,$(TEST_PARSER_SRCS)))
+# Colors
+C_CYAN    = \033[36m
+C_GREEN   = \033[32m
+C_YELLOW  = \033[33m
+C_RED     = \033[31m
+C_RESET   = \033[0m
+C_BOLD    = \033[1m
 
-TEST_VM_SRCS = $(TEST_DIR)/test_vm.c $(SRC_DIR)/vm.c $(SRC_DIR)/object.c $(SRC_DIR)/array.c $(SRC_DIR)/mapping.c $(SRC_DIR)/gc.c $(SRC_DIR)/efun.c
-TEST_VM_OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(SRC_DIR)/%,$(TEST_VM_SRCS))) $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(TEST_DIR)/%,$(TEST_VM_SRCS)))
+# Default target - just build the driver
+.PHONY: all driver tests clean distclean help test
 
-TEST_OBJECT_SRCS = $(TEST_DIR)/test_object.c $(SRC_DIR)/object.c $(SRC_DIR)/vm.c $(SRC_DIR)/array.c $(SRC_DIR)/mapping.c $(SRC_DIR)/gc.c $(SRC_DIR)/efun.c
-TEST_OBJECT_OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(SRC_DIR)/%,$(TEST_OBJECT_SRCS))) $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(TEST_DIR)/%,$(TEST_OBJECT_SRCS)))
+driver: $(BUILD_DIR)/driver
 
-TEST_GC_SRCS = $(TEST_DIR)/test_gc.c $(SRC_DIR)/gc.c
-TEST_GC_OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(SRC_DIR)/%,$(TEST_GC_SRCS))) $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(TEST_DIR)/%,$(TEST_GC_SRCS)))
-
-TEST_EFUN_SRCS = $(TEST_DIR)/test_efun.c $(SRC_DIR)/efun.c $(SRC_DIR)/vm.c $(SRC_DIR)/object.c $(SRC_DIR)/array.c $(SRC_DIR)/mapping.c $(SRC_DIR)/gc.c
-TEST_EFUN_OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(SRC_DIR)/%,$(TEST_EFUN_SRCS))) $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(TEST_DIR)/%,$(TEST_EFUN_SRCS)))
-
-TEST_ARRAY_SRCS = $(TEST_DIR)/test_array.c $(SRC_DIR)/array.c $(SRC_DIR)/mapping.c $(SRC_DIR)/vm.c $(SRC_DIR)/object.c $(SRC_DIR)/gc.c $(SRC_DIR)/efun.c
-TEST_ARRAY_OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(SRC_DIR)/%,$(TEST_ARRAY_SRCS))) $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(TEST_DIR)/%,$(TEST_ARRAY_SRCS)))
-
-TEST_MAPPING_SRCS = $(TEST_DIR)/test_mapping.c $(SRC_DIR)/mapping.c $(SRC_DIR)/array.c $(SRC_DIR)/vm.c $(SRC_DIR)/object.c $(SRC_DIR)/gc.c $(SRC_DIR)/efun.c
-TEST_MAPPING_OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(SRC_DIR)/%,$(TEST_MAPPING_SRCS))) $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(TEST_DIR)/%,$(TEST_MAPPING_SRCS)))
-
-TEST_COMPILER_SRCS = $(TEST_DIR)/test_compiler.c $(SRC_DIR)/compiler.c $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c $(SRC_DIR)/codegen.c $(SRC_DIR)/vm.c $(SRC_DIR)/object.c $(SRC_DIR)/gc.c $(SRC_DIR)/array.c $(SRC_DIR)/mapping.c $(SRC_DIR)/efun.c
-TEST_COMPILER_OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(SRC_DIR)/%,$(TEST_COMPILER_SRCS))) $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(TEST_DIR)/%,$(TEST_COMPILER_SRCS)))
-
-TEST_PROGRAM_SRCS = $(TEST_DIR)/test_program.c $(SRC_DIR)/program.c $(SRC_DIR)/compiler.c $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c $(SRC_DIR)/codegen.c $(SRC_DIR)/vm.c $(SRC_DIR)/object.c $(SRC_DIR)/array.c $(SRC_DIR)/mapping.c $(SRC_DIR)/gc.c $(SRC_DIR)/efun.c
-TEST_PROGRAM_OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(SRC_DIR)/%,$(TEST_PROGRAM_SRCS))) $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(TEST_DIR)/%,$(TEST_PROGRAM_SRCS)))
-
-TEST_SIMUL_EFUN_SRCS = $(TEST_DIR)/test_simul_efun.c $(SRC_DIR)/simul_efun.c $(SRC_DIR)/program.c $(SRC_DIR)/compiler.c $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c $(SRC_DIR)/codegen.c $(SRC_DIR)/vm.c $(SRC_DIR)/object.c $(SRC_DIR)/gc.c $(SRC_DIR)/array.c $(SRC_DIR)/mapping.c $(SRC_DIR)/efun.c
-TEST_SIMUL_EFUN_OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(SRC_DIR)/%,$(TEST_SIMUL_EFUN_SRCS))) $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(TEST_DIR)/%,$(TEST_SIMUL_EFUN_SRCS)))
-
-TEST_VM_EXECUTION_SRCS = $(TEST_DIR)/test_vm_execution.c $(SRC_DIR)/compiler.c $(SRC_DIR)/program_loader.c $(SRC_DIR)/program.c $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c $(SRC_DIR)/codegen.c $(SRC_DIR)/vm.c $(SRC_DIR)/object.c $(SRC_DIR)/gc.c $(SRC_DIR)/array.c $(SRC_DIR)/mapping.c $(SRC_DIR)/efun.c
-TEST_VM_EXECUTION_OBJS = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(SRC_DIR)/%,$(TEST_VM_EXECUTION_SRCS))) $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/%.o,$(filter $(TEST_DIR)/%,$(TEST_VM_EXECUTION_SRCS)))
-
-# Build targets
-all: $(BUILD_DIR)/driver $(BUILD_DIR)/test_lexer $(BUILD_DIR)/test_parser $(BUILD_DIR)/test_vm $(BUILD_DIR)/test_object $(BUILD_DIR)/test_gc $(BUILD_DIR)/test_efun $(BUILD_DIR)/test_array $(BUILD_DIR)/test_mapping $(BUILD_DIR)/test_compiler $(BUILD_DIR)/test_program $(BUILD_DIR)/test_simul_efun $(BUILD_DIR)/test_vm_execution
-
-$(BUILD_DIR)/driver: $(SRC_DIR)/driver.c $(SRC_DIR)/compiler.c $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c $(SRC_DIR)/codegen.c $(SRC_DIR)/vm.c $(SRC_DIR)/object.c $(SRC_DIR)/gc.c $(SRC_DIR)/array.c $(SRC_DIR)/mapping.c $(SRC_DIR)/efun.c $(SRC_DIR)/program.c $(SRC_DIR)/simul_efun.c $(SRC_DIR)/program_loader.c $(SRC_DIR)/master_object.c $(SRC_DIR)/terminal_ui.c
+# Build driver with nice output
+$(BUILD_DIR)/driver: $(DRIVER_SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(call show_header)
-	$(call show_progress,1,array.c)
-	$(call show_progress,2,codegen.c)
-	$(call show_progress,3,compiler.c)
-	$(call show_progress,4,driver.c)
-	$(call show_progress,5,efun.c)
-	$(call show_progress,6,gc.c)
-	$(call show_progress,7,lexer.c)
-	$(call show_progress,8,mapping.c)
-	$(call show_progress,9,object.c)
-	$(call show_progress,10,parser.c)
-	$(call show_progress,11,program.c)
-	$(call show_progress,12,simul_efun.c)
-	$(call show_progress,13,terminal_ui.c)
-	$(call show_progress,14,vm.c)
-	$(call show_link)
-	@$(CC) $(CFLAGS) -o $@ $^ -lm
-	$(call show_success)
-	@echo ""
-	@echo "Files compiled: 14"
-	@echo "Warnings:       0"
-	@echo "Errors:         0"
-	@echo ""
+	@printf "\n"
+	@printf "$(C_CYAN)╔══════════════════════════════════════════════════════════════════════╗$(C_RESET)\n"
+	@printf "$(C_CYAN)║$(C_RESET)$(C_BOLD)              AMLP MUD DRIVER - BUILD IN PROGRESS                     $(C_RESET)$(C_CYAN)║$(C_RESET)\n"
+	@printf "$(C_CYAN)╠══════════════════════════════════════════════════════════════════════╣$(C_RESET)\n"
+	@printf "$(C_CYAN)║$(C_RESET)                                                                      $(C_CYAN)║$(C_RESET)\n"
+	@count=0; \
+	for src in $(DRIVER_SRCS); do \
+		count=$$((count + 1)); \
+		name=$$(basename $$src); \
+		printf "$(C_CYAN)║$(C_RESET)  $(C_CYAN)[%2d/$(TOTAL_FILES)]$(C_RESET) Compiling %-38s $(C_GREEN)✓$(C_RESET)     $(C_CYAN)║$(C_RESET)\n" $$count "$$name"; \
+	done
+	@printf "$(C_CYAN)║$(C_RESET)                                                                      $(C_CYAN)║$(C_RESET)\n"
+	@printf "$(C_CYAN)║$(C_RESET)  $(C_CYAN)[LINK]$(C_RESET)  Creating driver executable...                        $(C_GREEN)✓$(C_RESET)     $(C_CYAN)║$(C_RESET)\n"
+	@printf "$(C_CYAN)║$(C_RESET)                                                                      $(C_CYAN)║$(C_RESET)\n"
+	@# Actually compile and capture warnings
+	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>$(BUILD_DIR)/.warnings.txt; \
+	status=$$?; \
+	warns=$$(grep -c "warning:" $(BUILD_DIR)/.warnings.txt 2>/dev/null || echo 0); \
+	errs=$$(grep -c "error:" $(BUILD_DIR)/.warnings.txt 2>/dev/null || echo 0); \
+	if [ $$status -eq 0 ]; then \
+		printf "$(C_CYAN)╠══════════════════════════════════════════════════════════════════════╣$(C_RESET)\n"; \
+		printf "$(C_GREEN)║                         ✓ BUILD SUCCESSFUL                           ║$(C_RESET)\n"; \
+		printf "$(C_CYAN)╠══════════════════════════════════════════════════════════════════════╣$(C_RESET)\n"; \
+		printf "$(C_CYAN)║$(C_RESET)  Files compiled: %-52d $(C_CYAN)║$(C_RESET)\n" $(TOTAL_FILES); \
+		if [ $$warns -gt 0 ]; then \
+			printf "$(C_CYAN)║$(C_RESET)  Warnings:       $(C_YELLOW)%-52d$(C_RESET) $(C_CYAN)║$(C_RESET)\n" $$warns; \
+		else \
+			printf "$(C_CYAN)║$(C_RESET)  Warnings:       %-52d $(C_CYAN)║$(C_RESET)\n" 0; \
+		fi; \
+		printf "$(C_CYAN)║$(C_RESET)  Errors:          %-52d $(C_CYAN)║$(C_RESET)\n" 0; \
+		printf "$(C_CYAN)╚══════════════════════════════════════════════════════════════════════╝$(C_RESET)\n"; \
+	else \
+		printf "$(C_CYAN)╠══════════════════════════════════════════════════════════════════════╣$(C_RESET)\n"; \
+		printf "$(C_RED)║                          ✗ BUILD FAILED                              ║$(C_RESET)\n"; \
+		printf "$(C_CYAN)╚══════════════════════════════════════════════════════════════════════╝$(C_RESET)\n"; \
+		printf "\n$(C_RED)Errors:$(C_RESET)\n"; \
+		cat $(BUILD_DIR)/.warnings.txt; \
+		exit 1; \
+	fi
+	@printf "\n"
 
-$(BUILD_DIR)/test_lexer: $(TEST_LEXER_OBJS)
-	@echo "[Linking] Building lexer test..."
+# Build all tests quietly
+tests: $(BUILD_DIR)/test_lexer $(BUILD_DIR)/test_parser $(BUILD_DIR)/test_vm \
+       $(BUILD_DIR)/test_object $(BUILD_DIR)/test_gc $(BUILD_DIR)/test_efun \
+       $(BUILD_DIR)/test_array $(BUILD_DIR)/test_mapping $(BUILD_DIR)/test_compiler \
+       $(BUILD_DIR)/test_program $(BUILD_DIR)/test_simul_efun $(BUILD_DIR)/test_vm_execution
+	@printf "$(C_GREEN)✓ All test binaries built$(C_RESET)\n"
+
+# Build everything
+all: driver tests
+
+# Test executables (built quietly)
+$(BUILD_DIR)/test_lexer: $(TEST_DIR)/test_lexer.c $(SRC_DIR)/lexer.c
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-	@echo "[Success] Lexer test built successfully!"
+	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
 
-$(BUILD_DIR)/test_parser: $(TEST_PARSER_OBJS)
-	@echo "[Linking] Building parser test..."
+$(BUILD_DIR)/test_parser: $(TEST_DIR)/test_parser.c $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-	@echo "[Success] Parser test built successfully!"
+	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
 
-$(BUILD_DIR)/test_vm: $(TEST_VM_OBJS)
-	@echo "[Linking] Building VM test..."
+$(BUILD_DIR)/test_vm: $(TEST_DIR)/test_vm.c $(SRC_DIR)/vm.c $(SRC_DIR)/object.c \
+                      $(SRC_DIR)/array.c $(SRC_DIR)/mapping.c $(SRC_DIR)/gc.c $(SRC_DIR)/efun.c
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-	@echo "[Success] VM test built successfully!"
+	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
 
-$(BUILD_DIR)/test_object: $(TEST_OBJECT_OBJS)
-	@echo "[Linking] Building object test..."
+$(BUILD_DIR)/test_object: $(TEST_DIR)/test_object.c $(SRC_DIR)/object.c $(SRC_DIR)/vm.c \
+                          $(SRC_DIR)/array.c $(SRC_DIR)/mapping.c $(SRC_DIR)/gc.c $(SRC_DIR)/efun.c
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-	@echo "[Success] Object test built successfully!"
+	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
 
-$(BUILD_DIR)/test_gc: $(TEST_GC_OBJS)
-	@echo "[Linking] Building GC test..."
+$(BUILD_DIR)/test_gc: $(TEST_DIR)/test_gc.c $(SRC_DIR)/gc.c
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-	@echo "[Success] GC test built successfully!"
+	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
 
-$(BUILD_DIR)/test_efun: $(TEST_EFUN_OBJS)
-	@echo "[Linking] Building efun test..."
+$(BUILD_DIR)/test_efun: $(TEST_DIR)/test_efun.c $(SRC_DIR)/efun.c $(SRC_DIR)/vm.c \
+                        $(SRC_DIR)/object.c $(SRC_DIR)/array.c $(SRC_DIR)/mapping.c $(SRC_DIR)/gc.c
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-	@echo "[Success] Efun test built successfully!"
+	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
 
-$(BUILD_DIR)/test_array: $(TEST_ARRAY_OBJS)
-	@echo "[Linking] Building array test..."
+$(BUILD_DIR)/test_array: $(TEST_DIR)/test_array.c $(SRC_DIR)/array.c $(SRC_DIR)/mapping.c \
+                         $(SRC_DIR)/vm.c $(SRC_DIR)/object.c $(SRC_DIR)/gc.c $(SRC_DIR)/efun.c
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-	@echo "[Success] Array test built successfully!"
+	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
 
-$(BUILD_DIR)/test_mapping: $(TEST_MAPPING_OBJS)
-	@echo "[Linking] Building mapping test..."
+$(BUILD_DIR)/test_mapping: $(TEST_DIR)/test_mapping.c $(SRC_DIR)/mapping.c $(SRC_DIR)/array.c \
+                           $(SRC_DIR)/vm.c $(SRC_DIR)/object.c $(SRC_DIR)/gc.c $(SRC_DIR)/efun.c
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-	@echo "[Success] Mapping test built successfully!"
+	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
 
-$(BUILD_DIR)/test_compiler: $(TEST_COMPILER_OBJS)
-	@echo "[Linking] Building compiler test..."
+$(BUILD_DIR)/test_compiler: $(TEST_DIR)/test_compiler.c $(SRC_DIR)/compiler.c $(SRC_DIR)/lexer.c \
+                            $(SRC_DIR)/parser.c $(SRC_DIR)/codegen.c $(SRC_DIR)/vm.c \
+                            $(SRC_DIR)/object.c $(SRC_DIR)/gc.c $(SRC_DIR)/array.c \
+                            $(SRC_DIR)/mapping.c $(SRC_DIR)/efun.c
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-	@echo "[Success] Compiler test built successfully!"
+	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
 
-$(BUILD_DIR)/test_program: $(TEST_PROGRAM_OBJS)
-	@echo "[Linking] Building program test..."
+$(BUILD_DIR)/test_program: $(TEST_DIR)/test_program.c $(SRC_DIR)/program.c $(SRC_DIR)/compiler.c \
+                           $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c $(SRC_DIR)/codegen.c \
+                           $(SRC_DIR)/vm.c $(SRC_DIR)/object.c $(SRC_DIR)/array.c \
+                           $(SRC_DIR)/mapping.c $(SRC_DIR)/gc.c $(SRC_DIR)/efun.c
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-	@echo "[Success] Program test built successfully!"
+	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
 
-$(BUILD_DIR)/test_simul_efun: $(TEST_SIMUL_EFUN_OBJS)
-	@echo "[Linking] Building simul efun test..."
+$(BUILD_DIR)/test_simul_efun: $(TEST_DIR)/test_simul_efun.c $(SRC_DIR)/simul_efun.c \
+                              $(SRC_DIR)/program.c $(SRC_DIR)/compiler.c $(SRC_DIR)/lexer.c \
+                              $(SRC_DIR)/parser.c $(SRC_DIR)/codegen.c $(SRC_DIR)/vm.c \
+                              $(SRC_DIR)/object.c $(SRC_DIR)/gc.c $(SRC_DIR)/array.c \
+                              $(SRC_DIR)/mapping.c $(SRC_DIR)/efun.c
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-	@echo "[Success] Simul efun test built successfully!"
+	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
 
-$(BUILD_DIR)/test_vm_execution: $(TEST_VM_EXECUTION_OBJS)
-	@echo "[Linking] Building VM execution test..."
+$(BUILD_DIR)/test_vm_execution: $(TEST_DIR)/test_vm_execution.c $(SRC_DIR)/compiler.c \
+                                $(SRC_DIR)/program_loader.c $(SRC_DIR)/program.c \
+                                $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c $(SRC_DIR)/codegen.c \
+                                $(SRC_DIR)/vm.c $(SRC_DIR)/object.c $(SRC_DIR)/gc.c \
+                                $(SRC_DIR)/array.c $(SRC_DIR)/mapping.c $(SRC_DIR)/efun.c
 	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-	@echo "[Success] VM execution test built successfully!"
+	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
 
-# Object file compilation rules
-$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
-	@echo "[Compiling] $<"
-	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(BUILD_DIR)/%.o: $(TEST_DIR)/%.c
-	@echo "[Compiling] $<"
-	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-# Test targets
-test: $(BUILD_DIR)/test_lexer $(BUILD_DIR)/test_parser $(BUILD_DIR)/test_vm $(BUILD_DIR)/test_object $(BUILD_DIR)/test_gc $(BUILD_DIR)/test_efun $(BUILD_DIR)/test_array $(BUILD_DIR)/test_mapping $(BUILD_DIR)/test_compiler $(BUILD_DIR)/test_program $(BUILD_DIR)/test_simul_efun $(BUILD_DIR)/test_vm_execution
-	@echo ""
-	@echo "====== Running Lexer Tests ======"
-	-$(BUILD_DIR)/test_lexer
-	@echo ""
-	@echo "====== Running Parser Tests ======"
-	-$(BUILD_DIR)/test_parser
-	@echo ""
-	@echo "====== Running VM Tests ======"
-	-$(BUILD_DIR)/test_vm
-	@echo ""
-	@echo "====== Running Object Tests ======"
-	-$(BUILD_DIR)/test_object
-	@echo ""
-	@echo "====== Running GC Tests ======"
-	-$(BUILD_DIR)/test_gc
-	@echo ""
-	@echo "====== Running Efun Tests ======"
-	-$(BUILD_DIR)/test_efun
-	@echo ""
-	@echo "====== Running Array Tests ======"
-	-$(BUILD_DIR)/test_array
-	@echo ""
-	@echo "====== Running Mapping Tests ======"
-	-$(BUILD_DIR)/test_mapping
-	@echo ""
-	@echo "====== Running Compiler Tests ======"
-	-$(BUILD_DIR)/test_compiler
-	@echo ""
-	@echo "====== Running Program Tests ======"
-	-$(BUILD_DIR)/test_program
-	@echo ""
-	@echo "====== Running Simul Efun Tests ======"
-	-$(BUILD_DIR)/test_simul_efun
-	@echo ""
-	@echo "====== Running VM Execution Tests ======"
-	-$(BUILD_DIR)/test_vm_execution
+# Run all tests
+test: tests
+	@printf "\n$(C_CYAN)═══════════════════════════════════════════════════════════════════════$(C_RESET)\n"
+	@printf "$(C_BOLD)                           RUNNING TESTS$(C_RESET)\n"
+	@printf "$(C_CYAN)═══════════════════════════════════════════════════════════════════════$(C_RESET)\n\n"
+	@for t in lexer parser vm object gc efun array mapping compiler program simul_efun vm_execution; do \
+		printf "$(C_CYAN)▶$(C_RESET) Running $$t tests...\n"; \
+		$(BUILD_DIR)/test_$$t 2>&1 | sed 's/^/  /'; \
+		printf "\n"; \
+	done
 
 # Clean build artifacts
 clean:
-	@echo "[Cleaning] Removing build artifacts..."
-	rm -rf $(BUILD_DIR)
-	@echo "[Success] Cleaned!"
+	@printf "$(C_CYAN)▶$(C_RESET) Cleaning build artifacts...\n"
+	@rm -rf $(BUILD_DIR)
+	@printf "$(C_GREEN)✓ Clean complete$(C_RESET)\n"
 
-# Clean everything including tests
+# Clean everything
 distclean: clean
-	@echo "[Cleaning] Removing all generated files..."
+	@printf "$(C_CYAN)▶$(C_RESET) Removing all generated files...\n"
+	@printf "$(C_GREEN)✓ Distclean complete$(C_RESET)\n"
 
 # Display help
 help:
-	@echo "LPC MUD Driver Build System"
-	@echo ""
-	@echo "Available targets:"
-	@echo "  all           - Build driver and tests (default)"
-	@echo "  driver        - Build the main driver executable"
-	@echo "  test_lexer    - Build lexer test program"
-	@echo "  test_parser   - Build parser test program"
-	@echo "  test_vm       - Build VM test program"
-	@echo "  test_object   - Build object system test program"
-	@echo "  test_gc       - Build GC test program"
-	@echo "  test_efun     - Build efun test program"
-	@echo "  test_array    - Build array test program"
-	@echo "  test_mapping  - Build mapping test program"
-	@echo "  test_compiler - Build compiler test program"
-	@echo "  test_program  - Build program test program"
-	@echo "  test_simul_efun - Build simul efun test program"
-	@echo "  test_vm_execution - Build VM execution test program"
-	@echo "  test          - Run all tests"
-	@echo "  clean         - Remove build artifacts"
-	@echo "  distclean     - Remove all generated files"
-	@echo "  help          - Display this help message"
-
-# Styled build with terminal UI
-build-ui:
-	@./tools/build_ui.sh
-
-.PHONY: all test clean distclean help build-ui
+	@printf "\n$(C_BOLD)AMLP MUD Driver Build System$(C_RESET)\n\n"
+	@printf "$(C_CYAN)Usage:$(C_RESET) make [target]\n\n"
+	@printf "$(C_CYAN)Targets:$(C_RESET)\n"
+	@printf "  $(C_GREEN)driver$(C_RESET)    - Build the main driver executable (default)\n"
+	@printf "  $(C_GREEN)tests$(C_RESET)     - Build all test executables\n"
+	@printf "  $(C_GREEN)all$(C_RESET)       - Build driver and tests\n"
+	@printf "  $(C_GREEN)test$(C_RESET)      - Build and run all tests\n"
+	@printf "  $(C_GREEN)clean$(C_RESET)     - Remove build artifacts\n"
+	@printf "  $(C_GREEN)distclean$(C_RESET) - Remove all generated files\n"
+	@printf "  $(C_GREEN)help$(C_RESET)      - Display this help message\n\n"

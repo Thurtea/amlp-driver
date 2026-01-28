@@ -4,6 +4,12 @@
 // 0 = Player (normal user)
 // 1 = Wizard (builder access)
 // 2 = Admin (full system access)
+//
+// Now inherits enhanced living.lpc with:
+// - Language system (speaking, understanding, proficiency)
+// - Introduction system (name visibility)
+// - Palladium stats (IQ, ME, MA, PS, PP, PE, PB, SPD)
+// - Skills, Psionics, and Magic
 
 inherit "/std/living";
 
@@ -13,25 +19,30 @@ private int privilege_level;
 private string title;
 private object *inventory;
 private object environment;
-private mapping stats;
 private int last_login;
 private int total_login_time;
+private int level;           /* Character level */
+private int experience;      /* Experience points */
+
+/* Character creation data */
+private string race_selected;
+private string occ_selected;
 
 // Initialization
 void create() {
     ::create();
     inventory = ({ });
-    stats = ([
-        "strength": 10,
-        "dexterity": 10,
-        "intelligence": 10,
-        "level": 1,
-        "experience": 0,
-        "hp": 100,
-        "max_hp": 100,
-    ]);
     privilege_level = 0;  // Default to player
     title = "Player";
+    level = 1;
+    experience = 0;
+    
+    /* Set real name for introduction system */
+    set_real_name("");
+    
+    /* Default starting language is American */
+    add_language("american", 98);
+    set_primary_language("american");
 }
 
 // Setup new player
@@ -39,9 +50,53 @@ void setup_player(string player_name, string pass_hash) {
     name = player_name;
     password_hash = pass_hash;
     set_name(player_name);
+    set_real_name(player_name);  /* For introduction system */
     set_short(player_name + " the " + title);
     set_long("This is " + player_name + ", a " + title + ".\n");
     last_login = time();
+}
+
+// Level and experience
+int query_level() { return level; }
+void set_level(int lvl) { level = lvl; }
+int query_experience() { return experience; }
+void set_experience(int exp) { experience = exp; }
+void add_experience(int exp) {
+    experience += exp;
+    /* Check for level up - basic formula */
+    int needed = level * 1000;
+    while (experience >= needed && level < 15) {
+        level++;
+        needed = level * 1000;
+        tell_object(this_object(), 
+            "\n*** LEVEL UP! You are now level " + level + "! ***\n\n");
+        on_level_up();
+    }
+}
+
+/* Called when player levels up - can be overridden */
+void on_level_up() {
+    /* ISP regeneration for psionics */
+    string psi_cat = query_psionic_category();
+    if (psi_cat && psi_cat != "none") {
+        int isp_gain;
+        switch (psi_cat) {
+            case "minor": isp_gain = random(6) + 1; break;
+            case "major": isp_gain = random(6) + 4; break;
+            case "master": isp_gain = random(10) + 5; break;
+            default: isp_gain = 0;
+        }
+        set_max_isp(query_max_isp() + isp_gain);
+        tell_object(this_object(), "Your max ISP increased by " + isp_gain + ".\n");
+    }
+    
+    /* PPE for spell casters */
+    if (query_spell_caster_level() > 0) {
+        int ppe_gain = random(6) + random(6) + 2;
+        set_max_ppe(query_max_ppe() + ppe_gain);
+        set_spell_caster_level(level);  /* Caster level = character level for primary */
+        tell_object(this_object(), "Your max P.P.E. increased by " + ppe_gain + ".\n");
+    }
 }
 
 // Privilege system
@@ -103,6 +158,9 @@ mixed process_command(string cmd) {
         case "emote":
             return cmd_emote(args);
         
+        case "ooc":
+            return cmd_ooc(args);
+        
         case "who":
             return cmd_who();
         
@@ -130,6 +188,17 @@ mixed process_command(string cmd) {
         case "users":
             if (!is_admin()) return "You don't have permission to use that command.\n";
             return cmd_users();
+        
+        // New roleplay commands - handled by separate command objects
+        case "languages":
+        case "language":
+        case "skills":
+        case "manifest":
+        case "cast":
+        case "introduce":
+        case "remember":
+        case "forget":
+            return execute_cmd_file(verb, args);
         
         // Movement
         case "north":
@@ -202,37 +271,135 @@ string cmd_emote(string action) {
     return name + " " + action + "\n";
 }
 
-string cmd_who() {
-    object *players = users();
-    string result = "Players online:\n";
-    
-    foreach(object player : players) {
-        string pname = player->query_name();
-        string ptitle = player->query_privilege_title();
-        int idle = query_idle(player);
-        
-        result += sprintf("  %-15s [%s] (idle: %d seconds)\n", 
-                         pname, ptitle, idle);
+string cmd_ooc(string message) {
+    if (!message || message == "") {
+        return "OOC what?\n";
     }
     
-    result += sprintf("\nTotal: %d player%s\n", 
-                     sizeof(players), 
-                     sizeof(players) == 1 ? "" : "s");
+    /* OOC chat - no language processing, broadcasts globally */
+    object *players = users();
+    string output = "[OOC] " + name + ": " + message + "\n";
+    
+    foreach (object player : players) {
+        if (player != this_object()) {
+            tell_object(player, output);
+        }
+    }
+    
+    return "[OOC] You say: " + message + "\n";
+}
+
+string cmd_who() {
+    object *players = users();
+    int total = sizeof(players);
+    string result = "";
+    
+    /* Wizards and admins see everyone */
+    if (is_wizard()) {
+        result = "Players online:\n";
+        
+        foreach(object player : players) {
+            string pname = player->query_name();
+            string ptitle = player->query_privilege_title();
+            int idle = query_idle(player);
+            
+            result += sprintf("  %-15s [%s] (idle: %d seconds)\n", 
+                             pname, ptitle, idle);
+        }
+        
+        result += sprintf("\nTotal: %d player%s\n", 
+                         total, total == 1 ? "" : "s");
+    } else {
+        /* Players only see wizards and admins */
+        result = "Staff online:\n";
+        int staff_count = 0;
+        
+        foreach(object player : players) {
+            if (player->is_wizard()) {
+                string pname = player->query_name();
+                string ptitle = player->query_privilege_title();
+                result += sprintf("  %-15s [%s]\n", pname, ptitle);
+                staff_count++;
+            }
+        }
+        
+        if (staff_count == 0) {
+            result = "No staff currently online.\n";
+        }
+        
+        /* Population indicator */
+        string pop_level;
+        if (total <= 10) pop_level = "Low";
+        else if (total <= 50) pop_level = "Medium";
+        else pop_level = "High";
+        
+        result += "\nWorld Population: " + pop_level + "\n";
+    }
     
     return result;
 }
 
 string cmd_stats() {
-    string result = "Your stats:\n";
-    result += sprintf("  Name: %s\n", name);
-    result += sprintf("  Title: %s\n", title);
-    result += sprintf("  Privilege: %d (%s)\n", privilege_level, 
-                     is_admin() ? "Admin" : is_wizard() ? "Wizard" : "Player");
-    result += sprintf("  Level: %d\n", stats["level"]);
-    result += sprintf("  HP: %d/%d\n", stats["hp"], stats["max_hp"]);
-    result += sprintf("  Strength: %d\n", stats["strength"]);
-    result += sprintf("  Dexterity: %d\n", stats["dexterity"]);
-    result += sprintf("  Intelligence: %d\n", stats["intelligence"]);
+    string result = "";
+    
+    result += "╔══════════════════════════════════════════════════════╗\n";
+    result += "║  " + sprintf("%-50s", name + " - " + title) + "  ║\n";
+    result += "╠══════════════════════════════════════════════════════╣\n";
+    
+    /* Basic info */
+    result += sprintf("║  Level: %-5d  Experience: %-10d              ║\n", 
+                     level, experience);
+    result += sprintf("║  Race: %-15s  OCC: %-18s  ║\n",
+                     query_race_name(), query_occ_id() ? query_occ_id() : "None");
+    result += "╠══════════════════════════════════════════════════════╣\n";
+    
+    /* Health */
+    result += sprintf("║  HP: %d/%d  S.D.C.: %d/%d  M.D.C.: %d/%d             ║\n", 
+                     query_hp(), query_max_hp(),
+                     query_sdc(), query_max_sdc(),
+                     query_mdc(), query_max_mdc());
+    
+    /* ISP and PPE */
+    if (query_psionic_category() != "none" || query_spell_caster_level() > 0) {
+        result += "╠══════════════════════════════════════════════════════╣\n";
+        if (query_psionic_category() != "none") {
+            result += sprintf("║  ISP: %d/%d  (%s Psionics)                       ║\n",
+                             query_isp(), query_max_isp(), 
+                             capitalize(query_psionic_category()));
+        }
+        if (query_spell_caster_level() > 0) {
+            result += sprintf("║  P.P.E.: %d/%d  (Caster Level %d)                    ║\n",
+                             query_ppe(), query_max_ppe(), query_spell_caster_level());
+        }
+    }
+    
+    /* Palladium Stats */
+    result += "╠══════════════════════════════════════════════════════╣\n";
+    result += "║  ATTRIBUTES                                          ║\n";
+    result += sprintf("║  IQ: %-3d   ME: %-3d   MA: %-3d   PS: %-3d              ║\n",
+                     query_stat("iq"), query_stat("me"), 
+                     query_stat("ma"), query_stat("ps"));
+    result += sprintf("║  PP: %-3d   PE: %-3d   PB: %-3d   SPD: %-3d             ║\n",
+                     query_stat("pp"), query_stat("pe"),
+                     query_stat("pb"), query_stat("spd"));
+    
+    /* Language */
+    result += "╠══════════════════════════════════════════════════════╣\n";
+    result += sprintf("║  Speaking: %-20s                   ║\n", 
+                     query_primary_language());
+    
+    result += "╚══════════════════════════════════════════════════════╝\n";
+    
+    result += "\nUse 'languages' to see known languages.\n";
+    result += "Use 'skills' to see your skills.\n";
+    
+    if (query_psionic_category() != "none") {
+        result += "Use 'manifest' to see your psionic powers.\n";
+    }
+    if (query_spell_caster_level() > 0) {
+        result += "Use 'cast' to see your spells.\n";
+    }
+    
     return result;
 }
 
@@ -356,16 +523,82 @@ string query_password_hash() { return password_hash; }
 object query_environment() { return environment; }
 void set_environment(object env) { environment = env; }
 
-// Save/restore (for future file I/O system)
+/*
+ * Execute a command from a file in /cmds/
+ */
+string execute_cmd_file(string verb, string args) {
+    string path = "/cmds/" + verb;
+    object cmd_ob = find_object(path);
+    
+    if (!cmd_ob) {
+        cmd_ob = load_object(path);
+    }
+    
+    if (!cmd_ob) {
+        return "Command not found: " + verb + "\n";
+    }
+    
+    /* Try different calling conventions */
+    int result;
+    
+    if (function_exists("cmd", cmd_ob)) {
+        result = cmd_ob->cmd(args);
+    } else if (function_exists("main", cmd_ob)) {
+        result = cmd_ob->main(args);
+    } else {
+        return "Command has no entry point: " + verb + "\n";
+    }
+    
+    return "";  /* Command handles its own output via tell_object/write */
+}
+
+// Save/restore (for file I/O system)
 mapping save_data() {
     return ([
         "name": name,
         "password_hash": password_hash,
         "privilege_level": privilege_level,
         "title": title,
-        "stats": stats,
+        "level": level,
+        "experience": experience,
         "last_login": last_login,
         "total_login_time": total_login_time,
+        
+        /* Palladium stats */
+        "stats": query_all_stats(),
+        "hp": query_hp(),
+        "max_hp": query_max_hp(),
+        "sdc": query_sdc(),
+        "max_sdc": query_max_sdc(),
+        "mdc": query_mdc(),
+        "max_mdc": query_max_mdc(),
+        
+        /* Race/OCC */
+        "race_id": query_race_id(),
+        "occ_id": query_occ_id(),
+        "race_name": query_race_name(),
+        "race_article": query_race_article(),
+        
+        /* Languages */
+        "languages": query_languages(),
+        "primary_language": query_primary_language(),
+        
+        /* Skills */
+        "skills": query_all_skills(),
+        "primary_skills": query_primary_skills(),
+        "secondary_skills": query_secondary_skills(),
+        
+        /* Psionics */
+        "isp": query_isp(),
+        "max_isp": query_max_isp(),
+        "psionic_powers": query_psionic_powers(),
+        "psionic_category": query_psionic_category(),
+        
+        /* Magic */
+        "ppe": query_ppe(),
+        "max_ppe": query_max_ppe(),
+        "spells_known": query_spells(),
+        "spell_caster_level": query_spell_caster_level(),
     ]);
 }
 
@@ -374,10 +607,48 @@ void restore_data(mapping data) {
     password_hash = data["password_hash"];
     privilege_level = data["privilege_level"];
     title = data["title"];
-    stats = data["stats"];
+    level = data["level"] || 1;
+    experience = data["experience"] || 0;
     last_login = data["last_login"];
     total_login_time = data["total_login_time"];
     
+    /* Palladium stats */
+    if (data["stats"]) set_all_stats(data["stats"]);
+    if (data["hp"]) set_hp(data["hp"]);
+    if (data["max_hp"]) set_max_hp(data["max_hp"]);
+    if (data["sdc"]) set_sdc(data["sdc"]);
+    if (data["max_sdc"]) set_max_sdc(data["max_sdc"]);
+    if (data["mdc"]) set_mdc(data["mdc"]);
+    if (data["max_mdc"]) set_max_mdc(data["max_mdc"]);
+    
+    /* Race/OCC */
+    if (data["race_id"]) set_race_id(data["race_id"]);
+    if (data["occ_id"]) set_occ_id(data["occ_id"]);
+    if (data["race_name"]) set_race_name(data["race_name"]);
+    if (data["race_article"]) set_race_article(data["race_article"]);
+    
+    /* Languages */
+    if (data["languages"]) set_languages(data["languages"]);
+    if (data["primary_language"]) set_primary_language(data["primary_language"]);
+    
+    /* Skills */
+    if (data["skills"]) set_skills(data["skills"]);
+    if (data["primary_skills"]) set_primary_skills(data["primary_skills"]);
+    if (data["secondary_skills"]) set_secondary_skills(data["secondary_skills"]);
+    
+    /* Psionics */
+    if (data["isp"]) set_isp(data["isp"]);
+    if (data["max_isp"]) set_max_isp(data["max_isp"]);
+    if (data["psionic_powers"]) set_psionic_powers(data["psionic_powers"]);
+    if (data["psionic_category"]) set_psionic_category(data["psionic_category"]);
+    
+    /* Magic */
+    if (data["ppe"]) set_ppe(data["ppe"]);
+    if (data["max_ppe"]) set_max_ppe(data["max_ppe"]);
+    if (data["spells_known"]) set_spells(data["spells_known"]);
+    if (data["spell_caster_level"]) set_spell_caster_level(data["spell_caster_level"]);
+    
     set_name(name);
+    set_real_name(name);
     set_short(name + " the " + title);
 }
