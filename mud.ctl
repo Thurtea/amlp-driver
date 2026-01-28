@@ -29,6 +29,27 @@ start_server() {
         return 1
     fi
     
+    # Check if the port is already bound by some process (prevent bind() failed)
+    port_listener_pid() {
+        local pid=""
+        if command -v lsof >/dev/null 2>&1; then
+            pid=$(lsof -tiTCP:"$DEFAULT_PORT" -sTCP:LISTEN 2>/dev/null || true)
+        elif command -v ss >/dev/null 2>&1; then
+            pid=$(ss -ltnp 2>/dev/null | awk -v port=":$DEFAULT_PORT" '
+                $4 ~ port { for(i=1;i<=NF;i++) if($i ~ /pid=/) { gsub("pid=","",$i); split($i,a,","); print a[1]; exit } }'
+        else
+            pid=""
+        fi
+        echo "$pid"
+    }
+
+    EXIST_PID=$(port_listener_pid)
+    if [ -n "$EXIST_PID" ]; then
+        echo "Error: Port $DEFAULT_PORT appears to be in use by PID $EXIST_PID."
+        echo "If this is unexpected, run: ./mud.ctl stop && pkill -9 -f 'mud_server|driver'"
+        return 1
+    fi
+    
     mkdir -p "$(dirname "$LOG_FILE")"
     
     echo "Starting AMLP-MUD server on port $DEFAULT_PORT..."
