@@ -180,11 +180,26 @@ void enter_game() {
         user->set_wizard_level(ADMIN_LEVEL);
 
         /* Ensure wiztool is attached. If set_wizard_level didn't attach for
-         * some reason, try again and log to server log so we can inspect it. */
+         * some reason, clone and attach explicitly and log outcomes. */
         catch {
             if (!objectp(user->query_wiztool())) {
-                write_file("/log/server.log", sprintf("[DEBUG login] wiztool not attached for %s, forcing set_wizard_level again\n", player_name));
-                user->set_wizard_level(ADMIN_LEVEL);
+                write_file("/log/server.log", sprintf("[DEBUG login] wiztool not attached for %s, attempting explicit clone+attach\n", player_name));
+                object wt = 0;
+                catch(wt = clone_object(WIZTOOL));
+                if (objectp(wt)) {
+                    write_file("/log/server.log", sprintf("[DEBUG login] cloned wiztool: %s\n", file_name(wt)));
+                    if (function_exists("attach_wiztool", user)) {
+                        catch(user->attach_wiztool(wt));
+                        write_file("/log/server.log", sprintf("[DEBUG login] called attach_wiztool for %s\n", player_name));
+                    } else if (function_exists("attach", wt)) {
+                        catch(wt->attach(user));
+                        write_file("/log/server.log", sprintf("[DEBUG login] called wt->attach() for %s\n", player_name));
+                    } else {
+                        write_file("/log/server.log", sprintf("[DEBUG login] no attach path available for %s\n", player_name));
+                    }
+                } else {
+                    write_file("/log/server.log", sprintf("[DEBUG login] failed to clone wiztool for %s\n", player_name));
+                }
             } else {
                 write_file("/log/server.log", sprintf("[DEBUG login] wiztool already attached for %s\n", player_name));
             }
