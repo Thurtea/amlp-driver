@@ -22,13 +22,13 @@ DRIVER_SRCS = $(SRC_DIR)/driver.c $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c \
 # Count source files
 TOTAL_FILES = $(words $(DRIVER_SRCS))
 
-# Colors (disabled to avoid ANSI length issues; plain box used)
-C_CYAN    =
-C_GREEN   =
-C_YELLOW  =
-C_RED     =
-C_RESET   =
-C_BOLD    =
+# Colors
+C_CYAN    = \033[36m
+C_GREEN   = \033[32m
+C_YELLOW  = \033[33m
+C_RED     = \033[31m
+C_RESET   = \033[0m
+C_BOLD    = \033[1m
 
 # Default target - just build the driver
 .PHONY: all driver tests clean distclean help test
@@ -39,32 +39,32 @@ driver: $(BUILD_DIR)/driver
 $(BUILD_DIR)/driver: $(DRIVER_SRCS)
 	@mkdir -p $(BUILD_DIR)
 	@printf "\n"
-	@printf "╔════════════════════════════════════════════════════════════════════════════╗\n"
-	@printf "║                   AMLP MUD DRIVER - BUILD IN PROGRESS                     ║\n"
-	@printf "╠════════════════════════════════════════════════════════════════════════════╣\n"
-	@printf "║                                                                            ║\n"
-	@count=0; \
-	for src in $(DRIVER_SRCS); do \
+	@printf "$(C_CYAN)╔════════════════════════════════════════════════════════════════════════════╗$(C_RESET)\n"
+	@printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" "AMLP MUD DRIVER - BUILD IN PROGRESS"
+	@printf "$(C_CYAN)╠════════════════════════════════════════════════════════════════════════════╣$(C_RESET)\n"
+	@printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" ""
+	@count=0; for src in $(DRIVER_SRCS); do \
 		count=$$((count + 1)); \
 		name=$$(basename $$src); \
-		printf "║  [%2d/$(TOTAL_FILES)] Compiling %-54s   ║\n" $$count "$$name"; \
+		line=$$(printf "  [%2d/$(TOTAL_FILES)] Compiling %s" $$count "$$name"); \
+		printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" "$$line"; \
 	done
 	@printf "║                                                                            ║\n"
-	@printf "║  [LINK]  Creating driver executable...                                 ║\n"
-	@printf "║                                                                            ║\n"
+	@line=$$(printf "  [LINK]  Creating driver executable..."); printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" "$$line"
+	@printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" ""
 	@# Actually compile and capture warnings
 	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>$(BUILD_DIR)/.warnings.txt; \
 	status=$$?; \
 	warns=$$(grep -c "warning:" $(BUILD_DIR)/.warnings.txt 2>/dev/null | head -1 || echo 0); \
 	warns=$${warns:-0}; \
 	if [ "$$status" -eq 0 ]; then \
-		printf "╠════════════════════════════════════════════════════════════════════════════╣\n"; \
-		printf "║                      BUILD SUCCESSFUL                                    ║\n"; \
-		printf "╠════════════════════════════════════════════════════════════════════════════╣\n"; \
-		printf "║  Files compiled: %-66d║\n" $(TOTAL_FILES); \
-		printf "║  Warnings:       %-66d║\n" $$warns; \
-		printf "║  Errors:         %-66d║\n" 0; \
-		printf "╚════════════════════════════════════════════════════════════════════════════╝\n"; \
+		printf "$(C_CYAN)╠════════════════════════════════════════════════════════════════════════════╣$(C_RESET)\n"; \
+		printf "$(C_CYAN)║$(C_RESET)$(C_GREEN)%-76s$(C_RESET)$(C_CYAN)║$(C_RESET)\n" "  BUILD SUCCESSFUL"; \
+		printf "$(C_CYAN)╠════════════════════════════════════════════════════════════════════════════╣$(C_RESET)\n"; \
+		printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" "  Files compiled: $(TOTAL_FILES)"; \
+		printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" "  Warnings:       $$warns"; \
+		printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" "  Errors:         0"; \
+		printf "$(C_CYAN)╚════════════════════════════════════════════════════════════════════════════╝$(C_RESET)\n"; \
 	else \
 		printf "╠════════════════════════════════════════════════════════════════════════════╣\n"; \
 		printf "║                         ✗ BUILD FAILED                                  ║\n"; \
