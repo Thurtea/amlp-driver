@@ -1,5 +1,5 @@
 # Windows Assistant Integration Guide
-**For lpc-development-assistant → amlp-driver integration**
+**For lpc-development-assistant -> amlp-driver integration**
 
 ## Overview
 
@@ -8,29 +8,29 @@ This document describes how to integrate the Windows-based `lpc-development-assi
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│  Windows (lpc-development-assistant)        │
-│  ├─ Rust Backend (Tauri)                    │
-│  ├─ RAG System (LPC knowledge base)         │
-│  ├─ Code Generator (Claude API)             │
-│  └─ File Watcher                             │
-└────────────┬────────────────────────────────┘
-             │ WSL Commands via std::process
-             ↓
-┌─────────────────────────────────────────────┐
-│  WSL/Linux (amlp-driver)                    │
-│  ├─ Compiler (lexer → parser → codegen)    │
-│  ├─ VM Executor                              │
-│  └─ CLI Interface                            │
-└────────────┬────────────────────────────────┘
-             │ File I/O
-             ↓
-┌─────────────────────────────────────────────┐
-│  WSL Filesystem (amlp-library)              │
-│  ├─ master.c                                 │
-│  ├─ std/ (base objects)                      │
-│  └─ domains/ (game content)                  │
-└─────────────────────────────────────────────┘
++=============================================+
+|  Windows (lpc-development-assistant)        |
+|  |= Rust Backend (Tauri)                    |
+|  |= RAG System (LPC knowledge base)         |
+|  |= Code Generator (Claude API)             |
+|  |= File Watcher                             |
+|============+================================+
+             | WSL Commands via std::process
+             ?
++=============================================+
+|  WSL/Linux (amlp-driver)                    |
+|  |= Compiler (lexer -> parser -> codegen)    |
+|  |= VM Executor                              |
+|  |= CLI Interface                            |
+|============+================================+
+             | File I/O
+             ?
++=============================================+
+|  WSL Filesystem (amlp-library)              |
+|  |= master.c                                 |
+|  |= std/ (base objects)                      |
+|  |= domains/ (game content)                  |
+|=============================================+
 ```
 
 ## WSL Integration Module (Rust)
@@ -97,7 +97,7 @@ impl AmlpDriver {
     
     fn to_wsl_path(&self, windows_path: &str) -> Result<String, DriverError> {
         // Convert Windows path to WSL path
-        // C:\Users\... → /mnt/c/Users/...
+        // C:\Users\... -> /mnt/c/Users/...
         // Or use library path for relative paths
         if windows_path.starts_with("C:") || windows_path.starts_with("c:") {
             let path = windows_path.replace("\\", "/").replace("C:", "/mnt/c");
@@ -361,13 +361,13 @@ impl OutputFormatter {
     pub fn format_compile_result(result: &CompileResult) -> String {
         if result.success {
             format!(
-                "✓ Compilation successful\n  Functions: {}\n  Bytecode: {} bytes",
+                "[PASS] Compilation successful\n  Functions: {}\n  Bytecode: {} bytes",
                 result.functions.join(", "),
                 result.bytecode_size
             )
         } else {
             format!(
-                "✗ Compilation failed\n  {} error(s)\n\n{}",
+                "? Compilation failed\n  {} error(s)\n\n{}",
                 result.errors.len(),
                 result.errors.iter()
                     .map(Self::format_error_for_display)
@@ -452,13 +452,13 @@ async function generateAndCompile(prompt: string, targetFile: string) {
 
 ## File Path Mappings
 
-### Windows → WSL Path Conversion
+### Windows -> WSL Path Conversion
 
 ```
 Windows                              WSL
 -------                              ---
-C:\Users\Name\amlp-library\...    → /mnt/c/Users/Name/amlp-library/...
-\\wsl$\Ubuntu\home\thurtea\...    → /home/thurtea/...
+C:\Users\Name\amlp-library\...    -> /mnt/c/Users/Name/amlp-library/...
+\\wsl$\Ubuntu\home\thurtea\...    -> /home/thurtea/...
 ```
 
 ### Recommended Approach
@@ -500,7 +500,7 @@ mod tests {
 #!/bin/bash
 # test-integration.sh
 
-echo "Testing Windows → WSL → Driver integration"
+echo "Testing Windows -> WSL -> Driver integration"
 
 # 1. Create test file
 cat > /home/thurtea/amlp-library/test_integration.c << 'EOF'
@@ -515,9 +515,9 @@ echo "Compiling from WSL..."
 
 # 3. Check result
 if [ $? -eq 0 ]; then
-    echo "✓ Integration test passed"
+    echo "[PASS] Integration test passed"
 else
-    echo "✗ Integration test failed"
+    echo "? Integration test failed"
 fi
 ```
 
@@ -525,23 +525,23 @@ fi
 
 ```
 User Prompt
-    ↓
+    ?
 [RAG: Search LPC knowledge base]
-    ↓
+    ?
 [Claude: Generate LPC code]
-    ↓
+    ?
 [Write to amlp-library/file.c]
-    ↓
+    ?
 [WSL: compile file.c]
-    ↓
-┌─────────────┐
-│  Success?   │
-└─────┬───────┘
-      │
-  Yes │ No
-      │  └──→ [Parse errors] → [Show to user] → [Iterate]
-      ↓
-[Show success] → [Update RAG index]
+    ?
++=============+
+|  Success?   |
+|=====+=======+
+      |
+  Yes | No
+      |  |==-> [Parse errors] -> [Show to user] -> [Iterate]
+      ?
+[Show success] -> [Update RAG index]
 ```
 
 ## Next Steps
@@ -551,7 +551,7 @@ User Prompt
 3. Integrate with RAG system
 4. Add file watcher for auto-compilation
 5. Build UI for displaying results
-6. Test full prompt → code → compile pipeline
+6. Test full prompt -> code -> compile pipeline
 
 ## References
 

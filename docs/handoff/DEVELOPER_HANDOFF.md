@@ -20,7 +20,7 @@ This is an LPC (Large-scale C) MUD driver implementation in C. The project build
 
 ### Phase 7 Scope: Compiler Integration & LPC Execution
 Phase 7 bridges the gap between language parsing (Phases 1-3) and runtime execution (Phases 4-6) by:
-1. Creating a complete compilation pipeline from LPC source → bytecode
+1. Creating a complete compilation pipeline from LPC source -> bytecode
 2. Managing compiled programs and their execution
 3. Implementing simulated built-in functions (efuns)
 
@@ -28,30 +28,30 @@ Phase 7 bridges the gap between language parsing (Phases 1-3) and runtime execut
 
 | File | Lines | Purpose | Status |
 |------|-------|---------|--------|
-| `src/compiler.c` | ~515 | Compilation pipeline (lexer→parser→codegen) | ✓ Working |
-| `src/compiler.h` | ~230 | Compiler interface and Program struct | ✓ Working |
-| `src/program.c` | ~250 | Program loading, management, execution | ✓ Working |
-| `src/program.h` | ~200 | Program struct and API definitions | ✓ Working |
-| `src/simul_efun.c` | ~200 | Simulated efuns registry implementation | ✓ Working |
-| `src/simul_efun.h` | ~150 | Simulated efuns interface | ✓ Working |
-| `tests/test_compiler.c` | ~313 | Compilation pipeline tests (20 tests) | ⚠️ 43/45 passing |
-| `tests/test_program.c` | ~328 | Program management tests (20 tests) | ✓ 43/43 passing |
-| `tests/test_simul_efun.c` | ~260 | Simulated efuns tests (15 tests) | ✓ 32/32 passing |
-| `Makefile` | ~206 | Build system updates | ✓ Updated |
+| `src/compiler.c` | ~515 | Compilation pipeline (lexer->parser->codegen) | [PASS] Working |
+| `src/compiler.h` | ~230 | Compiler interface and Program struct | [PASS] Working |
+| `src/program.c` | ~250 | Program loading, management, execution | [PASS] Working |
+| `src/program.h` | ~200 | Program struct and API definitions | [PASS] Working |
+| `src/simul_efun.c` | ~200 | Simulated efuns registry implementation | [PASS] Working |
+| `src/simul_efun.h` | ~150 | Simulated efuns interface | [PASS] Working |
+| `tests/test_compiler.c` | ~313 | Compilation pipeline tests (20 tests) | ? 43/45 passing |
+| `tests/test_program.c` | ~328 | Program management tests (20 tests) | [PASS] 43/43 passing |
+| `tests/test_simul_efun.c` | ~260 | Simulated efuns tests (15 tests) | [PASS] 32/32 passing |
+| `Makefile` | ~206 | Build system updates | [PASS] Updated |
 
 ### Architecture Diagram
 ```
 LPC Source Code
-     ↓
-[Lexer] → Tokens
-     ↓
-[Parser] → AST
-     ↓
-[Codegen] → Bytecode
-     ↓
+     ?
+[Lexer] -> Tokens
+     ?
+[Parser] -> AST
+     ?
+[Codegen] -> Bytecode
+     ?
 [Program] (bytecode + metadata)
-     ↓
-[VM] → Execution → Results
+     ?
+[VM] -> Execution -> Results
 ```
 
 ---
@@ -140,7 +140,7 @@ typedef struct Program {
 
 1. **`compiler_compile_internal()` (lines 244-345)**
    - Core compilation function
-   - Sequence: lexer_init → parser_init → parser_parse → codegen
+   - Sequence: lexer_init -> parser_init -> parser_parse -> codegen
    - Creates Program struct and transfers ownership of bytecode/functions/globals
    - Handles error collection
 
@@ -207,7 +207,7 @@ struct {
 **Key Functions**:
 
 1. **`program_load_file()` (lines 9-14)**
-   - Reads file → calls compiler_compile_file
+   - Reads file -> calls compiler_compile_file
    - Returns Program* or NULL
 
 2. **`program_load_string()` (lines 18-21)**
@@ -215,7 +215,7 @@ struct {
    - Returns compiled Program*
 
 3. **`program_execute_function()` (lines 26-45)**
-   - Lookup function by name → call by index
+   - Lookup function by name -> call by index
    - Currently returns NULL value (stub)
 
 4. **`program_execute_by_index()` (lines 50-68)**
@@ -317,7 +317,7 @@ $(BUILD_DIR)/test_simul_efun: $(TEST_SIMUL_EFUN_OBJS)
 
 3. **Updated `test:` target** (line ~137):
    - Added `-` prefix to all test commands so failures don't block remaining tests
-   - Example: `$(BUILD_DIR)/test_lexer` → `-$(BUILD_DIR)/test_lexer`
+   - Example: `$(BUILD_DIR)/test_lexer` -> `-$(BUILD_DIR)/test_lexer`
 
 4. **Added source file variables** (lines ~42-48):
 ```makefile
@@ -342,8 +342,8 @@ TEST_SIMUL_EFUN_SRCS = $(TEST_DIR)/test_simul_efun.c $(SRC_DIR)/simul_efun.c $(S
 2. Compile program with functions
 3. Compile program with globals
 4. Program reference counting
-5. Find function in program (⚠️ 1 failure - parser stub)
-6. Error information storage (⚠️ 1 failure - parser stub)
+5. Find function in program (? 1 failure - parser stub)
+6. Error information storage (? 1 failure - parser stub)
 7-20. Additional tests (all passing)
 
 **Key Tests**:
@@ -360,7 +360,7 @@ TEST_SIMUL_EFUN_SRCS = $(TEST_DIR)/test_simul_efun.c $(SRC_DIR)/simul_efun.c $(S
 ---
 
 #### `tests/test_program.c` (~328 lines)
-**20 Test Groups** (43/43 assertions passing ✓):
+**20 Test Groups** (43/43 assertions passing [PASS]):
 1. Load program from string
 2. Program function count
 3. Get function name by index
@@ -386,7 +386,7 @@ if (prog) program_free(prog);
 ---
 
 #### `tests/test_simul_efun.c` (~260 lines)
-**15 Test Groups** (32/32 assertions passing ✓):
+**15 Test Groups** (32/32 assertions passing [PASS]):
 1. Create simul efun registry
 2. Register simul efun
 3. Find simul efun
@@ -768,42 +768,42 @@ printf("\n");
 
 ## 4. CURRENT STATE ASSESSMENT
 
-### What's Working ✓
+### What's Working [PASS]
 
 #### Phase 7 Infrastructure
 1. **Compilation pipeline**
-   - ✓ Lexer tokenization functional
-   - ✓ Parser syntax analysis functional
-   - ✓ Compiler state management working
-   - ✓ Program struct creation working
-   - ✓ Error tracking initialized
+   - [PASS] Lexer tokenization functional
+   - [PASS] Parser syntax analysis functional
+   - [PASS] Compiler state management working
+   - [PASS] Program struct creation working
+   - [PASS] Error tracking initialized
 
 2. **Program management**
-   - ✓ File loading (reads .c files)
-   - ✓ String compilation (compiles source strings)
-   - ✓ Safe accessor functions (bounds checking)
-   - ✓ Function/global metadata storage
-   - ✓ Error information tracking
+   - [PASS] File loading (reads .c files)
+   - [PASS] String compilation (compiles source strings)
+   - [PASS] Safe accessor functions (bounds checking)
+   - [PASS] Function/global metadata storage
+   - [PASS] Error information tracking
 
 3. **Simulated efuns**
-   - ✓ Registry creation
-   - ✓ Efun registration
-   - ✓ Efun lookup by name/index
-   - ✓ Dynamic capacity expansion
-   - ✓ Proper cleanup
+   - [PASS] Registry creation
+   - [PASS] Efun registration
+   - [PASS] Efun lookup by name/index
+   - [PASS] Dynamic capacity expansion
+   - [PASS] Proper cleanup
 
 4. **Test suites**
-   - ✓ 9 total test suites running
-   - ✓ 470+ total assertions
-   - ✓ Program tests: 43/43 passing (100%)
-   - ✓ Simul efun tests: 32/32 passing (100%)
-   - ✓ Compiler tests: 43/45 passing (95.6%)
+   - [PASS] 9 total test suites running
+   - [PASS] 470+ total assertions
+   - [PASS] Program tests: 43/43 passing (100%)
+   - [PASS] Simul efun tests: 32/32 passing (100%)
+   - [PASS] Compiler tests: 43/45 passing (95.6%)
 
 5. **Build system**
-   - ✓ Makefile compiles cleanly
-   - ✓ Zero warnings with -Wall -Wextra -Werror
-   - ✓ All 11 test executables link successfully
-   - ✓ Test continuation logic working (- prefix)
+   - [PASS] Makefile compiles cleanly
+   - [PASS] Zero warnings with -Wall -Wextra -Werror
+   - [PASS] All 11 test executables link successfully
+   - [PASS] Test continuation logic working (- prefix)
 
 #### Testing Coverage
 - All 9 test suites execute without errors
@@ -812,7 +812,7 @@ printf("\n");
 
 ---
 
-### What's Incomplete ⚠️
+### What's Incomplete ?
 
 #### Parser Issues (Phase 7.2)
 - Parser doesn't extract functions from AST
@@ -933,7 +933,7 @@ if (state->error_count > 0) {
 
 ### Build & Compilation Status
 
-**Clean Build**: ✓
+**Clean Build**: [PASS]
 ```bash
 $ make clean && make all
 [Compiling] src/compiler.c
@@ -947,14 +947,14 @@ $ make clean && make all
 - All tests link successfully
 - Zero undefined symbols
 
-**Test Execution**: ✓
+**Test Execution**: [PASS]
 ```bash
 $ make test
 [Test] Lexer: 50/50 passed
 [Test] Parser: 55 assertions
-[Test] Program: 43/43 passed ✓
-[Test] Simul_efun: 32/32 passed ✓
-[Test] Compiler: 43/45 passed ⚠️
+[Test] Program: 43/43 passed [PASS]
+[Test] Simul_efun: 32/32 passed [PASS]
+[Test] Compiler: 43/45 passed ?
 ```
 
 ---
@@ -1110,7 +1110,7 @@ static void codegen_emit_opcode(compiler_state_t *state, uint8_t opcode) {
 
 **Why This Matters**:
 - Programs can't be executed without this
-- End-to-end: LPC source → bytecode → execution
+- End-to-end: LPC source -> bytecode -> execution
 - Required for `./driver tests/lpc/hello.c`
 
 **Constraints**:
@@ -1205,10 +1205,10 @@ Test Results: 52 assertions (VM)
 Test Results: 57 assertions (Object)
 Test Results: 70 assertions (GC)
 Test Results: 69 assertions (Mapping)
-Test Results: 45/45 passed ✓ (Compiler) <- Fixed
-Test Results: 43/43 passed ✓ (Program)
-Test Results: 32/32 passed ✓ (Simul_efun)
-─────────────────────────────
+Test Results: 45/45 passed [PASS] (Compiler) <- Fixed
+Test Results: 43/43 passed [PASS] (Program)
+Test Results: 32/32 passed [PASS] (Simul_efun)
+=============================
 TOTAL: 475+ assertions, 100% pass rate
 ```
 
@@ -1237,7 +1237,7 @@ git push
 **Context**: The 5 example LPC programs are created but never used. Should be executable via driver.
 
 **Why This Matters**:
-- Proves entire pipeline works: source → compile → execute
+- Proves entire pipeline works: source -> compile -> execute
 - Real integration test with driver program
 - Demonstrates completed Phase 7
 
@@ -1318,11 +1318,11 @@ Given the dependencies:
 - **Task 5** (Integration) depends on all others
 
 **Recommended Order**:
-1. **Task 1 first** → Enables parser to work properly
-2. **Task 2 second** → Then bytecode generation
-3. **Task 3 third** → Then execution integration
-4. **Task 4** → Verify everything works
-5. **Task 5** → Polish end-to-end experience
+1. **Task 1 first** -> Enables parser to work properly
+2. **Task 2 second** -> Then bytecode generation
+3. **Task 3 third** -> Then execution integration
+4. **Task 4** -> Verify everything works
+5. **Task 5** -> Polish end-to-end experience
 
 **My Recommendation**: Start with **Task 1 (Parser)**. It has the clearest scope, unblocks everything else, and will get two failing tests to pass immediately.
 
@@ -1331,13 +1331,13 @@ Given the dependencies:
 ## Summary for Next Developer
 
 You're receiving a working Phase 7.1 with:
-- ✓ Compilation pipeline scaffolding complete
-- ✓ Program management infrastructure solid
-- ✓ Test infrastructure running (470+ assertions)
-- ✓ All critical bugs fixed
-- ⚠️ Parser extraction stubbed (Task 1)
-- ⚠️ Bytecode generation stubbed (Task 2)
-- ⚠️ VM execution integration pending (Task 3)
+- [PASS] Compilation pipeline scaffolding complete
+- [PASS] Program management infrastructure solid
+- [PASS] Test infrastructure running (470+ assertions)
+- [PASS] All critical bugs fixed
+- ? Parser extraction stubbed (Task 1)
+- ? Bytecode generation stubbed (Task 2)
+- ? VM execution integration pending (Task 3)
 
 The codebase is clean, well-structured, and ready for Phase 7.2. All infrastructure is in place; you're filling in the stubs.
 
@@ -1353,4 +1353,4 @@ make clean && make all  # Should take < 5 seconds
 make test              # Should show all 9 suites running
 ```
 
-Good luck! The foundation is solid. 🚀
+Good luck! The foundation is solid. ?

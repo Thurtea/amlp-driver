@@ -1,6 +1,6 @@
 # AMLP Driver + Library Integration Status
 
-## ✅ Completed (Phase 7.0 - 7.4)
+## [DONE] Completed (Phase 7.0 - 7.4)
 
 - **Lexer**: Tokenizes LPC source code
 - **Parser**: Builds Abstract Syntax Tree (AST)
@@ -10,11 +10,11 @@
 - **CLI Tools**: `compile`, `ast`, `bytecode` commands
 - **Test Suite**: 500+ tests passing
 
-## 🔗 Library Integration
+## ? Library Integration
 
 - **Library Location**: `/home/thurtea/amlp-library`
 - **Library Status**: 9 LPC files, all compile successfully
-- **Compilation**: ✓ Full pipeline works
+- **Compilation**: [PASS] Full pipeline works
 - **Objects Available**:
   - `master.c` - Master object
   - `std/object.c` - Base object
@@ -23,7 +23,7 @@
   - `std/container.c` - Inventory
   - Tutorial examples (weapon, guard, start room)
 
-## ⏸️ Deferred (Phase 7.6)
+## ? Deferred (Phase 7.6)
 
 **VM/Executor** - Required to run the MUD online:
 - Bytecode interpreter
@@ -33,7 +33,7 @@
 - Inherit chain resolution
 - Network listener (telnet on port 4000)
 
-## 📊 Current Capabilities
+## [STATS] Current Capabilities
 
 **What Works:**
 ```bash

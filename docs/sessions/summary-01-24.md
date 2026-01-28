@@ -23,7 +23,7 @@ Successfully implemented the **LPC Execution Layer** enabling the MUD server to 
 ### Core Server Implementation
 
 #### src/mud_server.c (COMPLETE REWRITE - 450+ lines)
-**Status**: ✅ LPC execution layer fully implemented
+**Status**: [DONE] LPC execution layer fully implemented
 
 **Key Enhancements**:
 - Added `#include "compiler.h"` for LPC compilation
@@ -102,17 +102,17 @@ Complete bash script that:
 ### LPC Execution Flow
 
 ```
-Connection → handle_new_connection()
-  ├─ Compile lib/secure/master.c
-  ├─ Call master->connect()
-  ├─ Compile /clone/login
-  ├─ Store login in connections[slot].connection_object
-  └─ Call login->logon()
+Connection -> handle_new_connection()
+  |= Compile lib/secure/master.c
+  |= Call master->connect()
+  |= Compile /clone/login
+  |= Store login in connections[slot].connection_object
+  |= Call login->logon()
 
-Input → handle_player_input()
-  ├─ Check for input_callback (password/menu input)
-  ├─ If callback: call that method with input
-  └─ Else: call object->process_input(input)
+Input -> handle_player_input()
+  |= Check for input_callback (password/menu input)
+  |= If callback: call that method with input
+  |= Else: call object->process_input(input)
 ```
 
 ### Object Caching
@@ -127,11 +127,11 @@ Input → handle_player_input()
 
 ```c
 call_lpc_method(void *object, "method_name", "argument")
-  ├─ Find Program* from object cache
-  ├─ Search program->functions[] for method_name
-  ├─ Push argument onto VM stack if provided
-  ├─ Call vm_execute_function(global_vm, program, function_index)
-  └─ Pop and return result
+  |= Find Program* from object cache
+  |= Search program->functions[] for method_name
+  |= Push argument onto VM stack if provided
+  |= Call vm_execute_function(global_vm, program, function_index)
+  |= Pop and return result
 ```
 
 ---
@@ -150,7 +150,7 @@ call_lpc_method(void *object, "method_name", "argument")
 - **build/driver** (399KB) - Standalone LPC interpreter
 - **build/mud_server** (380KB) - Network MUD server with LPC execution
 
-### What's Working ✅
+### What's Working [DONE]
 - Server compiles and starts on port 3000
 - Accepts and manages 64 concurrent connections
 - Compiles LPC files on demand
@@ -161,7 +161,7 @@ call_lpc_method(void *object, "method_name", "argument")
 - Executes LPC methods with string arguments
 - Tracks player-object associations
 
-### Critical Gaps ⚠️
+### Critical Gaps ?
 
 **Missing Efun Implementations** (referenced in LPC code but not in C):
 
@@ -411,28 +411,28 @@ telnet localhost 3000
 
 ### Architecture
 ```
-Network Input → handle_player_input()
-  → Check input_callback (password)
-  → Call LPC method (process_input or callback)
-  → LPC calls tell_object()
-  → tell_object finds PlayerConnection
-  → send() to socket
-  → send prompt back
+Network Input -> handle_player_input()
+  -> Check input_callback (password)
+  -> Call LPC method (process_input or callback)
+  -> LPC calls tell_object()
+  -> tell_object finds PlayerConnection
+  -> send() to socket
+  -> send prompt back
 ```
 
 ### Object Lifecycle
 ```
-Connection → master->connect() → login->logon()
-  → prompts for name/password
-  → input_to() sets input callback
-  → password confirmed
-  → create_character() called
-  → new user object instantiated
-  → exec() transfers connection
-  → user->enter_world()
-  → Load start room
-  → force_me("look")
-  → Room displayed via tell_object()
+Connection -> master->connect() -> login->logon()
+  -> prompts for name/password
+  -> input_to() sets input callback
+  -> password confirmed
+  -> create_character() called
+  -> new user object instantiated
+  -> exec() transfers connection
+  -> user->enter_world()
+  -> Load start room
+  -> force_me("look")
+  -> Room displayed via tell_object()
 ```
 
 ### Server States
@@ -461,13 +461,13 @@ Connection → master->connect() → login->logon()
 ## Success Criteria
 
 ### Minimum Viable Product
-✅ Server compiles and starts  
-✅ Accepts connections  
-✅ Loads and compiles LPC  
-✅ Calls master->connect()  
-🔲 tell_object() working  
-🔲 Full login flow working  
-🔲 Basic commands functional  
+[DONE] Server compiles and starts  
+[DONE] Accepts connections  
+[DONE] Loads and compiles LPC  
+[DONE] Calls master->connect()  
+? tell_object() working  
+? Full login flow working  
+? Basic commands functional  
 
 ### What Makes It "Done"
 - Player can create account
@@ -513,7 +513,7 @@ Connection → master->connect() → login->logon()
 *Priority: Implement tell_object() efun*
 ENDSUM
 
-echo "✓ Created summary-01-24.md"
+echo "[PASS] Created summary-01-24.md"
 echo ""
 
 # Commit amlp-driver changes
@@ -549,7 +549,7 @@ Next: Implement critical efuns (tell_object, input_to, exec, new, load_object)"
 
 git push origin main
 
-echo "✓ amlp-driver committed and pushed"
+echo "[PASS] amlp-driver committed and pushed"
 echo ""
 
 # Sync to amlp-library
@@ -574,16 +574,16 @@ Minimal LPC mudlib for AMLP-Driver.
 
 ```
 lib/
-├── secure/         - Master object
-├── single/         - Simulated efuns
-├── std/            - Standard objects (object, room, living, player)
-├── clone/          - Cloneable objects (login, user)
-├── cmds/           - Player commands + admin tools
-├── domains/        - World areas
-├── include/        - Header files
-├── save/           - Player data
-├── data/           - Game data
-└── log/            - Server logs
+|== secure/         - Master object
+|== single/         - Simulated efuns
+|== std/            - Standard objects (object, room, living, player)
+|== clone/          - Cloneable objects (login, user)
+|== cmds/           - Player commands + admin tools
+|== domains/        - World areas
+|== include/        - Header files
+|== save/           - Player data
+|== data/           - Game data
+|== log/            - Server logs
 ```
 
 ## Features
@@ -645,10 +645,10 @@ Status: Ready for integration with AMLP-Driver
 "
 
 if git remote | grep -q origin; then
-    git push origin main || echo "⚠ Push failed - check remote configuration"
+    git push origin main || echo "? Push failed - check remote configuration"
 fi
 
-echo "✓ amlp-library synced"
+echo "[PASS] amlp-library synced"
 echo ""
 
 # Final summary
@@ -656,17 +656,17 @@ echo "=================================================="
 echo "  SESSION FINALIZED"
 echo "=================================================="
 echo ""
-echo "✓ summary-01-24.md created"
-echo "✓ implement_lpc_execution.sh populated"
-echo "✓ amlp-driver committed: LPC execution layer"
-echo "✓ amlp-library synced: Complete mudlib"
+echo "[PASS] summary-01-24.md created"
+echo "[PASS] implement_lpc_execution.sh populated"
+echo "[PASS] amlp-driver committed: LPC execution layer"
+echo "[PASS] amlp-library synced: Complete mudlib"
 echo ""
 echo "Status:"
-echo "  • Server compiles and starts"
-echo "  • Accepts 64 concurrent connections"
-echo "  • Compiles and caches LPC files"
-echo "  • Calls master->connect() and login->logon()"
-echo "  • Routes input to LPC methods"
+echo "  o Server compiles and starts"
+echo "  o Accepts 64 concurrent connections"
+echo "  o Compiles and caches LPC files"
+echo "  o Calls master->connect() and login->logon()"
+echo "  o Routes input to LPC methods"
 echo ""
 echo "Next Steps (January 25):"
 echo "  1. Implement tell_object() efun - CRITICAL"

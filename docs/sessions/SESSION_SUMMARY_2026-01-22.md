@@ -4,19 +4,19 @@
 
 ## What Was Accomplished
 
-### Phase 7.2: Real Bytecode Generation ✅
-- Implemented AST → bytecode pipeline
+### Phase 7.2: Real Bytecode Generation [DONE]
+- Implemented AST -> bytecode pipeline
 - Compiler now generates real opcodes instead of stubs
 - All 45 compiler tests passing (up from 43/45)
 - Supports expressions, statements, control flow
 
-### Phase 7.4: Driver CLI ✅
+### Phase 7.4: Driver CLI [DONE]
 - Created command-line interface for driver
 - Commands: `compile`, `ast`, `bytecode`, `help`
 - Can now compile LPC files from command line
 - Provides debugging output (AST structure, bytecode disassembly)
 
-### Terminal UI Build System ✅
+### Terminal UI Build System [DONE]
 - Styled compilation output with UTF-8 box drawing
 - Progress bars with visual indicators
 - Color-coded status messages
@@ -26,16 +26,16 @@
 
 ## Test Results
 - **All 500+ tests passing** (verified Jan 23, 2026)
-  - Lexer: 50/50 ✓
-  - Parser: 55/24 ✓
-  - Object: 52/23 ✓
-  - GC: 57/28 ✓
-  - Efun: 70/23 ✓
-  - Array: 69/23 ✓
-  - Mapping: 45/45 ✓
-  - Compiler: 43/43 ✓
-  - Program: 32/32 ✓
-  - Simul Efun: All passed ✓
+  - Lexer: 50/50 [PASS]
+  - Parser: 55/24 [PASS]
+  - Object: 52/23 [PASS]
+  - GC: 57/28 [PASS]
+  - Efun: 70/23 [PASS]
+  - Array: 69/23 [PASS]
+  - Mapping: 45/45 [PASS]
+  - Compiler: 43/43 [PASS]
+  - Program: 32/32 [PASS]
+  - Simul Efun: All passed [PASS]
 - **Zero compiler warnings**
 - **Zero errors**
 - **Clean compilation with -Wall -Wextra -Werror**
@@ -50,7 +50,7 @@
 - Test compilation with driver
 
 ### Phase 7.6: VM Execution Integration (Deferred)
-- Implement bytecode → VMInstruction decoder
+- Implement bytecode -> VMInstruction decoder
 - Wire program_execute_by_index() to VM
 - Add `./build/driver run <file.c>` command
 - End-to-end execution testing
@@ -58,7 +58,7 @@
 ### Integration with lpc-development-assistant
 - Connect Windows assistant to Linux driver
 - Implement auto-compilation pipeline
-- Enable prompt → code → compile workflow
+- Enable prompt -> code -> compile workflow
 - Cross-project symbiotic integration
 
 ## Files Modified
@@ -92,7 +92,7 @@ The driver is now in an excellent state for library development. The compilation
 ### Prompt for Claude (lpc-development-assistant workspace):
 ```
 Now that the amlp-driver is complete with:
-- Full compilation pipeline (lexer → parser → compiler → bytecode)
+- Full compilation pipeline (lexer -> parser -> compiler -> bytecode)
 - Working CLI (compile, ast, bytecode commands)
 - Styled terminal UI build system
 - 500+ tests passing
@@ -107,9 +107,9 @@ I need to integrate the lpc-development-assistant (Windows) with amlp-driver (Li
 **Architecture:**
 ```
 lpc-development-assistant (Windows)
-    ↓ (WSL/SSH commands)
+    ? (WSL/SSH commands)
 amlp-driver (Linux) + amlp-library
-    ↓ (compile & execute)
+    ? (compile & execute)
 Results fed back to assistant
 ```
 
@@ -120,7 +120,7 @@ Results fed back to assistant
    - Capture terminal output including ANSI codes
    - Parse compilation results
 
-2. **Code Generation → Auto-Apply Pipeline:**
+2. **Code Generation -> Auto-Apply Pipeline:**
    - Assistant generates LPC code from prompts
    - Writes to amlp-library files
    - Triggers driver compilation

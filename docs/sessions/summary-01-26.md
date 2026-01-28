@@ -10,16 +10,16 @@
 
 ## What Was Accomplished This Session
 
-### 1. **Fixed Welcome Message Formatting** ✅
+### 1. **Fixed Welcome Message Formatting** [DONE]
 - **Issue:** Login prompt had wrong padding in Unicode box and displayed "Enter your name:" twice
 - **Fix:** Corrected padding calculation for the box (39-character width)
-  - Line 1: `║    AMLP Driver - Development Server    ║` (4 spaces each side)
-  - Line 2: `║             Version 0.1.0             ║` (13 spaces each side)
+  - Line 1: `|    AMLP Driver - Development Server    |` (4 spaces each side)
+  - Line 2: `|             Version 0.1.0             |` (13 spaces each side)
 - **Fix:** Removed duplicate "Enter your name:" prompt - now only shown once in STATE_CONNECTING
 - **Status:** Properly formatted box now displays correctly on login
 
-### 2. **Renamed Server File for Clarity** ✅
-- **Changed:** `src/simple_mud_server.c` → `src/server.c`
+### 2. **Renamed Server File for Clarity** [DONE]
+- **Changed:** `src/simple_mud_server.c` -> `src/server.c`
 - **Removed all duplicates:**
   - Deleted: `src/mud_server.c` (old version)
   - Deleted: `src/mud_server.c.backup` (even older version)
@@ -28,7 +28,7 @@
   - `driver.c` - Main executable with integrated server code
   - `server.c` - Reference copy (same as driver.c, kept for safety)
 
-### 3. **Integrated Network Server into driver.c** ✅
+### 3. **Integrated Network Server into driver.c** [DONE]
 - **What happened:** The working multi-client server code from `simple_mud_server.c` was completely integrated into `driver.c`
 - **Benefit:** `driver.c` is now the single, unified executable that combines:
   - LPC compiler frontend
@@ -43,17 +43,17 @@
   - No separate executable needed - everything in one binary
   - Master object loads on startup, VM initialized, listening for connections
 
-### 4. **Fixed Compiler Flags** ✅
+### 4. **Fixed Compiler Flags** [DONE]
 - **Issue:** `strdup()` function was not available (implicit declaration error)
 - **Fix:** Added `-D_DEFAULT_SOURCE` to Makefile CFLAGS
 - **Result:** Proper string duplication now works throughout the server code
 
-### 5. **Verified Makefile Unicode Borders** ✅
+### 5. **Verified Makefile Unicode Borders** [DONE]
 - **Status:** Makefile retains proper UTF-8 formatting:
   ```
-  ╔══════════════════════════════════════════════════════════════════╗
-  │                 AMLP DRIVER - COMPILATION IN PROGRESS             │
-  ╚══════════════════════════════════════════════════════════════════╝
+  +??????????????????????????????????????????????????????????????????+
+  |                 AMLP DRIVER - COMPILATION IN PROGRESS            |
+  +??????????????????????????????????????????????????????????????????+
   ```
 - **Color output:** Cyan headers, green checkmarks, proper formatting preserved
 
@@ -65,41 +65,41 @@
 
 ```
 src/
-├── driver.c                    ← Main executable (network server integrated)
-├── server.c                    ← Reference copy of driver.c (for safety)
-├── compiler.c                  ← LPC compiler
-├── lexer.c                     ← Tokenizer
-├── parser.c                    ← Syntax parsing
-├── codegen.c                   ← Bytecode generation
-├── vm.c                        ← Virtual machine
-├── master_object.c             ← Master object handler
-├── efun.c                      ← Built-in functions
-├── object.c                    ← Object system
-├── gc.c                        ← Garbage collector
-├── array.c                     ← Array implementation
-├── mapping.c                   ← Hash map implementation
-├── program.c                   ← Program structure
-├── simul_efun.c                ← Simulated functions
-├── program_loader.c            ← Program loader
-└── terminal_ui.c               ← Terminal utilities
+|== driver.c                    <- Main executable (network server integrated)
+|== server.c                    <- Reference copy of driver.c (for safety)
+|== compiler.c                  <- LPC compiler
+|== lexer.c                     <- Tokenizer
+|== parser.c                    <- Syntax parsing
+|== codegen.c                   <- Bytecode generation
+|== vm.c                        <- Virtual machine
+|== master_object.c             <- Master object handler
+|== efun.c                      <- Built-in functions
+|== object.c                    <- Object system
+|== gc.c                        <- Garbage collector
+|== array.c                     <- Array implementation
+|== mapping.c                   <- Hash map implementation
+|== program.c                   <- Program structure
+|== simul_efun.c                <- Simulated functions
+|== program_loader.c            <- Program loader
+|== terminal_ui.c               <- Terminal utilities
 
 lib/
-├── std/                        ← Standard library
-│   ├── object.c                ← Base object
-│   ├── living.c                ← Living creatures
-│   └── player.c                ← Player object
-├── secure/
-│   └── master.c                ← Master object
-└── domains/
-    └── start/
-        ├── room/               ← Starting rooms
-        │   ├── void.c          ← Entry point
-        │   ├── welcome.c       ← Welcome hall
-        │   └── documentation.c ← Help/docs
-        └── obj/                ← Starting objects
+|== std/                        <- Standard library
+|   |== object.c                <- Base object
+|   |== living.c                <- Living creatures
+|   |== player.c                <- Player object
+|== secure/
+|   |== master.c                <- Master object
+|== domains/
+    |== start/
+        |== room/               <- Starting rooms
+        |   |== void.c          <- Entry point
+        |   |== welcome.c       <- Welcome hall
+        |   |== documentation.c <- Help/docs
+        |== obj/                <- Starting objects
 
 build/
-└── driver                      ← Compiled executable (270KB+)
+|== driver                      <- Compiled executable (270KB+)
 ```
 
 ### Network Architecture
@@ -110,8 +110,8 @@ build/
 **Session Management:** 7 states
 
 ```
-STATE_CONNECTING → STATE_GET_NAME → STATE_NEW_PASSWORD 
-  → STATE_CONFIRM_PASSWORD → STATE_PLAYING
+STATE_CONNECTING -> STATE_GET_NAME -> STATE_NEW_PASSWORD 
+  -> STATE_CONFIRM_PASSWORD -> STATE_PLAYING
 ```
 
 ### Privilege System
@@ -169,32 +169,32 @@ Expected behavior:
 ## Code Quality Status
 
 ### Working & Integrated
-✅ Multi-client network server using select()  
-✅ Session state machine (7 states)  
-✅ Login and character creation  
-✅ Privilege level system (0, 1, 2)  
-✅ First-player-admin automatic promotion  
-✅ Built-in commands (25+ implemented)  
-✅ Admin commands (promote, users, shutdown)  
-✅ Broadcast messaging system  
-✅ Session timeout checking (30-minute idle disconnect)  
-✅ Proper CRLF line endings (Telnet compatible)  
-✅ Graceful shutdown handling  
+[DONE] Multi-client network server using select()  
+[DONE] Session state machine (7 states)  
+[DONE] Login and character creation  
+[DONE] Privilege level system (0, 1, 2)  
+[DONE] First-player-admin automatic promotion  
+[DONE] Built-in commands (25+ implemented)  
+[DONE] Admin commands (promote, users, shutdown)  
+[DONE] Broadcast messaging system  
+[DONE] Session timeout checking (30-minute idle disconnect)  
+[DONE] Proper CRLF line endings (Telnet compatible)  
+[DONE] Graceful shutdown handling  
 
 ### Partially Complete
-⚠️ Player object system (structure ready, VM integration pending)  
-⚠️ Room system (structure ready, VM navigation pending)  
-⚠️ Master object (framework in place, full integration on hold)  
-⚠️ LPC command routing (fallback to C implemented, LPC routing TBD)  
+? Player object system (structure ready, VM integration pending)  
+? Room system (structure ready, VM navigation pending)  
+? Master object (framework in place, full integration on hold)  
+? LPC command routing (fallback to C implemented, LPC routing TBD)  
 
 ### Pending Implementation
-❌ File I/O for player saves  
-❌ Database integration  
-❌ Combat system  
-❌ Magic/spell system  
-❌ Quest system  
-❌ In-game editor  
-❌ Advanced object cloning  
+? File I/O for player saves  
+? Database integration  
+? Combat system  
+? Magic/spell system  
+? Quest system  
+? In-game editor  
+? Advanced object cloning  
 
 ---
 
@@ -234,7 +234,7 @@ Changes:
   - Modified: src/driver.c (major update - integrated server code)
   - Deleted: src/mud_server.c
   - Deleted: src/mud_server.c.backup
-  - Renamed: src/simple_mud_server.c → src/server.c
+  - Renamed: src/simple_mud_server.c -> src/server.c
   - Modified: mud.pid (timestamp update)
 ```
 
@@ -348,21 +348,21 @@ git push origin main
 
 **Deleted These Duplicates:**
 ```
-❌ src/mud_server.c              (old version from Jan 24)
-❌ src/mud_server.c.backup       (old version from Jan 24)
-❌ src/simple_mud_server.c.old   (old version from Jan 26)
+? src/mud_server.c              (old version from Jan 24)
+? src/mud_server.c.backup       (old version from Jan 24)
+? src/simple_mud_server.c.old   (old version from Jan 26)
 ```
 
 **Now Only Have:**
 ```
-✅ src/driver.c                  (main executable)
-✅ src/server.c                  (reference backup - identical to driver.c)
+[DONE] src/driver.c                  (main executable)
+[DONE] src/server.c                  (reference backup - identical to driver.c)
 ```
 
 **The Makefile Unicode Formatting:**
-- Still present ✅
-- Colors still work ✅
-- Build output still beautiful ✅
+- Still present [DONE]
+- Colors still work [DONE]
+- Build output still beautiful [DONE]
 - Not removed - just often not visible in terminal output until build completes
 
 ---
@@ -371,16 +371,16 @@ git push origin main
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| **Compiler** | ✅ Ready | Lexer, parser, codegen all functional |
-| **VM** | ✅ Ready | Stack, call frames, EFUNs implemented |
-| **Network Server** | ✅ Ready | Multi-client, select(), session management |
-| **Login System** | ✅ Ready | 7-state machine, character creation |
-| **Privilege System** | ✅ Ready | 3 levels, first-player admin, enforcement |
-| **Commands** | ✅ Ready | 25+ built-in, admin-specific ones gated |
-| **LPC Objects** | ⚠️ Partial | Structure ready, VM integration pending |
-| **Room System** | ⚠️ Partial | Structure ready, navigation pending |
-| **Persistence** | ❌ Not Done | Need file I/O for save/load |
-| **Combat** | ❌ Not Done | Out of scope initially |
+| **Compiler** | [DONE] Ready | Lexer, parser, codegen all functional |
+| **VM** | [DONE] Ready | Stack, call frames, EFUNs implemented |
+| **Network Server** | [DONE] Ready | Multi-client, select(), session management |
+| **Login System** | [DONE] Ready | 7-state machine, character creation |
+| **Privilege System** | [DONE] Ready | 3 levels, first-player admin, enforcement |
+| **Commands** | [DONE] Ready | 25+ built-in, admin-specific ones gated |
+| **LPC Objects** | ? Partial | Structure ready, VM integration pending |
+| **Room System** | ? Partial | Structure ready, navigation pending |
+| **Persistence** | ? Not Done | Need file I/O for save/load |
+| **Combat** | ? Not Done | Out of scope initially |
 
 ---
 

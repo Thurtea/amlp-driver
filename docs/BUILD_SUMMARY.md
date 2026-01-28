@@ -23,32 +23,32 @@ A comprehensive build system with the following targets:
 
 ### 2. **Lexer Test Suite** (`test_lexer.c`)
 Comprehensive lexer tests covering:
-- ✅ Variable declarations (`int x = 42;`)
-- ✅ String literals with escape sequences
-- ✅ Function calls with expressions
-- ✅ All binary operators (+, -, *, /, ==, !=, &&, ||, etc.)
-- ✅ Control structures (if, while, else)
-- ✅ Array access (multi-dimensional)
-- ✅ Single-line and multi-line comments
-- ✅ Floating-point literals with exponential notation
-- ✅ Complex expressions with proper operator precedence
+- [DONE] Variable declarations (`int x = 42;`)
+- [DONE] String literals with escape sequences
+- [DONE] Function calls with expressions
+- [DONE] All binary operators (+, -, *, /, ==, !=, &&, ||, etc.)
+- [DONE] Control structures (if, while, else)
+- [DONE] Array access (multi-dimensional)
+- [DONE] Single-line and multi-line comments
+- [DONE] Floating-point literals with exponential notation
+- [DONE] Complex expressions with proper operator precedence
 
-**Test Results:** ✅ 10/10 tests passed
+**Test Results:** [DONE] 10/10 tests passed
 
 ### 3. **Parser Test Suite** (`test_parser.c`)
 Comprehensive parser tests covering:
-- ✅ Variable declarations
-- ✅ Function declarations (with and without parameters)
-- ✅ If/else statements
-- ✅ While loops
-- ✅ Return statements
-- ✅ Binary operations
-- ✅ Function calls
-- ✅ Array access
-- ✅ Complex nested expressions
-- ✅ Multiple declarations in one program
+- [DONE] Variable declarations
+- [DONE] Function declarations (with and without parameters)
+- [DONE] If/else statements
+- [DONE] While loops
+- [DONE] Return statements
+- [DONE] Binary operations
+- [DONE] Function calls
+- [DONE] Array access
+- [DONE] Complex nested expressions
+- [DONE] Multiple declarations in one program
 
-**Test Results:** ✅ 11/11 tests passed
+**Test Results:** [DONE] 11/11 tests passed
 
 ### 4. **Virtual Machine Stub** (`vm.h`, `vm.c`)
 Created stub implementation with:
@@ -69,40 +69,40 @@ Fixed compilation issues in `driver.c`:
 
 ### Compilation Results
 ```
-[Compiling] driver.c     ✅
-[Compiling] lexer.c      ✅
-[Compiling] parser.c     ✅
-[Compiling] vm.c         ✅
-[Linking] driver         ✅
-[Linking] test_lexer     ✅
-[Linking] test_parser    ✅
+[Compiling] driver.c     [DONE]
+[Compiling] lexer.c      [DONE]
+[Compiling] parser.c     [DONE]
+[Compiling] vm.c         [DONE]
+[Linking] driver         [DONE]
+[Linking] test_lexer     [DONE]
+[Linking] test_parser    [DONE]
 ```
 
 ### Test Execution
 ```
-Lexer Tests:   10/10 passed ✅
-Parser Tests:  11/11 passed ✅
-Driver Startup: Successful ✅
+Lexer Tests:   10/10 passed [DONE]
+Parser Tests:  11/11 passed [DONE]
+Driver Startup: Successful [DONE]
 ```
 
 ## File Structure
 
 ```
 /home/thurtea/amlp-driver/
-├── Makefile              # Build system
-├── driver.c              # Main driver initialization
-├── lexer.h               # Lexer public API
-├── lexer.c               # Lexer implementation
-├── parser.h              # Parser public API
-├── parser.c              # Parser implementation
-├── vm.h                  # VM header (stub)
-├── vm.c                  # VM implementation (stub)
-├── test_lexer.c          # Lexer test suite
-├── test_parser.c         # Parser test suite
-├── driver                # Compiled executable
-├── test_lexer            # Compiled lexer test
-├── test_parser           # Compiled parser test
-└── *.o                   # Object files
+|== Makefile              # Build system
+|== driver.c              # Main driver initialization
+|== lexer.h               # Lexer public API
+|== lexer.c               # Lexer implementation
+|== parser.h              # Parser public API
+|== parser.c              # Parser implementation
+|== vm.h                  # VM header (stub)
+|== vm.c                  # VM implementation (stub)
+|== test_lexer.c          # Lexer test suite
+|== test_parser.c         # Parser test suite
+|== driver                # Compiled executable
+|== test_lexer            # Compiled lexer test
+|== test_parser           # Compiled parser test
+|== *.o                   # Object files
 ```
 
 ## How to Build and Test
@@ -131,7 +131,7 @@ make test
 
 ## Key Features Verified
 
-### Lexer ✅
+### Lexer [DONE]
 - Tokenizes all LPC syntax correctly
 - Handles comments (// and /* */)
 - Tracks line/column numbers for error reporting
@@ -139,7 +139,7 @@ make test
 - Parses floating-point numbers with exponents
 - Handles string escape sequences
 
-### Parser ✅
+### Parser [DONE]
 - Builds correct AST structure
 - Implements operator precedence
 - Parses all control structures
@@ -147,7 +147,7 @@ make test
 - Manages error recovery
 - Tracks parse statistics
 
-### Build System ✅
+### Build System [DONE]
 - Compiles with strict warnings
 - All dependencies tracked correctly
 - Clean/rebuild working

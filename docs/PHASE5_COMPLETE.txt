@@ -18,17 +18,17 @@ TABLE OF CONTENTS
 1. EXECUTIVE SUMMARY
 ==============================================================================
 
-PHASE 5 STATUS: ✅ COMPLETE (100%)
+PHASE 5 STATUS: [DONE] COMPLETE (100%)
 
 Deliverables:
-  ✅ gc.h (262 lines) - Garbage collector API
-  ✅ gc.c (416 lines) - Reference-counted GC with full-collect
-  ✅ efun.h (156 lines) - Efun registry API
-  ✅ efun.c (557 lines) - Efun implementations and registry
-  ✅ test_gc.c (474 lines) - GC test suite (23 tests / 52 assertions)
-  ✅ test_efun.c (564 lines) - Efun test suite (28 tests / 57 assertions)
-  ✅ vm.c - Added OP_CALL_METHOD stub (placeholder)
-  ✅ Makefile - Integrated GC/efun sources and tests
+  [DONE] gc.h (262 lines) - Garbage collector API
+  [DONE] gc.c (416 lines) - Reference-counted GC with full-collect
+  [DONE] efun.h (156 lines) - Efun registry API
+  [DONE] efun.c (557 lines) - Efun implementations and registry
+  [DONE] test_gc.c (474 lines) - GC test suite (23 tests / 52 assertions)
+  [DONE] test_efun.c (564 lines) - Efun test suite (28 tests / 57 assertions)
+  [DONE] vm.c - Added OP_CALL_METHOD stub (placeholder)
+  [DONE] Makefile - Integrated GC/efun sources and tests
 
 Key Achievements:
   - Reference-counted garbage collector with auto-collect threshold
@@ -75,14 +75,14 @@ Overall Project Progress: 100% of planned core phases (5/5) now coded; OP_CALL_M
 
 3.1 Suite Summary
 -----------------
-Lexer Tests:        10/10 passed (100%) ✅
-Parser Tests:       11/11 passed (100%) ✅
-VM Tests:           42/42 passed (100%) ✅
-Object Tests:       24/24 passed (100%) ✅
-GC Tests:           23/23 passed (100%) ✅
-Efun Tests:         28/28 passed (100%) ✅
-                    ─────────────────────
-TOTAL:             138/138 passed (100%) ✅
+Lexer Tests:        10/10 passed (100%) [DONE]
+Parser Tests:       11/11 passed (100%) [DONE]
+VM Tests:           42/42 passed (100%) [DONE]
+Object Tests:       24/24 passed (100%) [DONE]
+GC Tests:           23/23 passed (100%) [DONE]
+Efun Tests:         28/28 passed (100%) [DONE]
+                    =====================
+TOTAL:             138/138 passed (100%) [DONE]
 
 3.2 New Suites Breakdown
 ------------------------
@@ -105,7 +105,7 @@ efun.c              557     Efun implementations and registry helpers
 efun.h              156     Efun registry API
 test_gc.c           474     GC test suite (23 tests / 52 assertions)
 test_efun.c         564     Efun test suite (28 tests / 57 assertions)
-                    ─────
+                    =====
 PHASE 5 TOTAL:     2,429    lines (new this phase)
 
 4.2 Project Totals (All Phases)
@@ -123,7 +123,7 @@ Commands:
 
 Results:
   - make clean && make all: success; zero compiler warnings (strict flags held).
-  - make test: all suites passing → Lexer 10/10, Parser 11/11, VM 42/42, Object 24/24, GC 23/23, Efun 28/28 (138/138 total).
+  - make test: all suites passing -> Lexer 10/10, Parser 11/11, VM 42/42, Object 24/24, GC 23/23, Efun 28/28 (138/138 total).
   - wc -l: gc.c 416 | gc.h 262 | efun.c 557 | efun.h 156 | test_gc.c 474 | test_efun.c 564 | total 2429.
 
 ==============================================================================
@@ -157,10 +157,10 @@ Priority Options:
 ==============================================================================
 
 Summary:
-  • 138/138 tests passing (100%)
-  • 2,429 new lines (GC + Efun + tests)
-  • Zero compiler warnings
-  • GC and efun subsystems integrated; OP_CALL_METHOD dispatch deferred
+  o 138/138 tests passing (100%)
+  o 2,429 new lines (GC + Efun + tests)
+  o Zero compiler warnings
+  o GC and efun subsystems integrated; OP_CALL_METHOD dispatch deferred
 
 Next session command:
   cd /home/thurtea/amlp-driver && make clean && make test

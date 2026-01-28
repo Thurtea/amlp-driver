@@ -88,7 +88,7 @@ From `/home/thurtea/mud-references/all_efuns.txt`:
 
 ## Implementation Status
 
-### ✅ Completed
+### [DONE] Completed
 
 **Room System (`/lib/std/room.c`):**
 - Exit management (add_exit, remove_exit, query_exit)
@@ -111,7 +111,7 @@ From `/home/thurtea/mud-references/all_efuns.txt`:
 - Stats tracking
 - Save/restore structure ready
 
-### ⏳ In Progress
+### [IN PROGRESS] In Progress
 
 **VM Object System:**
 - Need to implement VALUE_OBJECT type
@@ -124,7 +124,7 @@ From `/home/thurtea/mud-references/all_efuns.txt`:
 - Need to call room->exit_room() and room->enter_room()
 - Need to update player environment properly
 
-### 📋 Next Steps
+### [TODO] Next Steps
 
 1. **Implement Core Object EFUNs in VM:**
    ```c
@@ -144,9 +144,9 @@ From `/home/thurtea/mud-references/all_efuns.txt`:
    - Update environment
 
 3. **Test Navigation:**
-   - Login → spawn in /domains/start/room/void
-   - Move east → welcome chamber
-   - Move north → documentation
+   - Login -> spawn in /domains/start/room/void
+   - Move east -> welcome chamber
+   - Move north -> documentation
    - Verify messages appear to other players
 
 4. **Add Remaining Features:**

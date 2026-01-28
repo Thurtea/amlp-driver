@@ -1,10 +1,10 @@
 # AMLP Driver - Project Summary (January 22, 2026)
 
 ## Phase 5 Status
-- ✅ Phase 5 complete: Garbage Collection + Efun subsystem delivered
-- ✅ Tests: 138/138 passing (Lexer 10/10, Parser 11/11, VM 42/42, Object 24/24, GC 23/23, Efun 28/28)
-- ✅ Clean build: make clean && make all (no warnings, -Wall -Wextra -Werror -std=c99)
-- ✅ Documentation: PHASE5_COMPLETE.txt created
+- [DONE] Phase 5 complete: Garbage Collection + Efun subsystem delivered
+- [DONE] Tests: 138/138 passing (Lexer 10/10, Parser 11/11, VM 42/42, Object 24/24, GC 23/23, Efun 28/28)
+- [DONE] Clean build: make clean && make all (no warnings, -Wall -Wextra -Werror -std=c99)
+- [DONE] Documentation: PHASE5_COMPLETE.txt created
 
 ## Key Deliverables
 - gc.c/h: reference-counted GC with full-collect and stats

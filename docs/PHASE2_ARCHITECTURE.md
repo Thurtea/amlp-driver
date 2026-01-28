@@ -71,7 +71,7 @@ CodeGenerator   // VM ref, symbol table, current function, labels, loop context
 
 ## Implementation Plan
 
-### Step 1: vm.c Implementation ✅ NEXT
+### Step 1: vm.c Implementation [DONE] NEXT
 Core execution engine with:
 - Stack operations
 - Value type handling
@@ -113,15 +113,15 @@ Add new targets:
 
 ```
 Source Code
-    ↓
+    ?
 Lexer (tokens)
-    ↓
+    ?
 Parser (AST)
-    ↓
+    ?
 CodeGen (bytecode)
-    ↓
+    ?
 VM (execution)
-    ↓
+    ?
 Result
 ```
 
@@ -162,12 +162,12 @@ Function: main (params=0, locals=0)
 - **Call Frames**: Linked list allocation on demand
 
 ## Status
-- ✅ vm.h complete (497 lines)
-- ✅ codegen.h complete (316 lines)
-- ⏳ vm.c implementation in progress
-- ⏳ codegen.c implementation pending
-- ⏳ test_vm.c pending
-- ⏳ Makefile integration pending
+- [DONE] vm.h complete (497 lines)
+- [DONE] codegen.h complete (316 lines)
+- [IN PROGRESS] vm.c implementation in progress
+- [IN PROGRESS] codegen.c implementation pending
+- [IN PROGRESS] test_vm.c pending
+- [IN PROGRESS] Makefile integration pending
 
 ## Next Steps
 1. Implement vm.c with full execution engine (~800 lines)

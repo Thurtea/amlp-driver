@@ -258,7 +258,7 @@ int result = (a + b) * (c - d);
 ```
 
 ### Important Note
-These are **compiler bytecode generation issues**, not execution pipeline problems. The VM execution system works perfectly—it just needs the compiler to emit correct bytecode for these features.
+These are **compiler bytecode generation issues**, not execution pipeline problems. The VM execution system works perfectly--it just needs the compiler to emit correct bytecode for these features.
 
 ---
 
@@ -364,7 +364,7 @@ Complete documentation available:
 - [x] Lexer (tokenization)
 - [x] Parser (AST generation)
 - [x] Compiler (bytecode generation)
-- [x] Program loader (bytecode→VM translation)
+- [x] Program loader (bytecode->VM translation)
 - [x] Virtual machine (instruction execution)
 - [x] Garbage collector
 - [x] Object system
@@ -424,7 +424,7 @@ Complete documentation available:
 
 ### Short-term (Phase 8.1-8.3): LPC Assistant Integration
 1. **WSL Bridge Implementation**
-   - Windows↔Linux communication
+   - Windows<->Linux communication
    - File synchronization
    - Command forwarding
    - Real-time results
@@ -433,7 +433,7 @@ Complete documentation available:
    - Connect AI assistant to driver
    - Enable AI code generation
    - Implement feedback loop
-   - Test AI→compile→execute pipeline
+   - Test AI->compile->execute pipeline
 
 3. **Verification Testing**
    - AI generates LPC code
@@ -567,7 +567,7 @@ Complete documentation available:
 
 The AMLP Driver is **ready for integration testing and Phase 8 development**. With 228/230 tests passing (99.1%), zero build warnings, and a fully operational execution pipeline, the driver successfully compiles and executes LPC code.
 
-The 2 failing tests are known compiler limitations that don't block integration work. The execution system works perfectly—it simply needs enhanced compiler support for variable assignments and complex expressions in future phases.
+The 2 failing tests are known compiler limitations that don't block integration work. The execution system works perfectly--it simply needs enhanced compiler support for variable assignments and complex expressions in future phases.
 
 **Status: INTEGRATION READY**  
 **Recommendation: Proceed with Phase 8.0 (Mudlib Integration)**

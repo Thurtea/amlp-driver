@@ -59,8 +59,8 @@ COMPONENTS IMPLEMENTED
    - Added vm_value_free() support for new types
 
 4. Enhanced Efuns (efun.c/h)
-   - Real explode() implementation (string → array by delimiter)
-   - Real implode() implementation (array → string with separator)
+   - Real explode() implementation (string -> array by delimiter)
+   - Real implode() implementation (array -> string with separator)
    - Updated sizeof() for arrays/mappings (via array_length/mapping_size)
    - sort_array() using qsort with compare_values()
    - reverse_array() with element reversal
@@ -99,16 +99,16 @@ Test Results: 100% PASS RATE
 ========================================
 Suite               Tests    Assertions  Status
 --------------------------------------------------
-test_lexer          20       41          ✓ PASS
-test_parser         40       97          ✓ PASS  
-test_vm             47       146         ✓ PASS
-test_object         16       33          ✓ PASS
-test_gc             23       52          ✓ PASS
-test_efun           28       57          ✓ PASS
-test_array          23       70          ✓ PASS  [NEW]
-test_mapping        23       69          ✓ PASS  [NEW]
+test_lexer          20       41          [PASS] PASS
+test_parser         40       97          [PASS] PASS  
+test_vm             47       146         [PASS] PASS
+test_object         16       33          [PASS] PASS
+test_gc             23       52          [PASS] PASS
+test_efun           28       57          [PASS] PASS
+test_array          23       70          [PASS] PASS  [NEW]
+test_mapping        23       69          [PASS] PASS  [NEW]
 --------------------------------------------------
-TOTAL               220      565         ✓ ALL PASS
+TOTAL               220      565         [PASS] ALL PASS
 
 GC INTEGRATION NOTES
 ========================================
@@ -137,11 +137,11 @@ ENHANCED EFUNS LIST
 ========================================
 
 String Functions:
-- strlen, substring, explode✓, implode✓
+- strlen, substring, explode[PASS], implode[PASS]
 - upper_case, lower_case, trim
 
 Array Functions:
-- sizeof✓, arrayp, sort_array✓, reverse_array✓
+- sizeof[PASS], arrayp, sort_array[PASS], reverse_array[PASS]
 
 Math Functions:
 - abs, sqrt, pow, random, min, max
@@ -152,7 +152,7 @@ Type Checking:
 I/O Functions:
 - write, printf
 
-✓ = Fully implemented (previously stubs)
+[PASS] = Fully implemented (previously stubs)
 
 PROJECT STATISTICS
 ========================================
@@ -177,12 +177,12 @@ File Breakdown:
 PHASES COMPLETE
 ========================================
 
-✓ Phase 1: Lexical Analysis (Scanner)
-✓ Phase 2: Syntax Analysis (Parser) 
-✓ Phase 3: VM Architecture & Bytecode
-✓ Phase 4: Object System
-✓ Phase 5: Garbage Collection & Efuns
-✓ Phase 6: Arrays & Mappings
+[PASS] Phase 1: Lexical Analysis (Scanner)
+[PASS] Phase 2: Syntax Analysis (Parser) 
+[PASS] Phase 3: VM Architecture & Bytecode
+[PASS] Phase 4: Object System
+[PASS] Phase 5: Garbage Collection & Efuns
+[PASS] Phase 6: Arrays & Mappings
 
 NEXT STEPS (Phase 7+)
 ========================================

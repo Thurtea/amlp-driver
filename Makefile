@@ -14,7 +14,7 @@ COLOR_RESET  = \033[0m
 
 define show_header
 	@printf "$(COLOR_CYAN)╔══════════════════════════════════════════════════════════════════╗\n"
-	@printf "║                 AMLP DRIVER - COMPILATION IN PROGRESS             ║\n"
+	@printf "║                 AMLP DRIVER - COMPILATION IN PROGRESS              ║\n"
 	@printf "╚══════════════════════════════════════════════════════════════════╝$(COLOR_RESET)\n\n"
 endef
 
@@ -28,7 +28,7 @@ endef
 
 define show_success
 	@printf "\n$(COLOR_GREEN)╔══════════════════════════════════════════════════════════════════╗\n"
-	@printf "║                          ✓ BUILD SUCCESS                          ║\n"
+	@printf "║                           ✓ BUILD SUCCESS                           ║\n"
 	@printf "╚══════════════════════════════════════════════════════════════════╝$(COLOR_RESET)\n"
 endef
 

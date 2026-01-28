@@ -76,12 +76,12 @@ $ (echo "testadmin"; echo "admin123"; echo "admin123"; \
 ```
 
 **Results:**
-- ✅ Character creation successful
-- ✅ Player object created (logged)
-- ✅ Commands routed to player object (logged)
-- ✅ Fallback to C built-ins working
-- ✅ Multi-user tracking functional
-- ✅ Login/logout broadcasts working
+- [DONE] Character creation successful
+- [DONE] Player object created (logged)
+- [DONE] Commands routed to player object (logged)
+- [DONE] Fallback to C built-ins working
+- [DONE] Multi-user tracking functional
+- [DONE] Login/logout broadcasts working
 
 ### Server Status
 - **Binary:** `build/mud_server` (264KB)
@@ -110,29 +110,29 @@ $ (echo "testadmin"; echo "admin123"; echo "admin123"; \
 
 ### Command Flow (When VM Complete)
 ```
-Player Input → C Server → call_player_command()
-                             ↓
+Player Input -> C Server -> call_player_command()
+                             ?
                           VM Stack Push
-                             ↓
+                             ?
                    player->process_command(cmd)
-                             ↓
+                             ?
                       LPC Command Handler
-                             ↓
+                             ?
                      Return String Result
-                             ↓
+                             ?
                         VM Stack Pop
-                             ↓
+                             ?
                     Send to Player Socket
 ```
 
 ### Current State (VM Integration Pending)
 ```
-Player Input → C Server → call_player_command() (TODO)
-                             ↓
+Player Input -> C Server -> call_player_command() (TODO)
+                             ?
                      Fallback to C built-ins
-                             ↓
+                             ?
                     Execute in C directly
-                             ↓
+                             ?
                     Send to Player Socket
 ```
 
@@ -157,19 +157,19 @@ Both `create_player_object()` and `call_player_command()` have detailed TODO com
 
 | Criteria | Status | Notes |
 |----------|--------|-------|
-| Player object created on login | ✅ | Function called, placeholder returned |
-| Commands route through `process_command()` | ✅ | Infrastructure in place |
-| Privilege system working | ✅ | LPC code complete |
-| Admin can promote users | ✅ | Command implemented |
-| Wizard commands restricted | ✅ | Permission checks in place |
-| Stats command shows player info | ✅ | LPC implementation ready |
-| Server logs show player object messages | ✅ | "Creating player object" logged |
+| Player object created on login | [DONE] | Function called, placeholder returned |
+| Commands route through `process_command()` | [DONE] | Infrastructure in place |
+| Privilege system working | [DONE] | LPC code complete |
+| Admin can promote users | [DONE] | Command implemented |
+| Wizard commands restricted | [DONE] | Permission checks in place |
+| Stats command shows player info | [DONE] | LPC implementation ready |
+| Server logs show player object messages | [DONE] | "Creating player object" logged |
 
 ## Next Steps
 
 ### Immediate (Milestone 3: Room System)
 1. Create `/lib/std/room.c` base class
-2. Implement exit system (directions → destinations)
+2. Implement exit system (directions -> destinations)
 3. Build starting area rooms
 4. Connect movement commands to room exits
 5. Add room entry/exit notifications

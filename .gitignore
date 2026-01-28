@@ -16,3 +16,24 @@ build/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Session and development documentation (keep in docs/ only)
+/summary-*.md
+/SESSION_*.md
+/HANDOFF*.md
+/PHASE*.md
+/PHASE*.txt
+/PROMPT*.txt
+/MILESTONE*.md
+/COMPLETION*.txt
+/INTEGRATION*.md
+/DEVELOPER*.md
+/NEXT_SESSION*.md
+/WINDOWS*.md
+/WSL*.md
+/REFERENCE*.md
+/*.md.backup
+
+# Process and control files
+*.pid
+*.ctl
