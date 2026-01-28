@@ -15,12 +15,21 @@ void create() {
 
 // Attach wiztool to a player
 int attach(object player) {
-    if (!player) return 0;
-    
+    write_file("/log/server.log", sprintf("[DEBUG wiztool] attach() called with player=%s\n",
+        (player && function_exists("query_name", player) ? player->query_name() : "<none>")));
+
+    if (!player) {
+        write_file("/log/server.log", "[DEBUG wiztool] attach() failed: no player\n");
+        return 0;
+    }
+
     owner = player;
-    tell_object(owner, "\n%^BOLD%^Wiztool attached.%^RESET%^");
-    tell_object(owner, "Type '%^BOLD%^wiz help%^RESET%^' for wizard commands.\n");
-    
+    catch(tell_object(owner, "\n%^BOLD%^Wiztool attached.%^RESET%^") );
+    catch(tell_object(owner, "Type '%^BOLD%^wiz help%^RESET%^' for wizard commands.\n") );
+
+    write_file("/log/server.log", sprintf("[DEBUG wiztool] attach() succeeded for player=%s\n",
+        (owner && function_exists("query_name", owner) ? owner->query_name() : "<unknown>")));
+
     return 1;
 }
 

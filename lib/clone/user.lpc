@@ -42,13 +42,28 @@ mapping query_all_languages() {
 void set_wizard_level(int level) {
     wizard_level = level;
     if (wizard_level >= WIZARD_LEVEL) {
-        if (!objectp(_wiztool) && file_size(STD_WIZTOOL) > 0) {
+        /* Debug: log attempt to attach wiztool */
+        write_file("/log/server.log", sprintf("[DEBUG user] set_wizard_level(%d) called for %s\n", level, (function_exists("query_name", this_object()) ? this_object()->query_name() : "<unknown>")));
+        if (!objectp(_wiztool)) {
+            write_file("/log/server.log", sprintf("[DEBUG user] no existing _wiztool, checking file_size(%s)\n", STD_WIZTOOL));
+        }
+
+        if (!objectp(_wiztool) && file_size(WIZTOOL) > 0) {
             object wt = 0;
-            catch(wt = clone_object(STD_WIZTOOL));
+            write_file("/log/server.log", sprintf("[DEBUG user] cloning wiztool from %s\n", WIZTOOL));
+            catch(wt = clone_object(WIZTOOL));
             if (objectp(wt)) {
+                write_file("/log/server.log", sprintf("[DEBUG user] clone_object succeeded: %s\n", file_name(wt)));
                 _wiztool = wt;
-                if (function_exists("attach", _wiztool))
+                if (function_exists("attach", _wiztool)) {
+                    write_file("/log/server.log", sprintf("[DEBUG user] calling attach on %s\n", file_name(_wiztool)));
                     catch(_wiztool->attach(this_object()));
+                    write_file("/log/server.log", sprintf("[DEBUG user] attach call completed for %s\n", (function_exists("query_name", this_object()) ? this_object()->query_name() : "<unknown>")));
+                } else {
+                    write_file("/log/server.log", sprintf("[DEBUG user] wiztool has no attach() function: %s\n", file_name(_wiztool)));
+                }
+            } else {
+                write_file("/log/server.log", sprintf("[DEBUG user] clone_object failed for %s\n", WIZTOOL));
             }
         }
     }
@@ -110,22 +125,33 @@ void reconnect() {
 int process_input(string input) {
     if (!input || input == "") return 1;
 
-    /* Prefer using the command daemon when available so wiztool and global
-     * command routing works uniformly. */
-    if (objectp(COMMAND_D)) {
-        catch(COMMAND_D->execute_command(this_object(), input));
-        return 1;
-    }
-
-    /* Fallback to local command loading when daemon isn't present. */
     string verb, args;
+    int res;
     object cmd_ob;
     string cmd_path;
+
+    /* FIRST: Try command daemon (handles wiztool, player, room, global commands) */
+    if (objectp(COMMAND_D)) {
+        res = 0;
+        catch(res = COMMAND_D->execute_command(this_object(), input));
+        if (res) return 1; /* handled by daemon */
+    }
+
+    /* FALLBACK: legacy/local command handling */
     if (sscanf(input, "%s %s", verb, args) != 2) {
         verb = input;
         args = "";
     }
     verb = lower_case(verb);
+
+    /* Preserve legacy hardcoded commands */
+    if (verb == "quit" || verb == "logout") {
+        write("Saving character...\n");
+        save_me();
+        write("Goodbye!\n");
+        return -1;
+    }
+
     if (wizard_level >= WIZARD_LEVEL) {
         cmd_path = ADMIN_CMD_PREFIX + verb;
         catch(cmd_ob = load_object(cmd_path));
@@ -134,12 +160,25 @@ int process_input(string input) {
     cmd_path = CMD_PREFIX + verb;
     catch(cmd_ob = load_object(cmd_path));
     if (cmd_ob) return cmd_ob->main(args);
+
     write("What?\n");
     return 1;
 }
 
 /* Wiztool helpers */
-int query_wiztool() { return objectp(_wiztool); }
+// Return the actual wiztool object (or 0) so callers can invoke methods on it.
+
+object query_wiztool() { return _wiztool; }
+
+// Explicit attach helper: allow callers (e.g. login) to set/attach a
+// pre-cloned wiztool object to this player.
+void attach_wiztool(object wt) {
+    if (!objectp(wt)) return;
+    _wiztool = wt;
+    if (function_exists("attach", _wiztool)) {
+        catch(_wiztool->attach(this_object()));
+    }
+}
 
 void detach_wiztool() {
     if (objectp(_wiztool)) {

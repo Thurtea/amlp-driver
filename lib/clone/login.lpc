@@ -172,8 +172,23 @@ void enter_game() {
     user->set_language(DEFAULT_LANGUAGE, DEFAULT_FLUENCY);
     
     /* If this is the very first created player, make them Admin */
-    if (player_name == "Admin" || creating_new == 2 || is_first_player) {
+    /* Note: creating_new is set to 1 when a new character is being created.
+     * Previously the check used == 2 which prevented newly created players
+     * from being promoted to admin. Accept creating_new == 1 here. */
+    if (player_name == "Admin" || creating_new == 1 || is_first_player) {
+        write("[DEBUG] Granting admin to: " + player_name + " (creating_new=" + creating_new + ", is_first_player=" + is_first_player + ")\n");
         user->set_wizard_level(ADMIN_LEVEL);
+
+        /* Ensure wiztool is attached. If set_wizard_level didn't attach for
+         * some reason, try again and log to server log so we can inspect it. */
+        catch {
+            if (!objectp(user->query_wiztool())) {
+                write_file("/log/server.log", sprintf("[DEBUG login] wiztool not attached for %s, forcing set_wizard_level again\n", player_name));
+                user->set_wizard_level(ADMIN_LEVEL);
+            } else {
+                write_file("/log/server.log", sprintf("[DEBUG login] wiztool already attached for %s\n", player_name));
+            }
+        };
     }
     
     exec(user, this_object());

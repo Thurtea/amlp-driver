@@ -100,9 +100,24 @@ int execute_command(object player, string input) {
     verb = lower_case(verb);
     
     // Priority 1: Check wiztool (for wizards/admins)
-    wiztool = player->query_wiztool();
+    wiztool = 0;
+    if (player && function_exists("query_wiztool", player)) {
+        catch(wiztool = player->query_wiztool());
+    }
+
+    /* DEBUG: log wiztool checks to help diagnose why wiztool commands
+     * may not be routed. This is temporary and can be removed later. */
+    catch(
+        write_file("/log/server.log", sprintf("[DEBUG command] %s: execute_command player=%s verb=%s wiztool=%s\n", ctime(time()),
+            (player && function_exists("query_name", player) ? player->query_name() : "<unknown>"), verb,
+            (wiztool ? file_name(wiztool) : "<none>"))
+        );
+    );
+
     if (wiztool) {
-        result = wiztool->process_command(verb, args);
+        result = 0;
+        catch(result = wiztool->process_command(verb, args));
+        catch(write_file("/log/server.log", sprintf("[DEBUG command] %s: wiztool->process_command returned: %d\n", ctime(time()), result)));
         if (result) return 1;
     }
     
