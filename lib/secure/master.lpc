@@ -24,6 +24,11 @@ void create() {
     write("Master object initialized successfully.\n");
 }
 
+// Tell the driver where the simul_efun object is
+string get_simul_efun() {
+    return "/secure/simul_efun";
+}
+
 // Load simulated efuns
 private void load_simul_efun() {
     object simul;

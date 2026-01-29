@@ -4,7 +4,7 @@
 # Usage: ./mud.ctl {start|stop|restart|status|reload|log}
 
 MUDLIB_DIR="$(cd "$(dirname "$0")" && pwd)"
-SERVER_BIN="$MUDLIB_DIR/build/mud_server"
+SERVER_BIN="$MUDLIB_DIR/build/driver"
 PID_FILE="$MUDLIB_DIR/mud.pid"
 LOG_FILE="$MUDLIB_DIR/lib/log/server.log"
 DEFAULT_PORT=3000

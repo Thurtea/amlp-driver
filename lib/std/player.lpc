@@ -115,36 +115,40 @@ int is_admin() { return privilege_level >= 2; }
 void set_privilege_level(int level) {
     if (level < 0 || level > 2) return;
     privilege_level = level;
-    
     switch(level) {
         case 0:
             title = "Player";
+            detach_wiztool();
             break;
         case 1:
             title = "Wizard";
+            attach_wiztool();
             break;
         case 2:
             title = "Admin";
+            attach_wiztool();
             break;
     }
-    
     set_short(name + " the " + title);
 }
 
 string query_privilege_title() { return title; }
 
 // Wiztool functions
-void attach_wiztool() {
-    if (wiztool) {
-        // Already have one
-        return;
-    }
-    
-    wiztool = clone_object("/std/wiztool");
-    if (wiztool) {
-        wiztool->attach(this_object());
+// Attach a wiztool to this player (optionally use provided object)
+void attach_wiztool(object wt) {
+    if (wiztool) return; // Already have one
+    if (!wt) wt = clone_object("/std/wiztool");
+    if (wt) {
+        wiztool = wt;
+        if (function_exists("attach", wiztool)) {
+            wiztool->attach(this_object());
+        }
+        tell_object(this_object(), "Wiztool attached. Type 'wiz help' for wizard commands.\n");
     }
 }
+
+void attach_wiztool() { attach_wiztool(0); }
 
 void detach_wiztool() {
     if (wiztool) {
