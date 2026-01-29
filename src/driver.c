@@ -39,6 +39,7 @@
 #include "compiler.h"
 #include "master_object.h"
 #include "websocket.h"
+#include "session.h"
 /* #include "object.h" */
 
 #define MAX_CLIENTS 100
@@ -50,47 +51,18 @@
 #define DEFAULT_MASTER_PATH "lib/secure/master.lpc"
 #define SESSION_TIMEOUT 1800  /* 30 minutes */
 
-/* Connection types */
-typedef enum {
-    CONN_TELNET,       /* Traditional telnet connection */
-    CONN_WEBSOCKET     /* WebSocket connection */
-} ConnectionType;
+/* Connection types and session state are defined in session_internal.h */
 
-/* Player session states */
-typedef enum {
-    STATE_CONNECTING,      /* Just connected, need to show login prompt */
-    STATE_GET_NAME,        /* Waiting for username */
-    STATE_GET_PASSWORD,    /* Waiting for password (existing user) */
-    STATE_NEW_PASSWORD,    /* Setting password (new user) */
-    STATE_CONFIRM_PASSWORD,/* Confirming new password */
-    STATE_PLAYING,         /* Logged in and playing */
-    STATE_DISCONNECTING    /* Graceful disconnect in progress */
-} SessionState;
-
-/* Player session data */
-typedef struct {
-    int fd;                           /* Socket file descriptor */
-    SessionState state;               /* Current session state */
-    ConnectionType connection_type;   /* Telnet or WebSocket */
-    WSState ws_state;                 /* WebSocket state (if WS) */
-    char username[64];                /* Player username */
-    char password_buffer[128];        /* Temporary password storage */
-    char input_buffer[INPUT_BUFFER_SIZE]; /* Accumulated input */
-    size_t input_length;              /* Current input length */
-    uint8_t ws_buffer[WS_BUFFER_SIZE]; /* WebSocket frame buffer */
-    size_t ws_buffer_length;          /* WebSocket buffer length */
-    time_t last_activity;             /* Last activity timestamp */
-    time_t connect_time;              /* Connection timestamp */
-    void *player_object;            /* Player's in-game object */
-    char ip_address[INET_ADDRSTRLEN]; /* Client IP address */
-    int privilege_level;              /* 0=player, 1=wizard, 2=admin */
-} PlayerSession;
+/* Player session data (shared) */
+#include "session_internal.h"
 
 /* Global state */
 static volatile sig_atomic_t server_running = 1;
 static VirtualMachine *global_vm = NULL;
 static PlayerSession *sessions[MAX_CLIENTS];
 static int first_player_created = 0;  /* Track if first player has logged in */
+
+/* session management functions are implemented in src/session.c */
 
 /* Function prototypes */
 void handle_shutdown_signal(int sig);
@@ -339,10 +311,13 @@ VMValue execute_command(PlayerSession *session, const char *command) {
         return result;
     }
     
-    /* If player object exists, route command through it */
+    /* If player object exists, route command through it. Set the
+     * current VM session so efuns like this_player() can access it. */
     if (session->player_object) {
+        set_current_session(session);
         result = call_player_command(session->player_object, command);
-        
+        set_current_session(NULL);
+
         /* If VM returns valid result, use it */
         if (result.type == VALUE_STRING && result.data.string_value) {
             return result;

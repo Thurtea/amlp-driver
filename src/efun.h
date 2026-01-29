@@ -129,6 +129,24 @@ VMValue efun_mappingp(VirtualMachine *vm, VMValue *args, int arg_count);
 
 VMValue efun_write(VirtualMachine *vm, VMValue *args, int arg_count);
 VMValue efun_printf(VirtualMachine *vm, VMValue *args, int arg_count);
+VMValue efun_tell_object(VirtualMachine *vm, VMValue *args, int arg_count);
+VMValue efun_read_file(VirtualMachine *vm, VMValue *args, int arg_count);
+VMValue efun_write_file(VirtualMachine *vm, VMValue *args, int arg_count);
+VMValue efun_file_size(VirtualMachine *vm, VMValue *args, int arg_count);
+VMValue efun_get_dir(VirtualMachine *vm, VMValue *args, int arg_count);
+VMValue efun_mkdir(VirtualMachine *vm, VMValue *args, int arg_count);
+VMValue efun_rm(VirtualMachine *vm, VMValue *args, int arg_count);
+
+/* ========== Object/Player Efuns (core) ========== */
+
+VMValue efun_call_other(VirtualMachine *vm, VMValue *args, int arg_count);
+VMValue efun_clone_object(VirtualMachine *vm, VMValue *args, int arg_count);
+VMValue efun_find_object(VirtualMachine *vm, VMValue *args, int arg_count);
+VMValue efun_present(VirtualMachine *vm, VMValue *args, int arg_count);
+VMValue efun_environment(VirtualMachine *vm, VMValue *args, int arg_count);
+VMValue efun_move_object(VirtualMachine *vm, VMValue *args, int arg_count);
+VMValue efun_this_player(VirtualMachine *vm, VMValue *args, int arg_count);
+VMValue efun_file_name(VirtualMachine *vm, VMValue *args, int arg_count);
 
 /* ========== Utility Functions ========== */
 

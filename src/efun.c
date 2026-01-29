@@ -10,6 +10,17 @@
 #include "vm.h"
 #include "array.h"
 #include "mapping.h"
+#include "object.h"
+#include "compiler.h"
+#include "program_loader.h"
+#include "object.h"
+#include "session.h"
+#include <sys/stat.h>
+#include <libgen.h>
+#include <limits.h>
+#include <dirent.h>
+#include <errno.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -608,11 +619,498 @@ VMValue efun_printf(VirtualMachine *vm, VMValue *args, int arg_count) {
     return vm_value_create_int(1);
 }
 
+/* ========== Messaging Efuns ========== */
+
+VMValue efun_tell_object(VirtualMachine *vm, VMValue *args, int arg_count) {
+    (void)vm;
+    (void)arg_count;
+
+    if (arg_count < 2) {
+        return vm_value_create_int(0);
+    }
+
+    if (args[0].type != VALUE_OBJECT) {
+        return vm_value_create_int(0);
+    }
+
+    if (args[1].type != VALUE_STRING) {
+        return vm_value_create_int(0);
+    }
+
+    obj_t *target = (obj_t *)args[0].data.object_value;
+    const char *message = args[1].data.string_value;
+
+    if (!target || !message) {
+        return vm_value_create_int(0);
+    }
+
+    /* Call object's receive_message method if available */
+    VMValue arg = vm_value_create_string(message);
+    VMValue res = obj_call_method(vm, target, "receive_message", &arg, 1);
+    vm_value_free(&arg);
+
+    /* Free result if any to avoid leaking VMValue contents */
+    if (res.type != VALUE_UNINITIALIZED) {
+        vm_value_free(&res);
+    }
+
+    return vm_value_create_int(1);
+}
+
+/* ========== File path helpers ========== */
+
+static int path_contains_parent(const char *p) {
+    return strstr(p, "..") != NULL;
+}
+
+/* resolve a safe absolute path under MUD root into out (size PATH_MAX)
+ * Returns 1 on success, 0 on failure */
+static int resolve_safe_path(const char *path, char *out, size_t out_len) {
+    char root[PATH_MAX];
+    const char *env = getenv("AMLP_MUDLIB");
+    if (env && *env) {
+        if (!realpath(env, root)) return 0;
+    } else {
+        if (!getcwd(root, sizeof(root))) return 0;
+    }
+
+    if (!path || *path == '\0') return 0;
+    if (path_contains_parent(path)) return 0;
+
+    char candidate[PATH_MAX];
+    if (path[0] == '/') {
+        /* absolute path */
+        strncpy(candidate, path, sizeof(candidate)-1);
+        candidate[sizeof(candidate)-1] = '\0';
+    } else {
+        size_t root_len = strlen(root);
+        size_t path_len = strlen(path);
+        /* ensure we won't overflow candidate */
+        if (root_len + 1 + path_len >= sizeof(candidate)) return 0;
+        /* build path safely */
+        strcpy(candidate, root);
+        strcat(candidate, "/");
+        strcat(candidate, path);
+    }
+
+    /* realpath on parent directory to support non-existent files */
+    char tmp[PATH_MAX];
+    strncpy(tmp, candidate, sizeof(tmp)-1);
+    tmp[sizeof(tmp)-1] = '\0';
+    char *parent = dirname(tmp);
+    char parent_resolved[PATH_MAX];
+    if (!realpath(parent, parent_resolved)) return 0;
+
+    /* basename
+     * basename may modify string, so use a copy */
+    char cand_copy[PATH_MAX];
+    strncpy(cand_copy, candidate, sizeof(cand_copy)-1);
+    cand_copy[sizeof(cand_copy)-1] = '\0';
+    char *base = basename(cand_copy);
+
+    /* build final resolved path */
+    if (snprintf(out, out_len, "%s/%s", parent_resolved, base) >= (int)out_len) return 0;
+
+    /* ensure out is under root */
+    size_t root_len = strlen(root);
+    if (strncmp(out, root, root_len) != 0) return 0;
+
+    return 1;
+}
+
+/* ========== File I/O efuns ========== */
+
+VMValue efun_read_file(VirtualMachine *vm, VMValue *args, int arg_count) {
+    (void)vm;
+
+    if (arg_count < 1 || arg_count > 3) return vm_value_create_null();
+    if (args[0].type != VALUE_STRING) return vm_value_create_null();
+
+    const char *path = args[0].data.string_value;
+    long start_line = 1;
+    long num_lines = -1;
+    if (arg_count >= 2 && args[1].type == VALUE_INT) start_line = args[1].data.int_value;
+    if (arg_count >= 3 && args[2].type == VALUE_INT) num_lines = args[2].data.int_value;
+    if (start_line < 1) start_line = 1;
+
+    char resolved[PATH_MAX];
+    if (!resolve_safe_path(path, resolved, sizeof(resolved))) {
+        return vm_value_create_null();
+    }
+
+    FILE *fp = fopen(resolved, "r");
+    if (!fp) return vm_value_create_null();
+
+    const size_t MAX_READ = 1024 * 1024; /* 1MB */
+    size_t alloc = 1024;
+    char *result = malloc(alloc);
+    if (!result) { fclose(fp); return vm_value_create_null(); }
+    result[0] = '\0';
+    size_t used = 0;
+
+    char linebuf[4096];
+    long lineno = 0;
+    long lines_read = 0;
+    while (fgets(linebuf, sizeof(linebuf), fp)) {
+        lineno++;
+        if (lineno < start_line) continue;
+        if (num_lines != -1 && lines_read >= num_lines) break;
+
+        size_t add = strlen(linebuf);
+        if (used + add + 1 > alloc) {
+            size_t new_alloc = alloc * 2;
+            while (used + add + 1 > new_alloc) new_alloc *= 2;
+            if (new_alloc > MAX_READ) { /* exceed limit */
+                free(result); fclose(fp); return vm_value_create_null();
+            }
+            char *n = realloc(result, new_alloc);
+            if (!n) { free(result); fclose(fp); return vm_value_create_null(); }
+            result = n; alloc = new_alloc;
+        }
+        memcpy(result + used, linebuf, add);
+        used += add;
+        result[used] = '\0';
+        lines_read++;
+    }
+
+    fclose(fp);
+
+    if (!used) {
+        /* return empty string rather than null */
+        VMValue v = vm_value_create_string("");
+        free(result);
+        return v;
+    }
+
+    VMValue v = vm_value_create_string(result);
+    free(result);
+    return v;
+}
+
+VMValue efun_write_file(VirtualMachine *vm, VMValue *args, int arg_count) {
+    (void)vm;
+
+    if (arg_count != 2) return vm_value_create_int(0);
+    if (args[0].type != VALUE_STRING || args[1].type != VALUE_STRING) return vm_value_create_int(0);
+
+    const char *path = args[0].data.string_value;
+    const char *content = args[1].data.string_value;
+
+    char resolved[PATH_MAX];
+    if (!resolve_safe_path(path, resolved, sizeof(resolved))) {
+        return vm_value_create_int(0);
+    }
+
+    FILE *fp = fopen(resolved, "a");
+    if (!fp) return vm_value_create_int(0);
+
+    size_t len = strlen(content);
+    size_t written = fwrite(content, 1, len, fp);
+    fclose(fp);
+
+    return vm_value_create_int(written == len ? 1 : 0);
+}
+
+VMValue efun_file_size(VirtualMachine *vm, VMValue *args, int arg_count) {
+    (void)vm;
+
+    if (arg_count != 1) return vm_value_create_int(0);
+    if (args[0].type != VALUE_STRING) return vm_value_create_int(0);
+
+    const char *path = args[0].data.string_value;
+    char resolved[PATH_MAX];
+    if (!resolve_safe_path(path, resolved, sizeof(resolved))) {
+        return vm_value_create_int(0);
+    }
+
+    struct stat st;
+    if (stat(resolved, &st) != 0) {
+        return vm_value_create_int(0);
+    }
+
+    if (S_ISDIR(st.st_mode)) return vm_value_create_int(-2);
+    if (S_ISREG(st.st_mode)) return vm_value_create_int(-1);
+    return vm_value_create_int(0);
+}
+
+/* ========== Directory efuns ========== */
+
+VMValue efun_get_dir(VirtualMachine *vm, VMValue *args, int arg_count) {
+    (void)vm;
+
+    if (arg_count != 1) return vm_value_create_null();
+    if (args[0].type != VALUE_STRING) return vm_value_create_null();
+
+    const char *path = args[0].data.string_value;
+    char resolved[PATH_MAX];
+    if (!resolve_safe_path(path, resolved, sizeof(resolved))) {
+        return vm_value_create_null();
+    }
+
+    DIR *d = opendir(resolved);
+    if (!d) return vm_value_create_null();
+
+    array_t *arr = array_new(vm->gc, 8);
+    if (!arr) { closedir(d); return vm_value_create_null(); }
+
+    struct dirent *ent;
+    while ((ent = readdir(d)) != NULL) {
+        if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) continue;
+        VMValue v = vm_value_create_string(ent->d_name);
+        array_push(arr, v);
+    }
+
+    closedir(d);
+
+    VMValue out;
+    out.type = VALUE_ARRAY;
+    out.data.array_value = arr;
+    return out;
+}
+
+VMValue efun_mkdir(VirtualMachine *vm, VMValue *args, int arg_count) {
+    (void)vm;
+
+    if (arg_count != 1) return vm_value_create_int(0);
+    if (args[0].type != VALUE_STRING) return vm_value_create_int(0);
+
+    const char *path = args[0].data.string_value;
+    char resolved[PATH_MAX];
+    if (!resolve_safe_path(path, resolved, sizeof(resolved))) {
+        return vm_value_create_int(0);
+    }
+
+    int r = mkdir(resolved, 0755);
+    if (r == 0) return vm_value_create_int(1);
+    return vm_value_create_int(0);
+}
+
+VMValue efun_rm(VirtualMachine *vm, VMValue *args, int arg_count) {
+    (void)vm;
+
+    if (arg_count != 1) return vm_value_create_int(0);
+    if (args[0].type != VALUE_STRING) return vm_value_create_int(0);
+
+    const char *path = args[0].data.string_value;
+    char resolved[PATH_MAX];
+    if (!resolve_safe_path(path, resolved, sizeof(resolved))) {
+        return vm_value_create_int(0);
+    }
+
+    int r = unlink(resolved);
+    if (r == 0) return vm_value_create_int(1);
+    return vm_value_create_int(0);
+}
+
+/* ========== Object/Player Efuns ========== */
+
+static ObjManager *get_global_obj_manager(void) {
+    static ObjManager *mgr = NULL;
+    if (!mgr) mgr = obj_manager_init();
+    return mgr;
+}
+
+VMValue efun_clone_object(VirtualMachine *vm, VMValue *args, int arg_count) {
+    if (arg_count != 1 || args[0].type != VALUE_STRING) return vm_value_create_null();
+    const char *lpc_path = args[0].data.string_value;
+    if (!lpc_path) return vm_value_create_null();
+
+    /* Map LPC path like "/std/wiztool" -> <MUDLIB>/lib/std/wiztool.lpc */
+    char fs_path[PATH_MAX];
+    const char *mudlib = getenv("AMLP_MUDLIB");
+    if (!mudlib || !*mudlib) mudlib = "./lib";
+
+    /* strip leading slash */
+    const char *p = lpc_path[0] == '/' ? lpc_path + 1 : lpc_path;
+    if (snprintf(fs_path, sizeof(fs_path), "%s/%s.lpc", mudlib, p) >= (int)sizeof(fs_path)) {
+        return vm_value_create_null();
+    }
+
+    /* Compile source file */
+    Program *prog = compiler_compile_file(fs_path);
+    if (!prog) {
+        return vm_value_create_null();
+    }
+
+    /* Load into VM (adds VMFunction entries) */
+    if (program_loader_load(vm, prog) != 0) {
+        program_free(prog);
+        return vm_value_create_null();
+    }
+
+    /* Create object and register it */
+    obj_t *o = obj_new(lpc_path);
+    if (!o) {
+        program_free(prog);
+        return vm_value_create_null();
+    }
+    ObjManager *mgr = get_global_obj_manager();
+    if (mgr) obj_manager_register(mgr, o);
+
+    /* Attach functions from program to object by name lookup in VM */
+    for (size_t fi = 0; fi < prog->function_count; fi++) {
+        const char *fname = prog->functions[fi].name;
+        if (!fname) continue;
+        /* Find VMFunction pointer by name */
+        for (int i = 0; i < vm->function_count; i++) {
+            if (vm->functions[i] && strcmp(vm->functions[i]->name, fname) == 0) {
+                obj_add_method(o, vm->functions[i]);
+                break;
+            }
+        }
+    }
+
+    /* Call create() on object if present */
+    obj_call_method(vm, o, "create", NULL, 0);
+
+    program_free(prog);
+
+    VMValue v;
+    v.type = VALUE_OBJECT;
+    v.data.object_value = o;
+    return v;
+}
+
+VMValue efun_find_object(VirtualMachine *vm, VMValue *args, int arg_count) {
+    (void)vm;
+    if (arg_count != 1 || args[0].type != VALUE_STRING) return vm_value_create_null();
+    const char *path = args[0].data.string_value;
+    if (!path) return vm_value_create_null();
+
+    ObjManager *mgr = get_global_obj_manager();
+    if (!mgr) return vm_value_create_null();
+
+    obj_t *found = obj_manager_find(mgr, path);
+    if (found) {
+        VMValue v; v.type = VALUE_OBJECT; v.data.object_value = found; return v;
+    }
+
+    /* fallback: search by name equality */
+    for (int i = 0; i < mgr->object_count; i++) {
+        if (mgr->objects[i] && mgr->objects[i]->name && strcmp(mgr->objects[i]->name, path) == 0) {
+            VMValue v; v.type = VALUE_OBJECT; v.data.object_value = mgr->objects[i]; return v;
+        }
+    }
+
+    return vm_value_create_null();
+}
+
+VMValue efun_call_other(VirtualMachine *vm, VMValue *args, int arg_count) {
+    if (arg_count < 2) return vm_value_create_null();
+
+    obj_t *target = NULL;
+    if (args[0].type == VALUE_OBJECT) {
+        target = (obj_t *)args[0].data.object_value;
+    } else if (args[0].type == VALUE_STRING) {
+        /* find object by path/name */
+        ObjManager *mgr = get_global_obj_manager();
+        if (!mgr) return vm_value_create_null();
+        for (int i = 0; i < mgr->object_count; i++) {
+            if (mgr->objects[i] && mgr->objects[i]->name && strcmp(mgr->objects[i]->name, args[0].data.string_value) == 0) {
+                target = mgr->objects[i]; break;
+            }
+        }
+    }
+
+    if (!target) return vm_value_create_null();
+    if (args[1].type != VALUE_STRING) return vm_value_create_null();
+
+    const char *method = args[1].data.string_value;
+    int sub_args = arg_count - 2;
+    VMValue *sub = NULL;
+    if (sub_args > 0) sub = &args[2];
+
+    return obj_call_method(vm, target, method, sub, sub_args);
+}
+
+VMValue efun_present(VirtualMachine *vm, VMValue *args, int arg_count) {
+    (void)vm;
+    if (arg_count < 1) return vm_value_create_null();
+    if (args[0].type != VALUE_STRING) return vm_value_create_null();
+
+    const char *id = args[0].data.string_value;
+    obj_t *where = NULL;
+    if (arg_count >= 2 && args[1].type == VALUE_OBJECT) where = (obj_t *)args[1].data.object_value;
+
+    ObjManager *mgr = get_global_obj_manager();
+    if (!mgr) return vm_value_create_null();
+
+    for (int i = 0; i < mgr->object_count; i++) {
+        obj_t *o = mgr->objects[i];
+        if (!o) continue;
+        /* If where is provided, ensure object's environment matches */
+        if (where) {
+            VMValue env = obj_get_prop(o, "environment");
+            int match_env = 0;
+            if (env.type == VALUE_OBJECT && env.data.object_value == where) match_env = 1;
+            if (!match_env) continue;
+        }
+
+        /* match by object name */
+        if (o->name && strcmp(o->name, id) == 0) {
+            VMValue v; v.type = VALUE_OBJECT; v.data.object_value = o; return v;
+        }
+
+        /* match by id property */
+        VMValue pid = obj_get_prop(o, "id");
+        if (pid.type == VALUE_STRING && strcmp(pid.data.string_value, id) == 0) {
+            VMValue v; v.type = VALUE_OBJECT; v.data.object_value = o; return v;
+        }
+    }
+
+    return vm_value_create_null();
+}
+
+VMValue efun_environment(VirtualMachine *vm, VMValue *args, int arg_count) {
+    (void)vm;
+    if (arg_count != 1 || args[0].type != VALUE_OBJECT) return vm_value_create_null();
+    obj_t *o = (obj_t *)args[0].data.object_value;
+    if (!o) return vm_value_create_null();
+
+    VMValue env = obj_get_prop(o, "environment");
+    if (env.type == VALUE_UNINITIALIZED) return vm_value_create_null();
+    return env;
+}
+
+VMValue efun_move_object(VirtualMachine *vm, VMValue *args, int arg_count) {
+    (void)vm;
+    if (arg_count != 2) return vm_value_create_int(0);
+    if (args[0].type != VALUE_OBJECT || args[1].type != VALUE_OBJECT) return vm_value_create_int(0);
+
+    obj_t *src = (obj_t *)args[0].data.object_value;
+    obj_t *dst = (obj_t *)args[1].data.object_value;
+    if (!src || !dst) return vm_value_create_int(0);
+
+    VMValue v;
+    v.type = VALUE_OBJECT;
+    v.data.object_value = dst;
+    if (obj_set_prop(src, "environment", v) != 0) return vm_value_create_int(0);
+    return vm_value_create_int(1);
+}
+
+VMValue efun_this_player(VirtualMachine *vm, VMValue *args, int arg_count) {
+    (void)vm; (void)args; (void)arg_count;
+    void *po = get_current_player_object();
+    if (!po) return vm_value_create_null();
+    VMValue v;
+    v.type = VALUE_OBJECT;
+    v.data.object_value = po;
+    return v;
+}
+
+VMValue efun_file_name(VirtualMachine *vm, VMValue *args, int arg_count) {
+    (void)vm;
+    if (arg_count != 1 || args[0].type != VALUE_OBJECT) return vm_value_create_string("");
+    obj_t *o = (obj_t *)args[0].data.object_value;
+    if (!o || !o->name) return vm_value_create_string("");
+    return vm_value_create_string(o->name);
+}
+
 /* ========== Utility Functions ========== */
 
 int efun_register_all(EfunRegistry *registry) {
     if (!registry) return 0;
-    
+    int before = registry->efun_count;
     int count = 0;
     
     /* String functions */
@@ -650,13 +1148,30 @@ int efun_register_all(EfunRegistry *registry) {
     count += 5;
     
     /* I/O functions */
+    efun_register(registry, "tell_object", efun_tell_object, 2, 2, "int tell_object(object, string)");
+    efun_register(registry, "read_file", efun_read_file, 1, 3, "string read_file(string, int, int)");
+    efun_register(registry, "write_file", efun_write_file, 2, 2, "int write_file(string, string)");
+    efun_register(registry, "file_size", efun_file_size, 1, 1, "int file_size(string)");
+    efun_register(registry, "get_dir", efun_get_dir, 1, 1, "string* get_dir(string)");
+    efun_register(registry, "mkdir", efun_mkdir, 1, 1, "int mkdir(string)");
+    efun_register(registry, "rm", efun_rm, 1, 1, "int rm(string)");
+    /* Object/player efuns */
+    efun_register(registry, "call_other", efun_call_other, 2, -1, "mixed call_other(object|string, string, ...)");
+    efun_register(registry, "clone_object", efun_clone_object, 1, 1, "object clone_object(string)");
+    efun_register(registry, "find_object", efun_find_object, 1, 1, "object find_object(string)");
+    efun_register(registry, "present", efun_present, 1, 2, "object present(string, object)");
+    efun_register(registry, "environment", efun_environment, 1, 1, "object environment(object)");
+    efun_register(registry, "move_object", efun_move_object, 2, 2, "int move_object(object, object)");
+    efun_register(registry, "this_player", efun_this_player, 0, 0, "object this_player()");
+    efun_register(registry, "file_name", efun_file_name, 1, 1, "string file_name(object)");
     efun_register(registry, "write", efun_write, 1, 1, "int write(mixed)");
     efun_register(registry, "printf", efun_printf, 1, -1, "int printf(string, ...)");
     count += 2;
     
-    printf("[Efun] Registered %d standard efuns\n", count);
-    
-    return count;
+    int registered = registry->efun_count - before;
+    printf("[Efun] Registered %d standard efuns\n", registered);
+
+    return registered;
 }
 
 void efun_print_all(EfunRegistry *registry) {

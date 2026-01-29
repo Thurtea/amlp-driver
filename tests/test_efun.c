@@ -8,6 +8,7 @@
 
 #include "efun.h"
 #include "vm.h"
+#include "object.h"
 #include "array.h"
 #include "mapping.h"
 #include <stdio.h>
@@ -15,6 +16,8 @@
 #include <string.h>
 #include <assert.h>
 #include <math.h>
+#include <unistd.h>
+#include <sys/stat.h>
 
 /* ========== Test Framework ========== */
 
@@ -508,6 +511,128 @@ void test_efun_call_wrong_args(void) {
     
     vm_free(vm);
     efun_free(registry);
+}
+
+void test_efun_tell_object(void) {
+    test_setup("tell_object() messaging efun");
+
+    VirtualMachine *vm = vm_init();
+
+    /* Create a simple method that returns its first argument */
+    VMFunction *recv = vm_function_create("receive_message", 1, 1);
+    VMInstruction ins;
+    ins.opcode = OP_LOAD_LOCAL;
+    ins.operand.int_operand = 0;
+    vm_function_add_instruction(recv, ins);
+    ins.opcode = OP_RETURN;
+    vm_function_add_instruction(recv, ins);
+
+    vm_add_function(vm, recv);
+
+    obj_t *o = obj_new("test_obj");
+    obj_add_method(o, recv);
+
+    VMValue args[2];
+    args[0] = vm_value_create_null();
+    args[0].type = VALUE_OBJECT;
+    args[0].data.object_value = o;
+    args[1] = vm_value_create_string("hello world");
+
+    VMValue res = efun_tell_object(vm, args, 2);
+    test_assert(res.type == VALUE_INT && res.data.int_value == 1, "tell_object should return 1 on success");
+
+    vm_value_free(&args[1]);
+    obj_free(o);
+    vm_free(vm);
+}
+
+void test_efun_file_dir_ops(void) {
+    test_setup("File and directory efuns: mkdir, write_file, read_file, file_size, get_dir, rm");
+
+    VirtualMachine *vm = vm_init();
+
+    pid_t pid = getpid();
+    char dirpath[256];
+    char filepath[320];
+    snprintf(dirpath, sizeof(dirpath), "tests/_efun_tmp_%d", (int)pid);
+    snprintf(filepath, sizeof(filepath), "%s/test.txt", dirpath);
+
+    /* Cleanup any previous leftovers */
+    unlink(filepath);
+    rmdir(dirpath);
+
+    VMValue a1[1];
+    a1[0] = vm_value_create_string(dirpath);
+    VMValue mk = efun_mkdir(vm, a1, 1);
+    test_assert(mk.type == VALUE_INT && mk.data.int_value == 1, "mkdir should succeed");
+    vm_value_free(&a1[0]);
+
+    VMValue a2[2];
+    a2[0] = vm_value_create_string(filepath);
+    a2[1] = vm_value_create_string("line1\nline2\n");
+    VMValue w = efun_write_file(vm, a2, 2);
+    test_assert(w.type == VALUE_INT && w.data.int_value == 1, "write_file should succeed");
+    vm_value_free(&a2[0]);
+    vm_value_free(&a2[1]);
+
+    VMValue rarg[1];
+    rarg[0] = vm_value_create_string(filepath);
+    VMValue read = efun_read_file(vm, rarg, 1);
+    test_assert(read.type == VALUE_STRING && strstr(read.data.string_value, "line1") != NULL,
+                "read_file should return written content");
+    vm_value_free(&read);
+    vm_value_free(&rarg[0]);
+
+    VMValue sarg[1];
+    sarg[0] = vm_value_create_string(filepath);
+    VMValue fsize = efun_file_size(vm, sarg, 1);
+    test_assert(fsize.type == VALUE_INT && fsize.data.int_value == -1, "file_size should indicate regular file (-1)");
+    vm_value_free(&sarg[0]);
+
+    VMValue darg[1];
+    darg[0] = vm_value_create_string(dirpath);
+    VMValue dsize = efun_file_size(vm, darg, 1);
+    test_assert(dsize.type == VALUE_INT && dsize.data.int_value == -2, "file_size should indicate directory (-2)");
+    vm_value_free(&darg[0]);
+
+    VMValue garg[1];
+    garg[0] = vm_value_create_string(dirpath);
+    VMValue listing = efun_get_dir(vm, garg, 1);
+    test_assert(listing.type == VALUE_ARRAY, "get_dir should return an array");
+    if (listing.type == VALUE_ARRAY) {
+        array_t *arr = listing.data.array_value;
+        test_assert(array_length(arr) >= 1, "Directory listing should contain at least one entry");
+        /* look for our file name */
+        int found = 0;
+        for (size_t i = 0; i < array_length(arr); i++) {
+            VMValue ent = array_get(arr, i);
+            if (ent.type == VALUE_STRING && strcmp(ent.data.string_value, "test.txt") == 0) {
+                found = 1; break;
+            }
+        }
+        test_assert(found, "Directory listing should include test.txt");
+        array_free(arr);
+    }
+
+    vm_value_free(&garg[0]);
+
+    VMValue rmar[1];
+    rmar[0] = vm_value_create_string(filepath);
+    VMValue rmres = efun_rm(vm, rmar, 1);
+    test_assert(rmres.type == VALUE_INT && rmres.data.int_value == 1, "rm should remove the file");
+    vm_value_free(&rmar[0]);
+
+    /* After removal, file_size should report 0 (not found) */
+    VMValue sarg2[1];
+    sarg2[0] = vm_value_create_string(filepath);
+    VMValue fsize2 = efun_file_size(vm, sarg2, 1);
+    test_assert(fsize2.type == VALUE_INT && fsize2.data.int_value == 0, "file_size should report 0 for missing file");
+    vm_value_free(&sarg2[0]);
+
+    /* Cleanup directory */
+    rmdir(dirpath);
+
+    vm_free(vm);
 }
 
 /* ========== Main Test Runner ========== */
