@@ -346,14 +346,15 @@ Lexer* lexer_init(const char *filename) {
     buffer[size] = '\0';
     fclose(file);
 
-    /* Initialize lexer */
-    Lexer *lexer = malloc(sizeof(Lexer));
+    /* Initialize lexer - use calloc to zero all memory */
+    Lexer *lexer = calloc(1, sizeof(Lexer));
     if (!lexer) {
         fprintf(stderr, "Error: Memory allocation failed\n");
         free(buffer);
         return NULL;
     }
 
+    /* Explicitly initialize all fields */
     lexer->buffer = buffer;
     lexer->buffer_size = size + 1;
     lexer->position = 0;
@@ -382,13 +383,15 @@ Lexer* lexer_init_from_string(const char *source) {
 
     strcpy(buffer, source);
 
-    Lexer *lexer = malloc(sizeof(Lexer));
+    /* CRITICAL: Use calloc to zero all memory - prevents uninitialized state */
+    Lexer *lexer = calloc(1, sizeof(Lexer));
     if (!lexer) {
         fprintf(stderr, "Error: Memory allocation failed\n");
         free(buffer);
         return NULL;
     }
 
+    /* Explicitly initialize all fields (calloc already zeroed memory) */
     lexer->buffer = buffer;
     lexer->buffer_size = size + 1;
     lexer->position = 0;

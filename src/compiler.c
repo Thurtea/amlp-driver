@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <unistd.h>
 
 #define MAX_ERRORS 100
 #define INITIAL_BYTECODE_SIZE 1024
@@ -85,31 +86,33 @@ static char* read_file(const char *filename) {
  * Initialize compiler state
  */
 static compiler_state_t* compiler_state_new(void) {
-    compiler_state_t *state = malloc(sizeof(compiler_state_t));
+    /* CRITICAL: Use calloc to zero all memory - prevents uninitialized state */
+    compiler_state_t *state = calloc(1, sizeof(compiler_state_t));
     if (!state) return NULL;
-    
+
+    /* Explicitly initialize all fields */
     state->error_count = 0;
-    
+
     state->bytecode_capacity = INITIAL_BYTECODE_SIZE;
     state->bytecode = malloc(state->bytecode_capacity);
     state->bytecode_len = 0;
-    
+
     state->function_capacity = INITIAL_FUNCTION_COUNT;
     state->functions = malloc(sizeof(state->functions[0]) * state->function_capacity);
     state->function_count = 0;
-    
+
     state->global_capacity = INITIAL_GLOBALS_COUNT;
     state->globals = malloc(sizeof(state->globals[0]) * state->global_capacity);
     state->global_count = 0;
-    
+
     state->constant_capacity = 256;
     state->constants = malloc(sizeof(VMValue) * state->constant_capacity);
     state->constant_count = 0;
-    
+
     state->line_map_capacity = 256;
     state->line_map = malloc(sizeof(state->line_map[0]) * state->line_map_capacity);
     state->line_map_count = 0;
-    
+
     return state;
 }
 
@@ -544,6 +547,15 @@ static Program* compiler_compile_internal(const char *source, const char *filena
     if (!source || !filename) {
         return NULL;
     }
+    /* Debug dump: write raw source to temporary file for inspection */
+    {
+        FILE *dbg = fopen("/tmp/amlp_last_loaded_source.lpc", "w");
+        if (dbg) {
+            fprintf(dbg, "/* source for: %s */\n", filename);
+            fwrite(source, 1, strlen(source), dbg);
+            fclose(dbg);
+        }
+    }
     
     // Initialize compiler state
     compiler_state_t *state = compiler_state_new();
@@ -551,6 +563,31 @@ static Program* compiler_compile_internal(const char *source, const char *filena
     
     // Lexical analysis
     Lexer *lexer = lexer_init_from_string(source);
+    /* Dump token stream for debugging parser issues */
+    if (lexer) {
+        char tokens_path[256];
+        snprintf(tokens_path, sizeof(tokens_path), "/tmp/amlp_tokens_%d.log", (int)getpid());
+        FILE *tf = fopen(tokens_path, "a");
+        if (tf) {
+            Lexer *tmp = lexer_init_from_string(source);
+            if (tmp) {
+                fprintf(tf, "--- tokens for: %s (pid=%d) ---\n", filename, (int)getpid());
+                while (1) {
+                    Token tok = lexer_get_next_token(tmp);
+                    if (tok.value) {
+                        fprintf(tf, "%s:%d:%d: %s\n", token_type_to_string(tok.type), tok.line_number, tok.column_number, tok.value);
+                        free(tok.value);
+                    } else {
+                        fprintf(tf, "%s:%d:%d:\n", token_type_to_string(tok.type), tok.line_number, tok.column_number);
+                    }
+                    if (tok.type == TOKEN_EOF) break;
+                }
+                lexer_free(tmp);
+                fprintf(tf, "--- end tokens ---\n\n");
+            }
+            fclose(tf);
+        }
+    }
     if (!lexer) {
         compiler_state_free(state);
         return NULL;

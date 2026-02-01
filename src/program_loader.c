@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 /* Helper: Read uint8 from bytecode */
 static uint8_t read_u8(const uint8_t *bytecode, size_t *offset) {
@@ -157,6 +158,23 @@ int program_loader_load(VirtualMachine *vm, Program *program) {
     if (!vm || !program || !program->bytecode) {
         fprintf(stderr, "[program_loader] Invalid arguments\n");
         return -1;
+    }
+
+    /* Debug: dump the Program's source as seen by the loader */
+    {
+        char dump_path[256];
+        snprintf(dump_path, sizeof(dump_path), "/tmp/amlp_program_load_%d.lpc", (int)getpid());
+        FILE *d = fopen(dump_path, "a");
+        if (d) {
+            fprintf(d, "/* program filename: %s */\n", program->filename ? program->filename : "<null>");
+            if (program->source) {
+                fwrite(program->source, 1, strlen(program->source), d);
+                fprintf(d, "\n/* EOF */\n\n");
+            } else {
+                fprintf(d, "/* NO SOURCE AVAILABLE */\n\n");
+            }
+            fclose(d);
+        }
     }
     
     /* Step 1: Decode bytecode into VMInstructions */

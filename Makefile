@@ -10,32 +10,49 @@ SRC_DIR = src
 TEST_DIR = tests
 BUILD_DIR = build
 
+# Common sources needed for all tests (MUST BE BEFORE RULES!)
+TEST_COMMON_SOURCES = $(SRC_DIR)/vm.c \
+                      $(SRC_DIR)/object.c \
+                      $(SRC_DIR)/array.c \
+                      $(SRC_DIR)/mapping.c \
+                      $(SRC_DIR)/gc.c \
+                      $(SRC_DIR)/efun.c \
+                      $(SRC_DIR)/compiler.c \
+                      $(SRC_DIR)/program_loader.c \
+                      $(SRC_DIR)/program.c \
+                      $(SRC_DIR)/master_object.c \
+                      $(SRC_DIR)/session.c \
+                      $(SRC_DIR)/lexer.c \
+                      $(SRC_DIR)/parser.c \
+                      $(SRC_DIR)/codegen.c
+
 # Driver source files
 DRIVER_SRCS = $(SRC_DIR)/driver.c $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c \
               $(SRC_DIR)/vm.c $(SRC_DIR)/codegen.c $(SRC_DIR)/object.c \
               $(SRC_DIR)/gc.c $(SRC_DIR)/efun.c $(SRC_DIR)/array.c \
               $(SRC_DIR)/mapping.c $(SRC_DIR)/compiler.c $(SRC_DIR)/program.c \
-			  $(SRC_DIR)/simul_efun.c $(SRC_DIR)/program_loader.c \
+              $(SRC_DIR)/simul_efun.c $(SRC_DIR)/program_loader.c \
               $(SRC_DIR)/master_object.c $(SRC_DIR)/terminal_ui.c \
-			  $(SRC_DIR)/websocket.c $(SRC_DIR)/session.c
+              $(SRC_DIR)/websocket.c $(SRC_DIR)/session.c
 
 # Count source files
 TOTAL_FILES = $(words $(DRIVER_SRCS))
 
 # Colors
-C_CYAN    = \033[36m
-C_GREEN   = \033[32m
-C_YELLOW  = \033[33m
-C_RED     = \033[31m
-C_RESET   = \033[0m
-C_BOLD    = \033[1m
+C_CYAN = \033[36m
+C_GREEN = \033[32m
+C_YELLOW = \033[33m
+C_RED = \033[31m
+C_RESET = \033[0m
+C_BOLD = \033[1m
 
 # Default target - just build the driver
 .PHONY: all driver tests clean distclean help test
 
 driver: $(BUILD_DIR)/driver
 
-# Build driver with nice output
+
+# Build driver with custom unicode frame and ASCII indicators
 $(BUILD_DIR)/driver: $(DRIVER_SRCS)
 	@mkdir -p $(BUILD_DIR)
 	@printf "\n"
@@ -46,28 +63,27 @@ $(BUILD_DIR)/driver: $(DRIVER_SRCS)
 	@count=0; for src in $(DRIVER_SRCS); do \
 		count=$$((count + 1)); \
 		name=$$(basename $$src); \
-		line=$$(printf "  [%2d/$(TOTAL_FILES)] Compiling %s" $$count "$$name"); \
+		line=$$(printf " [*] [%2d/$(TOTAL_FILES)] Compiling %s" $$count "$$name"); \
 		printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" "$$line"; \
 	done
 	@printf "║                                                                            ║\n"
-	@line=$$(printf "  [LINK]  Creating driver executable..."); printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" "$$line"
+	@line=$$(printf " [*] [LINK]  Creating driver executable..."); printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" "$$line"
 	@printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" ""
-	@# Actually compile and capture warnings
 	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>$(BUILD_DIR)/.warnings.txt; \
 	status=$$?; \
 	warns=$$(grep -c "warning:" $(BUILD_DIR)/.warnings.txt 2>/dev/null | head -1 || echo 0); \
 	warns=$${warns:-0}; \
-	if [ "$$status" -eq 0 ]; then \
-		printf "$(C_CYAN)╠════════════════════════════════════════════════════════════════════════════╣$(C_RESET)\n"; \
-		printf "$(C_CYAN)║$(C_RESET)$(C_GREEN)%-76s$(C_RESET)$(C_CYAN)║$(C_RESET)\n" "  BUILD SUCCESSFUL"; \
-		printf "$(C_CYAN)╠════════════════════════════════════════════════════════════════════════════╣$(C_RESET)\n"; \
-		printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" "  Files compiled: $(TOTAL_FILES)"; \
-		printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" "  Warnings:       $$warns"; \
-		printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" "  Errors:         0"; \
-		printf "$(C_CYAN)╚════════════════════════════════════════════════════════════════════════════╝$(C_RESET)\n"; \
+	       if [ "$$status" -eq 0 ]; then \
+		       printf "$(C_CYAN)╠════════════════════════════════════════════════════════════════════════════╣$(C_RESET)\n"; \
+		       printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" "  BUILD SUCCESSFUL"; \
+		       printf "$(C_CYAN)╠════════════════════════════════════════════════════════════════════════════╣$(C_RESET)\n"; \
+		       printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" "  Files compiled: $(TOTAL_FILES)"; \
+		       printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" "  Warnings:       $$warns"; \
+		       printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" "  Errors:         0"; \
+		       printf "$(C_CYAN)╚════════════════════════════════════════════════════════════════════════════╝$(C_RESET)\n"; \
 	else \
 		printf "╠════════════════════════════════════════════════════════════════════════════╣\n"; \
-		printf "║                         ✗ BUILD FAILED                                  ║\n"; \
+		printf "║                         X BUILD FAILED                                  ║\n"; \
 		printf "╚════════════════════════════════════════════════════════════════════════════╝\n"; \
 		printf "\nErrors:\n"; \
 		cat $(BUILD_DIR)/.warnings.txt; \
@@ -79,101 +95,76 @@ $(BUILD_DIR)/driver: $(DRIVER_SRCS)
 tests: $(BUILD_DIR)/test_lexer $(BUILD_DIR)/test_parser $(BUILD_DIR)/test_vm \
        $(BUILD_DIR)/test_object $(BUILD_DIR)/test_gc $(BUILD_DIR)/test_efun \
        $(BUILD_DIR)/test_array $(BUILD_DIR)/test_mapping $(BUILD_DIR)/test_compiler \
-       $(BUILD_DIR)/test_program $(BUILD_DIR)/test_simul_efun $(BUILD_DIR)/test_vm_execution
-	@printf "$(C_GREEN)✓ All test binaries built$(C_RESET)\n"
+       $(BUILD_DIR)/test_program $(BUILD_DIR)/test_simul_efun $(BUILD_DIR)/test_vm_execution \
+       $(BUILD_DIR)/test_parser_stability
+	@printf "All test binaries built\n"
 
 # Build everything
 all: driver tests
 
-# Test executables (built quietly)
-$(BUILD_DIR)/test_lexer: $(TEST_DIR)/test_lexer.c $(SRC_DIR)/lexer.c
-	@mkdir -p $(BUILD_DIR)
-	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
 
-$(BUILD_DIR)/test_parser: $(TEST_DIR)/test_parser.c $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c
+# Pattern rule for all test targets (custom frame, ASCII indicators, no emojis)
+$(BUILD_DIR)/test_%: $(TEST_DIR)/test_%.c $(TEST_COMMON_SOURCES)
 	@mkdir -p $(BUILD_DIR)
-	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
+	@printf "$(C_CYAN)╔════════════════════════════════════════════════════════════════════════════╗$(C_RESET)\n"
+	@printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" "BUILDING TEST: $@"
+	@printf "$(C_CYAN)╠════════════════════════════════════════════════════════════════════════════╣$(C_RESET)\n"
+	@printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" " [*] Compiling test sources..."
+	@$(CC) $(CFLAGS) -o $@ $^ -I$(SRC_DIR) -I$(TEST_DIR) $(LDFLAGS)
+	@status=$$?; \
+	       if [ "$$status" -eq 0 ]; then \
+		       printf "$(C_CYAN)╠════════════════════════════════════════════════════════════════════════════╣$(C_RESET)\n"; \
+		       printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" "  TEST BUILD SUCCESSFUL"; \
+		       printf "$(C_CYAN)╚════════════════════════════════════════════════════════════════════════════╝$(C_RESET)\n"; \
+	else \
+		printf "╠════════════════════════════════════════════════════════════════════════════╣\n"; \
+		printf "║                         X TEST BUILD FAILED                             ║\n"; \
+		printf "╚════════════════════════════════════════════════════════════════════════════╝\n"; \
+		exit 1; \
+	fi
 
-$(BUILD_DIR)/test_vm: $(TEST_DIR)/test_vm.c $(SRC_DIR)/vm.c $(SRC_DIR)/object.c \
-                      $(SRC_DIR)/array.c $(SRC_DIR)/mapping.c $(SRC_DIR)/gc.c $(SRC_DIR)/efun.c
+# Specific override for test_simul_efun (needs simul_efun.c)
+$(BUILD_DIR)/test_simul_efun: $(TEST_DIR)/test_simul_efun.c $(TEST_COMMON_SOURCES) $(SRC_DIR)/simul_efun.c
 	@mkdir -p $(BUILD_DIR)
-	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
+	@printf "$(C_CYAN)╔════════════════════════════════════════════════════════════════════════════╗$(C_RESET)\n"
+	@printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" "BUILDING TEST: $@"
+	@printf "$(C_CYAN)╠════════════════════════════════════════════════════════════════════════════╣$(C_RESET)\n"
+	@printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" " [*] Compiling test sources..."
+	@$(CC) $(CFLAGS) -o $@ $^ -I$(SRC_DIR) -I$(TEST_DIR) $(LDFLAGS)
+	@status=$$?; \
+	       if [ "$$status" -eq 0 ]; then \
+		       printf "$(C_CYAN)╠════════════════════════════════════════════════════════════════════════════╣$(C_RESET)\n"; \
+		       printf "$(C_CYAN)║$(C_RESET)%-76s$(C_CYAN)║$(C_RESET)\n" "  TEST BUILD SUCCESSFUL"; \
+		       printf "$(C_CYAN)╚════════════════════════════════════════════════════════════════════════════╝$(C_RESET)\n"; \
+	else \
+		printf "╠════════════════════════════════════════════════════════════════════════════╣\n"; \
+		printf "║                         X TEST BUILD FAILED                             ║\n"; \
+		printf "╚════════════════════════════════════════════════════════════════════════════╝\n"; \
+		exit 1; \
+	fi
 
-$(BUILD_DIR)/test_object: $(TEST_DIR)/test_object.c $(SRC_DIR)/object.c $(SRC_DIR)/vm.c \
-                          $(SRC_DIR)/array.c $(SRC_DIR)/mapping.c $(SRC_DIR)/gc.c $(SRC_DIR)/efun.c
-	@mkdir -p $(BUILD_DIR)
-	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
-
-$(BUILD_DIR)/test_gc: $(TEST_DIR)/test_gc.c $(SRC_DIR)/gc.c
-	@mkdir -p $(BUILD_DIR)
-	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
-
-$(BUILD_DIR)/test_efun: $(TEST_DIR)/test_efun.c $(SRC_DIR)/efun.c $(SRC_DIR)/vm.c \
-                        $(SRC_DIR)/object.c $(SRC_DIR)/array.c $(SRC_DIR)/mapping.c $(SRC_DIR)/gc.c
-	@mkdir -p $(BUILD_DIR)
-	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
-
-$(BUILD_DIR)/test_array: $(TEST_DIR)/test_array.c $(SRC_DIR)/array.c $(SRC_DIR)/mapping.c \
-                         $(SRC_DIR)/vm.c $(SRC_DIR)/object.c $(SRC_DIR)/gc.c $(SRC_DIR)/efun.c
-	@mkdir -p $(BUILD_DIR)
-	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
-
-$(BUILD_DIR)/test_mapping: $(TEST_DIR)/test_mapping.c $(SRC_DIR)/mapping.c $(SRC_DIR)/array.c \
-                           $(SRC_DIR)/vm.c $(SRC_DIR)/object.c $(SRC_DIR)/gc.c $(SRC_DIR)/efun.c
-	@mkdir -p $(BUILD_DIR)
-	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
-
-$(BUILD_DIR)/test_compiler: $(TEST_DIR)/test_compiler.c $(SRC_DIR)/compiler.c $(SRC_DIR)/lexer.c \
-                            $(SRC_DIR)/parser.c $(SRC_DIR)/codegen.c $(SRC_DIR)/vm.c \
-                            $(SRC_DIR)/object.c $(SRC_DIR)/gc.c $(SRC_DIR)/array.c \
-                            $(SRC_DIR)/mapping.c $(SRC_DIR)/efun.c
-	@mkdir -p $(BUILD_DIR)
-	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
-
-$(BUILD_DIR)/test_program: $(TEST_DIR)/test_program.c $(SRC_DIR)/program.c $(SRC_DIR)/compiler.c \
-                           $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c $(SRC_DIR)/codegen.c \
-                           $(SRC_DIR)/vm.c $(SRC_DIR)/object.c $(SRC_DIR)/array.c \
-                           $(SRC_DIR)/mapping.c $(SRC_DIR)/gc.c $(SRC_DIR)/efun.c
-	@mkdir -p $(BUILD_DIR)
-	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
-
-$(BUILD_DIR)/test_simul_efun: $(TEST_DIR)/test_simul_efun.c $(SRC_DIR)/simul_efun.c \
-                              $(SRC_DIR)/program.c $(SRC_DIR)/compiler.c $(SRC_DIR)/lexer.c \
-                              $(SRC_DIR)/parser.c $(SRC_DIR)/codegen.c $(SRC_DIR)/vm.c \
-                              $(SRC_DIR)/object.c $(SRC_DIR)/gc.c $(SRC_DIR)/array.c \
-                              $(SRC_DIR)/mapping.c $(SRC_DIR)/efun.c
-	@mkdir -p $(BUILD_DIR)
-	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
-
-$(BUILD_DIR)/test_vm_execution: $(TEST_DIR)/test_vm_execution.c $(SRC_DIR)/compiler.c \
-                                $(SRC_DIR)/program_loader.c $(SRC_DIR)/program.c \
-                                $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c $(SRC_DIR)/codegen.c \
-                                $(SRC_DIR)/vm.c $(SRC_DIR)/object.c $(SRC_DIR)/gc.c \
-                                $(SRC_DIR)/array.c $(SRC_DIR)/mapping.c $(SRC_DIR)/efun.c
-	@mkdir -p $(BUILD_DIR)
-	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) 2>/dev/null
-
-# Run all tests
+# Run all tests (custom frame, ASCII indicators, no emojis except checkmark)
 test: tests
-	@printf "\n$(C_CYAN)═══════════════════════════════════════════════════════════════════════$(C_RESET)\n"
-	@printf "$(C_BOLD)                           RUNNING TESTS$(C_RESET)\n"
-	@printf "$(C_CYAN)═══════════════════════════════════════════════════════════════════════$(C_RESET)\n\n"
+	@printf "\n$(C_CYAN)╔════════════════════════════════════════════════════════════════════════════╗$(C_RESET)\n"
+	@printf "$(C_CYAN)║$(C_BOLD)%-76s$(C_CYAN)║$(C_RESET)\n" "RUNNING TESTS"
+	@printf "$(C_CYAN)╠════════════════════════════════════════════════════════════════════════════╣$(C_RESET)\n"
 	@for t in lexer parser vm object gc efun array mapping compiler program simul_efun vm_execution; do \
-		printf "$(C_CYAN)▶$(C_RESET) Running $$t tests...\n"; \
+		printf "$(C_CYAN)║$(C_RESET) [*] Running %-62s$(C_CYAN)║$(C_RESET)\n" "$$t tests..."; \
 		$(BUILD_DIR)/test_$$t 2>&1 | sed 's/^/  /'; \
-		printf "\n"; \
+		printf "$(C_CYAN)║%-76s$(C_CYAN)║\n" ""; \
 	done
+	@printf "$(C_CYAN)╚════════════════════════════════════════════════════════════════════════════╝$(C_RESET)\n"
 
 # Clean build artifacts
 clean:
 	@printf "$(C_CYAN)▶$(C_RESET) Cleaning build artifacts...\n"
 	@rm -rf $(BUILD_DIR)
-	@printf "$(C_GREEN)✓ Clean complete$(C_RESET)\n"
+	@printf "Clean complete\n"
 
 # Clean everything
 distclean: clean
 	@printf "$(C_CYAN)▶$(C_RESET) Removing all generated files...\n"
-	@printf "$(C_GREEN)✓ Distclean complete$(C_RESET)\n"
+	@printf "Distclean complete\n"
 
 # Display help
 help:
