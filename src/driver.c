@@ -42,6 +42,8 @@
 #include "websocket.h"
 #include "session.h"
 #include "object.h"
+#include "room.h"
+#include "chargen.h"
 
 #define MAX_CLIENTS 100
 #define BUFFER_SIZE 4096
@@ -74,6 +76,7 @@ void free_session(PlayerSession *session);
 void handle_session_input(PlayerSession *session, const char *input);
 void handle_websocket_data(PlayerSession *session, const uint8_t *data, size_t len);
 void process_login_state(PlayerSession *session, const char *input);
+void process_chargen_state(PlayerSession *session, const char *input);
 void process_playing_state(PlayerSession *session, const char *input);
 void send_to_player(PlayerSession *session, const char *format, ...);
 void send_prompt(PlayerSession *session);
@@ -401,6 +404,39 @@ VMValue execute_command(PlayerSession *session, const char *command) {
     }
     
     /* Built-in commands */
+    
+    /* Movement commands */
+    if (strcmp(cmd, "north") == 0 || strcmp(cmd, "n") == 0) {
+        cmd_move(session, "north");
+        result.type = VALUE_NULL;
+        return result;
+    }
+    if (strcmp(cmd, "south") == 0 || strcmp(cmd, "s") == 0) {
+        cmd_move(session, "south");
+        result.type = VALUE_NULL;
+        return result;
+    }
+    if (strcmp(cmd, "east") == 0 || strcmp(cmd, "e") == 0) {
+        cmd_move(session, "east");
+        result.type = VALUE_NULL;
+        return result;
+    }
+    if (strcmp(cmd, "west") == 0 || strcmp(cmd, "w") == 0) {
+        cmd_move(session, "west");
+        result.type = VALUE_NULL;
+        return result;
+    }
+    if (strcmp(cmd, "up") == 0 || strcmp(cmd, "u") == 0) {
+        cmd_move(session, "up");
+        result.type = VALUE_NULL;
+        return result;
+    }
+    if (strcmp(cmd, "down") == 0 || strcmp(cmd, "d") == 0) {
+        cmd_move(session, "down");
+        result.type = VALUE_NULL;
+        return result;
+    }
+    
     if (strcmp(cmd, "quit") == 0 || strcmp(cmd, "logout") == 0) {
         result.type = VALUE_STRING;
         result.data.string_value = strdup("quit");
@@ -443,11 +479,14 @@ VMValue execute_command(PlayerSession *session, const char *command) {
     }
     
     if (strcmp(cmd, "look") == 0 || strcmp(cmd, "l") == 0) {
-        result.type = VALUE_STRING;
-        result.data.string_value = strdup(
-            "You are in the starting room.\r\n"
-            "This is a simple test environment for the AMLP driver.\r\n"
-            "Obvious exits: none yet\r\n");
+        cmd_look(session, args ? args : "");
+        result.type = VALUE_NULL;
+        return result;
+    }
+    
+    if (strcmp(cmd, "stats") == 0 || strcmp(cmd, "score") == 0) {
+        cmd_stats(session, args ? args : "");
+        result.type = VALUE_NULL;
         return result;
     }
     
@@ -770,21 +809,14 @@ void process_login_state(PlayerSession *session, const char *input) {
                 first_player_created = 1;
                 fprintf(stderr, "[Server] First player created: %s (privilege: Admin)\n",
                        session->username);
-                
-                send_to_player(session, 
-                    "\r\nCharacter created successfully!\r\n"
-                    "As the first player, you have been granted Admin privileges.\r\n"
-                    "You materialize in the starting room.\r\n");
             } else {
                 session->privilege_level = 0;  /* Regular player */
-                send_to_player(session, 
-                    "\r\nCharacter created successfully!\r\n"
-                    "You materialize in the starting room.\r\n");
             }
             
+            /* Start character generation */
             memset(session->password_buffer, 0, sizeof(session->password_buffer));
-            session->state = STATE_PLAYING;
-            send_prompt(session);
+            session->state = STATE_CHARGEN;
+            chargen_init(session);
             
             /* Announce login */
             char create_msg[256];
@@ -797,6 +829,11 @@ void process_login_state(PlayerSession *session, const char *input) {
         default:
             break;
     }
+}
+
+/* Process input during character generation */
+void process_chargen_state(PlayerSession *session, const char *input) {
+    chargen_process_input(session, input);
 }
 
 /* Process input during playing state */
@@ -856,6 +893,10 @@ void handle_session_input(PlayerSession *session, const char *input) {
         
         if (session->state == STATE_CONNECTING) {
             send_prompt(session);
+        } else if (session->state == STATE_CHARGEN) {
+            if (strlen(line_start) > 0) {
+                process_chargen_state(session, line_start);
+            }
         } else if (session->state == STATE_PLAYING) {
             if (strlen(line_start) > 0) {
                 process_playing_state(session, line_start);
@@ -1096,6 +1137,9 @@ int main(int argc, char **argv) {
     if (initialize_vm(master_path) != 0) {
         return 1;
     }
+    
+    /* Initialize game world */
+    room_init_world();
     
     for (int i = 0; i < MAX_CLIENTS; i++) {
         sessions[i] = NULL;

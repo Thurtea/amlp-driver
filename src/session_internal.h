@@ -5,6 +5,10 @@
 #include <time.h>
 #include <netinet/in.h>
 #include "websocket.h"
+#include "chargen.h"  /* Character generation system */
+
+/* Forward declarations */
+typedef struct Room Room;
 
 #define INPUT_BUFFER_SIZE 2048
 #define WS_BUFFER_SIZE 65536
@@ -15,6 +19,7 @@ typedef enum {
     STATE_GET_PASSWORD,
     STATE_NEW_PASSWORD,
     STATE_CONFIRM_PASSWORD,
+    STATE_CHARGEN,      /* New state for character generation */
     STATE_PLAYING,
     STATE_DISCONNECTING
 } SessionState;
@@ -40,6 +45,11 @@ typedef struct PlayerSession {
     void *player_object;
     char ip_address[INET_ADDRSTRLEN];
     int privilege_level;
+    
+    /* Character generation and game state */
+    ChargenState chargen_state;
+    Character character;
+    Room *current_room;
 } PlayerSession;
 
 #endif /* SESSION_INTERNAL_H */

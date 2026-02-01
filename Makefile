@@ -33,7 +33,8 @@ DRIVER_SRCS = $(SRC_DIR)/driver.c $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c \
               $(SRC_DIR)/mapping.c $(SRC_DIR)/compiler.c $(SRC_DIR)/program.c \
               $(SRC_DIR)/simul_efun.c $(SRC_DIR)/program_loader.c \
               $(SRC_DIR)/master_object.c $(SRC_DIR)/terminal_ui.c \
-              $(SRC_DIR)/websocket.c $(SRC_DIR)/session.c
+              $(SRC_DIR)/websocket.c $(SRC_DIR)/session.c \
+              $(SRC_DIR)/room.c $(SRC_DIR)/chargen.c
 
 # Count source files
 TOTAL_FILES = $(words $(DRIVER_SRCS))
