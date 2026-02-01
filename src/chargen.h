@@ -6,6 +6,13 @@
 /* Forward declare from session_internal.h */
 typedef struct PlayerSession PlayerSession;
 
+/* Forward declare skill structures */
+typedef struct {
+    int skill_id;
+    int percentage;
+    int uses;
+} PlayerSkill;
+
 /* Character generation states */
 typedef enum {
     CHARGEN_RACE_SELECT,
@@ -42,6 +49,10 @@ typedef struct {
     int ppe;   /* Potential Psychic Energy (magic) */
     int max_ppe;
     CharacterStats stats;
+    
+    /* Skills system (Phase 2) */
+    PlayerSkill skills[20];     /* Max 20 skills per character */
+    int num_skills;             /* Number of skills learned */
 } Character;
 
 /* Chargen initialization */
@@ -59,6 +70,7 @@ void chargen_complete(PlayerSession *sess);
 
 /* Commands */
 void cmd_stats(PlayerSession *sess, const char *args);
+void cmd_skills(PlayerSession *sess, const char *args);
 
 /* Character persistence */
 int save_character(PlayerSession *sess);
@@ -66,3 +78,4 @@ int load_character(PlayerSession *sess, const char *username);
 int character_exists(const char *username);
 
 #endif /* CHARGEN_H */
+

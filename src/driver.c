@@ -39,6 +39,7 @@
 #include "compiler.h"
 #include "master_object.h"
 #include "efun.h"
+#include "skills.h"
 #include "websocket.h"
 #include "session.h"
 #include "object.h"
@@ -505,6 +506,12 @@ VMValue execute_command(PlayerSession *session, const char *command) {
     
     if (strcmp(cmd, "stats") == 0 || strcmp(cmd, "score") == 0) {
         cmd_stats(session, args ? args : "");
+        result.type = VALUE_NULL;
+        return result;
+    }
+    
+    if (strcmp(cmd, "skills") == 0) {
+        cmd_skills(session, args ? args : "");
         result.type = VALUE_NULL;
         return result;
     }
@@ -1273,6 +1280,9 @@ int main(int argc, char **argv) {
     
     /* Initialize game world */
     room_init_world();
+    
+    /* Initialize skill system */
+    skill_init();
     
     for (int i = 0; i < MAX_CLIENTS; i++) {
         sessions[i] = NULL;

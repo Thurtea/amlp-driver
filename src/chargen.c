@@ -1,6 +1,7 @@
 #include "chargen.h"
 #include "session_internal.h"
 #include "room.h"
+#include "skills.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,13 +16,9 @@ extern void send_to_player(PlayerSession *session, const char *format, ...);
 
 /* ========== COMPLETE RACE AND OCC DATABASE ========== */
 
-typedef struct {
-    const char *name;
-    const char *desc;
-} RaceOCCInfo;
 
 /* ALL 51 RIFTS EARTH RACES */
-static const RaceOCCInfo ALL_RACES[] = {
+const RaceOCCInfo ALL_RACES[] = {
     {"Human", "Baseline race, adaptable and determined"},
     {"Elf", "Graceful and magical, attuned to nature"},
     {"Dwarf", "Stout and resilient, master craftsmen"},
@@ -76,7 +73,7 @@ static const RaceOCCInfo ALL_RACES[] = {
 };
 
 /* ALL 35 RIFTS EARTH OCCs */
-static const RaceOCCInfo ALL_OCCS[] = {
+const RaceOCCInfo ALL_OCCS[] = {
     {"Cyber-Knight", "Techno-warrior with psionic powers"},
     {"Ley Line Walker", "Master of magical energies"},
     {"Rogue Scientist", "Tech expert and inventor"},
@@ -455,6 +452,11 @@ void chargen_process_input(PlayerSession *sess, const char *input) {
                 ch->occ = strdup(ALL_OCCS[choice - 1].name);
                 
                 send_to_player(sess, "\nYou selected: \033[1;32m%s\033[0m\n\n", ch->occ);
+                
+                /* Assign OCC-specific skills */
+                occ_assign_skills(sess, ch->occ);
+                
+                send_to_player(sess, "Getting your starting skills...\n");
                 send_to_player(sess, "Rolling your attributes...\n");
                 
                 chargen_roll_stats(sess);
@@ -497,6 +499,18 @@ void cmd_stats(PlayerSession *sess, const char *args) {
     }
     
     chargen_display_stats(sess);
+}
+
+/* Skills command */
+void cmd_skills(PlayerSession *sess, const char *args) {
+    if (!sess) return;
+    
+    if (sess->state != STATE_PLAYING) {
+        send_to_player(sess, "You must complete character creation first.\n");
+        return;
+    }
+    
+    skill_display_list(sess);
 }
 
 /* ========== CHARACTER PERSISTENCE ========== */
