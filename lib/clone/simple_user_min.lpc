@@ -1,0 +1,7 @@
+
+
+/* Absolute-minimal player clone for parser isolation testing */
+
+void create() { }
+
+
