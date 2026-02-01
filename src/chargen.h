@@ -71,6 +71,11 @@ void chargen_complete(PlayerSession *sess);
 /* Commands */
 void cmd_stats(PlayerSession *sess, const char *args);
 void cmd_skills(PlayerSession *sess, const char *args);
+void cmd_attack(PlayerSession *sess, const char *args);
+void cmd_strike(PlayerSession *sess, const char *args);
+void cmd_shoot(PlayerSession *sess, const char *args);
+void cmd_dodge(PlayerSession *sess, const char *args);
+void cmd_flee(PlayerSession *sess, const char *args);
 
 /* Character persistence */
 int save_character(PlayerSession *sess);

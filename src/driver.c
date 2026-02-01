@@ -40,6 +40,7 @@
 #include "master_object.h"
 #include "efun.h"
 #include "skills.h"
+#include "combat.h"
 #include "websocket.h"
 #include "session.h"
 #include "object.h"
@@ -512,6 +513,36 @@ VMValue execute_command(PlayerSession *session, const char *command) {
     
     if (strcmp(cmd, "skills") == 0) {
         cmd_skills(session, args ? args : "");
+        result.type = VALUE_NULL;
+        return result;
+    }
+    
+    if (strcmp(cmd, "attack") == 0) {
+        cmd_attack(session, args ? args : "");
+        result.type = VALUE_NULL;
+        return result;
+    }
+    
+    if (strcmp(cmd, "strike") == 0) {
+        cmd_strike(session, args ? args : "");
+        result.type = VALUE_NULL;
+        return result;
+    }
+    
+    if (strcmp(cmd, "shoot") == 0) {
+        cmd_shoot(session, args ? args : "");
+        result.type = VALUE_NULL;
+        return result;
+    }
+    
+    if (strcmp(cmd, "dodge") == 0) {
+        cmd_dodge(session, args ? args : "");
+        result.type = VALUE_NULL;
+        return result;
+    }
+    
+    if (strcmp(cmd, "flee") == 0) {
+        cmd_flee(session, args ? args : "");
         result.type = VALUE_NULL;
         return result;
     }
@@ -1283,6 +1314,9 @@ int main(int argc, char **argv) {
     
     /* Initialize skill system */
     skill_init();
+    
+    /* Initialize combat system */
+    combat_init();
     
     for (int i = 0; i < MAX_CLIENTS; i++) {
         sessions[i] = NULL;
