@@ -199,6 +199,16 @@ int valid_write(string file, mixed user, string func) {
 
     if (!ob) return 0;
 
+    // Allow players to save their own player files under /save/players/<name>.o
+    if (sscanf(file, "/save/players/%s.o", owner) == 1) {
+        if (function_exists("query_name", ob)) {
+            string pname = (string)call_other(ob, "query_name");
+            if (pname && pname != "" && lower_case(pname) == lower_case(owner)) {
+                return 1;
+            }
+        }
+    }
+
     // Root and Admin EUIDs always allowed
     string euid = geteuid(ob);
     if (euid == "Root" || euid == "Admin") {

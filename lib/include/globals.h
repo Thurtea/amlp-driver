@@ -43,6 +43,10 @@
 #define ANSI_WHITE      "\x1b[37m"
 
 // Color shortcuts (MUD style)
+// Note: original tokens like %^RESET%^ are not valid C preprocessor identifiers
+// and break the LPC parser used during compilation. Provide safer aliases
+// if code needs them, or comment out the invalid forms.
+/*
 #define %^RESET%^       ANSI_RESET
 #define %^BOLD%^        ANSI_BOLD
 #define %^RED%^         ANSI_RED
@@ -52,6 +56,18 @@
 #define %^MAGENTA%^     ANSI_MAGENTA
 #define %^CYAN%^        ANSI_CYAN
 #define %^WHITE%^       ANSI_WHITE
+*/
+
+/* Safer symbolic aliases (use these in LPC where needed) */
+#define MUD_CLR_RESET   "%^RESET%^"
+#define MUD_CLR_BOLD    "%^BOLD%^"
+#define MUD_CLR_RED     "%^RED%^"
+#define MUD_CLR_GREEN   "%^GREEN%^"
+#define MUD_CLR_YELLOW  "%^YELLOW%^"
+#define MUD_CLR_BLUE    "%^BLUE%^"
+#define MUD_CLR_MAGENTA "%^MAGENTA%^"
+#define MUD_CLR_CYAN    "%^CYAN%^"
+#define MUD_CLR_WHITE   "%^WHITE%^"
 
 // === RETURN CODES ===
 #define SUCCESS         1

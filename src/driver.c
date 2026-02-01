@@ -38,9 +38,10 @@
 #include "vm.h"
 #include "compiler.h"
 #include "master_object.h"
+#include "efun.h"
 #include "websocket.h"
 #include "session.h"
-/* #include "object.h" */
+#include "object.h"
 
 #define MAX_CLIENTS 100
 #define BUFFER_SIZE 4096
@@ -153,8 +154,32 @@ void* create_player_object(const char *username, const char *password_hash __att
      * }
      */
     
-    /* For now, return placeholder */
-    return (void*)1;  /* Non-null to indicate "created" */
+    /* Attempt to clone a minimal LPC user object via efun: clone_object("/clone/simple_user_min") */
+    VMValue path = vm_value_create_string("/clone/simple_user_min");
+    VMValue res = efun_call(global_vm->efun_registry, global_vm, "clone_object", &path, 1);
+    vm_value_free(&path);
+
+    if (res.type != VALUE_OBJECT || !res.data.object_value) {
+        vm_value_free(&res);
+        fprintf(stderr, "[Server] ERROR: clone_object failed for user object\n");
+        return NULL;
+    }
+
+    obj_t *player = (obj_t *)res.data.object_value;
+
+    /* Call setup_player(username, password_hash) on the cloned object */
+    VMValue args[2];
+    args[0] = vm_value_create_string(username ? username : "");
+    args[1] = vm_value_create_string(password_hash ? password_hash : "");
+
+    /* Call setup_player; ignore return value */
+    obj_call_method(global_vm, player, "setup_player", args, 2);
+
+    vm_value_free(&args[0]);
+    vm_value_free(&args[1]);
+    vm_value_free(&res);
+
+    return (void *)player;
 }
 
 /* Call player object's process_command method */
@@ -169,13 +194,42 @@ VMValue call_player_command(void *player_obj, const char *command) {
     fprintf(stderr, "[Server] Calling player command: %s\n", command);
 
     // Cast player_obj to obj_t*
+    /* Guard: during early development a non-pointer sentinel (1) is
+     * returned from create_player_object(). Do not attempt to treat
+     * that sentinel as a real object pointer. Return a null result so
+     * execute_command will fall back to built-in handlers. */
+    if (player_obj == (void*)1) {
+        return result;
+    }
+
     obj_t *obj = (obj_t *)player_obj;
 
     // Prepare argument (command string)
     VMValue cmd_arg = vm_value_create_string(command);
 
+    /* Debug: check whether object exposes process_command */
+    VMFunction *m = obj_get_method(obj, "process_command");
+    if (!m) {
+        fprintf(stderr, "[Server] DEBUG: player object '%s' has no process_command()\n",
+                obj->name ? obj->name : "<unnamed>");
+    } else {
+        fprintf(stderr, "[Server] DEBUG: player object '%s' has process_command (%d params)\n",
+                obj->name ? obj->name : "<unnamed>", m->param_count);
+    }
+
     // Call process_command on the player object
     result = obj_call_method(global_vm, obj, "process_command", &cmd_arg, 1);
+
+    /* Debug: log return type */
+    if (result.type == VALUE_STRING) {
+        fprintf(stderr, "[Server] DEBUG: process_command returned string: %s\n",
+                result.data.string_value ? result.data.string_value : "(null)");
+    } else if (result.type == VALUE_INT) {
+        fprintf(stderr, "[Server] DEBUG: process_command returned int: %ld\n",
+                result.data.int_value);
+    } else {
+        fprintf(stderr, "[Server] DEBUG: process_command returned type %d\n", result.type);
+    }
 
     // Clean up
     vm_value_free(&cmd_arg);
@@ -204,6 +258,25 @@ void free_session(PlayerSession *session) {
     if (!session) return;
     
     if (session->player_object) {
+        /* Persist a minimal savefile on disconnect as a temporary measure
+         * until the VM-backed LPC objects are fully implemented. This
+         * creates lib/save/players/<name>.o with basic info so the mudlib
+         * can detect a savefile exists. */
+        if (session->username && session->username[0]) {
+            char path[512];
+            snprintf(path, sizeof(path), "lib/save/players/%s.o", session->username);
+            FILE *f = fopen(path, "w");
+            if (f) {
+                fprintf(f, "# AMLP minimal save file\n");
+                fprintf(f, "name:%s\n", session->username);
+                fprintf(f, "priv:%d\n", session->privilege_level);
+                fclose(f);
+                fprintf(stderr, "[Server] Wrote minimal savefile: %s\n", path);
+            } else {
+                fprintf(stderr, "[Server] WARNING: failed to write savefile %s\n", path);
+            }
+        }
+
         /* TODO: Call destruct on player object when object system ready */
         session->player_object = NULL;
     }

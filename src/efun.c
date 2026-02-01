@@ -960,6 +960,15 @@ VMValue efun_clone_object(VirtualMachine *vm, VMValue *args, int arg_count) {
         }
     }
 
+    /* Debug: report which key methods were attached */
+    {
+        int has_process = obj_get_method(o, "process_command") ? 1 : 0;
+        int has_setup = obj_get_method(o, "setup_player") ? 1 : 0;
+        int has_save = obj_get_method(o, "save_me") ? 1 : 0;
+        fprintf(stderr, "[Efun] clone_object: created '%s' methods=%d setup=%d save_me=%d\n",
+                o->name ? o->name : "<noname>", o->method_count, has_setup, has_save);
+    }
+
     /* Call create() on object if present */
     obj_call_method(vm, o, "create", NULL, 0);
 

@@ -1,0 +1,25 @@
+// Minimal player clone for testing driver
+
+private string pname;
+
+void create() { }
+
+void setup_player(string name, string pass) {
+    pname = name;
+}
+
+string query_name() { return pname; }
+
+mixed process_command(string cmd) {
+    if (!cmd || cmd == "") return "\n";
+    if (cmd == "quit") {
+        save_me();
+        return "quit";
+    }
+    return "You said: " + cmd + "\n";
+}
+
+void save_me() {
+    string path = "/save/players/" + pname + ".o";
+    catch(save_object(path));
+}

@@ -53,7 +53,8 @@ start_server() {
     mkdir -p "$(dirname "$LOG_FILE")"
     
     echo "Starting AMLP-MUD server on port $DEFAULT_PORT..."
-    nohup "$SERVER_BIN" "$DEFAULT_PORT" >> "$LOG_FILE" 2>&1 &
+    # Start driver with telnet port, websocket port and explicit master path
+    nohup "$SERVER_BIN" "$DEFAULT_PORT" "3001" "lib/secure/master.lpc" >> "$LOG_FILE" 2>&1 &
     SERVER_PID=$!
     echo "$SERVER_PID" > "$PID_FILE"
     
