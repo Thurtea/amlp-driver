@@ -1,0 +1,7 @@
+thurtea
+password
+exits
+examine room
+shout Testing shout command!
+chat Testing chat!
+quit

@@ -99,6 +99,15 @@ int cmd_cd_filesystem(PlayerSession *session, const char *args);
 int cmd_pwd_filesystem(PlayerSession *session);
 int cmd_cat_filesystem(PlayerSession *session, const char *args);
 
+/* Priority gameplay command functions */
+static int cmd_tell(PlayerSession *session, const char *arg);
+static int cmd_chat(PlayerSession *session, const char *arg);
+static int cmd_whisper(PlayerSession *session, const char *arg);
+static int cmd_shout(PlayerSession *session, const char *arg);
+static int cmd_exits(PlayerSession *session, const char *arg);
+static int cmd_examine(PlayerSession *session, const char *arg);
+static int cmd_give_item(PlayerSession *session, const char *arg);
+
 /* Signal handler */
 void handle_shutdown_signal(int sig) {
     (void)sig;
@@ -371,6 +380,270 @@ void send_prompt(PlayerSession *session) {
         default:
             break;
     }
+}
+
+/* ========================================================================
+ * PRIORITY GAMEPLAY COMMANDS
+ * ======================================================================== */
+
+/* Helper: Find a player session by name */
+static PlayerSession* find_player_by_name(const char *name) {
+    if (!name || !*name) return NULL;
+    
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (sessions[i] && 
+            sessions[i]->state == STATE_PLAYING && 
+            sessions[i]->username && 
+            strcasecmp(sessions[i]->username, name) == 0) {
+            return sessions[i];
+        }
+    }
+    return NULL;
+}
+
+/* 1. TELL - Send private message to another player */
+static int cmd_tell(PlayerSession *session, const char *arg) {
+    char target_name[64];
+    char message[1024];
+    
+    if (!arg || !*arg) {
+        send_to_player(session, "Usage: tell <player> <message>\n");
+        return 1;
+    }
+    
+    /* Parse: "playername message text" */
+    if (sscanf(arg, "%63s %1023[^\n]", target_name, message) != 2) {
+        send_to_player(session, "Usage: tell <player> <message>\n");
+        return 1;
+    }
+    
+    /* Find target player */
+    PlayerSession *target = find_player_by_name(target_name);
+    if (!target) {
+        send_to_player(session, "Player '%s' not found.\n", target_name);
+        return 1;
+    }
+    
+    if (target == session) {
+        send_to_player(session, "Talking to yourself again?\n");
+        return 1;
+    }
+    
+    /* Send messages */
+    send_to_player(target, "\n<%s tells you> %s\n", session->username, message);
+    send_to_player(session, "<You tell %s> %s\n", target->username, message);
+    
+    return 1;
+}
+
+/* 2. CHAT - Global chat channel */
+static int cmd_chat(PlayerSession *session, const char *arg) {
+    if (!arg || !*arg) {
+        send_to_player(session, "Usage: chat <message>\n");
+        return 1;
+    }
+    
+    /* Broadcast to all players */
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (sessions[i] && sessions[i]->state == STATE_PLAYING) {
+            if (sessions[i] == session) {
+                send_to_player(sessions[i], "[CHAT: %s] %s\n", session->username, arg);
+            } else {
+                send_to_player(sessions[i], "\n[CHAT: %s] %s\n", session->username, arg);
+            }
+        }
+    }
+    
+    return 1;
+}
+
+/* 3. WHISPER - Private message to someone in the same room */
+static int cmd_whisper(PlayerSession *session, const char *arg) {
+    char target_name[64];
+    char message[1024];
+    
+    if (!arg || !*arg) {
+        send_to_player(session, "Usage: whisper <player> <message>\n");
+        return 1;
+    }
+    
+    if (!session->current_room) {
+        send_to_player(session, "You are nowhere.\n");
+        return 1;
+    }
+    
+    /* Parse: "playername message text" */
+    if (sscanf(arg, "%63s %1023[^\n]", target_name, message) != 2) {
+        send_to_player(session, "Usage: whisper <player> <message>\n");
+        return 1;
+    }
+    
+    /* Find player in current room */
+    PlayerSession *target = NULL;
+    Room *room = session->current_room;
+    
+    for (int i = 0; i < room->num_players; i++) {
+        if (room->players[i] && room->players[i] != session &&
+            room->players[i]->username &&
+            strcasecmp(room->players[i]->username, target_name) == 0) {
+            target = room->players[i];
+            break;
+        }
+    }
+    
+    if (!target) {
+        send_to_player(session, "Player '%s' not found in this room.\n", target_name);
+        return 1;
+    }
+    
+    /* Send whisper */
+    send_to_player(target, "%s whispers to you: %s\n", session->username, message);
+    send_to_player(session, "You whisper to %s: %s\n", target->username, message);
+    
+    /* Let others know something was whispered (but not what) */
+    for (int i = 0; i < room->num_players; i++) {
+        if (room->players[i] && room->players[i] != session && room->players[i] != target) {
+            send_to_player(room->players[i], "%s whispers something to %s.\n",
+                          session->username, target->username);
+        }
+    }
+    
+    return 1;
+}
+
+/* 4. SHOUT - Loud message heard in area */
+static int cmd_shout(PlayerSession *session, const char *arg) {
+    if (!arg || !*arg) {
+        send_to_player(session, "Usage: shout <message>\n");
+        return 1;
+    }
+    
+    if (!session->current_room) {
+        send_to_player(session, "You are nowhere.\n");
+        return 1;
+    }
+    
+    Room *room = session->current_room;
+    
+    /* Shout in current room */
+    for (int i = 0; i < room->num_players; i++) {
+        if (room->players[i] && room->players[i] != session) {
+            send_to_player(room->players[i], "%s shouts: %s\n", session->username, arg);
+        }
+    }
+    send_to_player(session, "You shout: %s\n", arg);
+    
+    /* TODO: Shout to adjacent rooms (requires room linkage) */
+    
+    return 1;
+}
+
+/* 5. EXITS - Show available exits from current room */
+static int cmd_exits(PlayerSession *session, const char *arg) {
+    (void)arg;  /* Unused */
+    
+    if (!session->current_room) {
+        send_to_player(session, "You are nowhere.\n");
+        return 1;
+    }
+    
+    Room *room = session->current_room;
+    send_to_player(session, "\nObvious exits:\n");
+    
+    int has_exit = 0;
+    if (room->exits.north >= 0) {
+        send_to_player(session, "  North\n");
+        has_exit = 1;
+    }
+    if (room->exits.south >= 0) {
+        send_to_player(session, "  South\n");
+        has_exit = 1;
+    }
+    if (room->exits.east >= 0) {
+        send_to_player(session, "  East\n");
+        has_exit = 1;
+    }
+    if (room->exits.west >= 0) {
+        send_to_player(session, "  West\n");
+        has_exit = 1;
+    }
+    if (room->exits.up >= 0) {
+        send_to_player(session, "  Up\n");
+        has_exit = 1;
+    }
+    if (room->exits.down >= 0) {
+        send_to_player(session, "  Down\n");
+        has_exit = 1;
+    }
+    
+    if (!has_exit) {
+        send_to_player(session, "  None.\n");
+    }
+    send_to_player(session, "\n");
+    
+    return 1;
+}
+
+/* 6. EXAMINE - Inspect objects/players in detail */
+static int cmd_examine(PlayerSession *session, const char *arg) {
+    if (!arg || !*arg) {
+        send_to_player(session, "Examine what?\n");
+        return 1;
+    }
+    
+    if (!session->current_room) {
+        send_to_player(session, "You are nowhere.\n");
+        return 1;
+    }
+    
+    /* Check for "room" or "here" */
+    if (strcasecmp(arg, "room") == 0 || strcasecmp(arg, "here") == 0) {
+        cmd_look(session, "");
+        return 1;
+    }
+    
+    /* Look for player in room */
+    Room *room = session->current_room;
+    for (int i = 0; i < room->num_players; i++) {
+        if (room->players[i] && room->players[i]->username &&
+            strcasecmp(room->players[i]->username, arg) == 0) {
+            
+            PlayerSession *target = room->players[i];
+            if (target == session) {
+                send_to_player(session, "That's you!\n");
+            } else {
+                send_to_player(session, "You examine %s.\n", target->username);
+                send_to_player(session, "Race: %s  O.C.C.: %s\n",
+                              target->character.race,
+                              target->character.occ);
+                send_to_player(session, "They appear to be in good health.\n");
+            }
+            return 1;
+        }
+    }
+    
+    /* TODO: Check for items in room/inventory */
+    send_to_player(session, "You don't see that here.\n");
+    
+    return 1;
+}
+
+/* 10. GIVE - Give items to other players */
+static int cmd_give_item(PlayerSession *session, const char *arg) {
+    if (!arg || !*arg) {
+        send_to_player(session, "Usage: give <item> <player>\n");
+        return 1;
+    }
+    
+    if (!session->current_room) {
+        send_to_player(session, "You are nowhere.\n");
+        return 1;
+    }
+    
+    /* TODO: Implement when item system is ready */
+    send_to_player(session, "You don't have that item.\n");
+    
+    return 1;
 }
 
 /* Execute command through VM */
@@ -697,6 +970,49 @@ VMValue execute_command(PlayerSession *session, const char *command) {
             result.type = VALUE_STRING;
             result.data.string_value = strdup("Emote what?\r\n");
         }
+        return result;
+    }
+    
+    /* Priority gameplay commands */
+    if (strcmp(cmd, "tell") == 0) {
+        cmd_tell(session, args ? args : "");
+        result.type = VALUE_NULL;
+        return result;
+    }
+    
+    if (strcmp(cmd, "chat") == 0) {
+        cmd_chat(session, args ? args : "");
+        result.type = VALUE_NULL;
+        return result;
+    }
+    
+    if (strcmp(cmd, "whisper") == 0) {
+        cmd_whisper(session, args ? args : "");
+        result.type = VALUE_NULL;
+        return result;
+    }
+    
+    if (strcmp(cmd, "shout") == 0) {
+        cmd_shout(session, args ? args : "");
+        result.type = VALUE_NULL;
+        return result;
+    }
+    
+    if (strcmp(cmd, "exits") == 0) {
+        cmd_exits(session, args ? args : "");
+        result.type = VALUE_NULL;
+        return result;
+    }
+    
+    if (strcmp(cmd, "examine") == 0 || strcmp(cmd, "exam") == 0) {
+        cmd_examine(session, args ? args : "");
+        result.type = VALUE_NULL;
+        return result;
+    }
+    
+    if (strcmp(cmd, "give") == 0) {
+        cmd_give_item(session, args ? args : "");
+        result.type = VALUE_NULL;
         return result;
     }
     
@@ -1145,6 +1461,9 @@ void process_playing_state(PlayerSession *session, const char *input) {
         if (result.data.string_value) {
             free(result.data.string_value);
         }
+    } else if (result.type == VALUE_NULL) {
+        /* Command handled its own output, just send prompt */
+        send_prompt(session);
     } else {
         send_to_player(session, "Command failed to execute.\r\n");
         send_prompt(session);

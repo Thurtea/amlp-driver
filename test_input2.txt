@@ -1,0 +1,8 @@
+thurtea
+password
+inventory
+tell thurtea Hi there
+whisper thurtea secret message
+examine thurtea
+give item to player
+quit
