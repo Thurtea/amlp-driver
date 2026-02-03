@@ -1,0 +1,52 @@
+/*
+ * /lib/cmds/inventory.lpc - Display inventory
+ */
+
+#include <globals.h>
+
+int main(string arg) {
+    object user;
+    object *inv;
+    int i, total_weight;
+    string output;
+    
+    user = previous_object();
+    inv = all_inventory(user);
+    
+    output = "\n=== INVENTORY ===\n";
+    
+    if (!inv || sizeof(inv) == 0) {
+        output += "Your inventory is empty.\n";
+    } else {
+        for (i = 0; i < sizeof(inv); i++) {
+            string name = inv[i]->query_short() || inv[i]->query_name() || "something";
+            int weight = inv[i]->query_weight() || 0;
+            
+            output += sprintf("  %s", name);
+            if (weight > 0) {
+                output += sprintf(" (%d lbs)", weight);
+            }
+            output += "\n";
+            
+            total_weight += weight;
+        }
+    }
+    
+    output += sprintf("\nCarrying: %d/%d lbs (%d items)\n", 
+        total_weight,
+        user->query_max_carry_weight() || 0,
+        sizeof(inv));
+    
+    tell_object(user, output);
+    return 1;
+}
+
+string query_help() {
+    return
+"INVENTORY - Display your inventory\n\n"
+"Usage:\n"
+"  inventory    Show what you're carrying\n"
+"  i            Short form\n\n"
+"Shows all items in your inventory with their weight.\n\n"
+"See also: GET, DROP, GIVE, EQUIPMENT\n";
+}

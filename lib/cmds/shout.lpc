@@ -1,0 +1,72 @@
+/*
+ * /lib/cmds/shout.lpc - Shout across multiple rooms
+ */
+
+#include <globals.h>
+
+int main(string arg) {
+    object user, room;
+    object *nearby_rooms, *inv;
+    string *exits;
+    int i, j;
+    
+    user = previous_object();
+    room = user->query_environment();
+    
+    if (!arg || arg == "") {
+        tell_object(user, "Usage: shout <message>\n");
+        return 1;
+    }
+    
+    if (!room) {
+        tell_object(user, "You are nowhere.\n");
+        return 1;
+    }
+    
+    // Shout in current room
+    inv = all_inventory(room);
+    for (i = 0; i < sizeof(inv); i++) {
+        if (inv[i] != user && living(inv[i])) {
+            tell_object(inv[i], sprintf("%s shouts: %s\n",
+                capitalize(user->query_name()), arg));
+        }
+    }
+    tell_object(user, sprintf("You shout: %s\n", arg));
+    
+    // Shout heard in adjacent rooms (muffled)
+    exits = room->query_exits();
+    if (exits && sizeof(exits) > 0) {
+        nearby_rooms = ({});
+        
+        foreach (string dir in exits) {
+            object adjacent = room->query_exit(dir);
+            if (adjacent && sizeof(nearby_rooms) < 20) {  // Limit to prevent spam
+                nearby_rooms += ({ adjacent });
+            }
+        }
+        
+        // Tell people in adjacent rooms they hear a shout
+        foreach (object nearby in nearby_rooms) {
+            inv = all_inventory(nearby);
+            for (i = 0; i < sizeof(inv); i++) {
+                if (living(inv[i])) {
+                    tell_object(inv[i], sprintf("You hear someone shout from nearby: %s\n", arg));
+                }
+            }
+        }
+    }
+    
+    return 1;
+}
+
+string query_help() {
+    return
+"SHOUT - Shout loudly, heard in adjacent rooms\n\n"
+"Usage:\n"
+"  shout <message>    Shout a message\n\n"
+"Example:\n"
+"  shout Help! I'm under attack!\n\n"
+"Your shout will be heard clearly in your current room, and\n"
+"faintly in adjacent rooms.\n\n"
+"See also: SAY, CHAT, YELL\n";
+}

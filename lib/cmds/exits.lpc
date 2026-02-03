@@ -1,0 +1,55 @@
+/*
+ * /lib/cmds/exits.lpc - Show available exits from current room
+ */
+
+#include <globals.h>
+
+int main(string arg) {
+    object user, room;
+    string *exits;
+    string output;
+    int i;
+    
+    user = previous_object();
+    room = user->query_environment();
+    
+    if (!room) {
+        tell_object(user, "You are nowhere.\n");
+        return 1;
+    }
+    
+    exits = room->query_exits();
+    
+    if (!exits || sizeof(exits) == 0) {
+        tell_object(user, "There are no obvious exits.\n");
+        return 1;
+    }
+    
+    output = "\nObvious exits:\n";
+    
+    for (i = 0; i < sizeof(exits); i++) {
+        string dir = exits[i];
+        object dest = room->query_exit(dir);
+        string dest_name = "unknown";
+        
+        if (dest) {
+            dest_name = dest->query_short() || dest->query_name() || "somewhere";
+        }
+        
+        output += sprintf("  %-10s - %s\n", capitalize(dir), dest_name);
+    }
+    
+    output += "\n";
+    tell_object(user, output);
+    
+    return 1;
+}
+
+string query_help() {
+    return
+"EXITS - Show available exits from current room\n\n"
+"Usage:\n"
+"  exits    Display all obvious exits\n\n"
+"Shows the direction and destination name for each exit.\n\n"
+"See also: LOOK, MAP, GO\n";
+}

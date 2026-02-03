@@ -1,0 +1,32 @@
+// /lib/cmds/stats.lpc - Display character statistics
+
+int cmd(string args) {
+    object player = this_player();
+    
+    if (!player) {
+        write("Error: No player context.\n");
+        return 1;
+    }
+    
+    // Call the player's stats method
+    string stats_output = player->cmd_stats();
+    write(stats_output);
+    
+    return 1;
+}
+
+string query_help() {
+    return
+"STATS - Display your character statistics\n\n"
+"Usage:\n"
+"  stats                  Show your character sheet\n\n"
+"Displays your complete character information including:\n"
+"  - Name and title\n"
+"  - Level and experience\n"
+"  - Race and O.C.C.\n"
+"  - Health (HP, S.D.C., M.D.C.)\n"
+"  - ISP and P.P.E. (if applicable)\n"
+"  - Palladium attributes (IQ, ME, MA, PS, PP, PE, PB, SPD)\n"
+"  - Current speaking language\n\n"
+"See also: SKILLS, LANGUAGES, WHO\n";
+}

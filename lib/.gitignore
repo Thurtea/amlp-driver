@@ -1,26 +1,22 @@
 # Development and historical files
 archive/
-artifacts/
-docs/
 
 # Build artifacts
-build/
 *.o
+*.so
+*.a
+build/
 
 # Runtime files
-logs/
+log/
 save/
-*.pid
-lib/log/
-lib/save/
-lib/tmp/
+tmp/
 
 # Backup files
-*.backup
 *.bak
+*.backup
 *.old
 *~
-lib.bak/
 
 # Editor files
 .vscode/

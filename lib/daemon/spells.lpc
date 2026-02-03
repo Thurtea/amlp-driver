@@ -1,0 +1,207 @@
+/*
+ * /lib/daemon/spells.lpc - Central spell registry
+ *
+ * Palladium spell levels 1-15
+ * Spells organized by level and type
+ */
+
+#define SPELLS_DIR "/spells"
+
+/* ========================= Registry ========================= */
+private mapping spells;        /* spell_id: spell object */
+private mapping by_level;      /* level: ({ spell_ids }) */
+private int initialized;
+
+void create() {
+    spells = ([]);
+    by_level = ([]);
+    initialized = 0;
+}
+
+/* ========================= Loading ========================= */
+
+void load_all_spells() {
+    string *files;
+    
+    if (initialized) return;
+    
+    /* Load from main spells directory */
+    files = get_dir(SPELLS_DIR + "/*.lpc");
+    if (files) {
+        foreach (string file : files) {
+            string path = SPELLS_DIR + "/" + file;
+            object spell = load_object(path[0..<5]);
+            if (spell) {
+                string id = spell->query_spell_id();
+                int level = spell->query_spell_level();
+                spells[id] = spell;
+                
+                if (!by_level[level]) {
+                    by_level[level] = ({});
+                }
+                if (member_array(id, by_level[level]) == -1) {
+                    by_level[level] += ({ id });
+                }
+            }
+        }
+    }
+    
+    /* Load from level subdirectories */
+    for (int level = 1; level <= 15; level++) {
+        files = get_dir(SPELLS_DIR + "/level" + level + "/*.lpc");
+        if (files) {
+            foreach (string file : files) {
+                string path = SPELLS_DIR + "/level" + level + "/" + file;
+                object spell = load_object(path[0..<5]);
+                if (spell) {
+                    string id = spell->query_spell_id();
+                    int slevel = spell->query_spell_level();
+                    spells[id] = spell;
+                    
+                    if (!by_level[slevel]) {
+                        by_level[slevel] = ({});
+                    }
+                    if (member_array(id, by_level[slevel]) == -1) {
+                        by_level[slevel] += ({ id });
+                    }
+                }
+            }
+        }
+    }
+    
+    initialized = 1;
+}
+
+/* ========================= Spell Access ========================= */
+
+object query_spell(string spell_id) {
+    if (!initialized) load_all_spells();
+    return spells[spell_id];
+}
+
+string *query_all_spell_ids() {
+    if (!initialized) load_all_spells();
+    return keys(spells);
+}
+
+string *query_spells_by_level(int level) {
+    if (!initialized) load_all_spells();
+    if (by_level[level]) {
+        return by_level[level];
+    }
+    return ({});
+}
+
+/* ========================= PPE Calculations ========================= */
+
+/*
+ * Calculate starting PPE for a spell caster
+ * Based on PE stat and character class
+ */
+int calculate_starting_ppe(object living, int is_primary_caster) {
+    int pe = living->query_stat("pe");
+    int base;
+    
+    if (is_primary_caster) {
+        /* Primary magic users: PE + 3d6 */
+        base = pe + random(6) + random(6) + random(6) + 3;
+    } else {
+        /* Secondary/minor casters: PE + 1d6 */
+        base = pe + random(6) + 1;
+    }
+    
+    return base;
+}
+
+/*
+ * Calculate PPE gain per level
+ */
+int calculate_ppe_per_level(int is_primary_caster) {
+    if (is_primary_caster) {
+        return random(6) + random(6) + 2;  /* 2d6 */
+    }
+    return random(6) + 1;  /* 1d6 */
+}
+
+/* ========================= Spell Casting ========================= */
+
+/*
+ * Cast a spell
+ * Returns: 1 = success, 0 = failure
+ */
+int cast_spell(string spell_id, object caster, object target) {
+    if (!initialized) load_all_spells();
+    
+    object spell = spells[spell_id];
+    if (!spell) {
+        tell_object(caster, "That spell doesn't exist.\n");
+        return 0;
+    }
+    
+    int check = spell->can_cast(caster);
+    if (check == 0) {
+        tell_object(caster, "You don't know that spell or can't cast it yet.\n");
+        return 0;
+    }
+    if (check == -1) {
+        tell_object(caster, "You don't have enough P.P.E.\n");
+        return 0;
+    }
+    
+    return spell->cast(caster, target);
+}
+
+/*
+ * Get formatted list of a character's spells
+ */
+string format_spell_list(object living) {
+    mapping my_spells = living->query_spells();
+    
+    if (!my_spells || sizeof(my_spells) == 0) {
+        return "You don't know any spells.\n";
+    }
+    
+    string result = "";
+    result += "=======================================================\n";
+    result += "  SPELLS (Caster Level " + living->query_spell_caster_level() + ")\n";
+    result += "  P.P.E.: " + living->query_ppe() + "/" + living->query_max_ppe() + "\n";
+    result += "=======================================================\n";
+    
+    /* Group by level */
+    mapping by_lvl = ([]);
+    string *ids = keys(my_spells);
+    
+    foreach (string id : ids) {
+        object spell = spells[id];
+        int level = spell ? spell->query_spell_level() : 1;
+        if (!by_lvl[level]) by_lvl[level] = ({});
+        by_lvl[level] += ({ id });
+    }
+    
+    for (int level = 1; level <= 15; level++) {
+        if (by_lvl[level] && sizeof(by_lvl[level]) > 0) {
+            result += "\n  Level " + level + ":\n";
+            foreach (string id : by_lvl[level]) {
+                object spell = spells[id];
+                string name = spell ? spell->query_spell_name() : id;
+                int cost = spell ? spell->query_ppe_cost() : 0;
+                result += sprintf("    %-25s (%d P.P.E.)\n", name, cost);
+            }
+        }
+    }
+    
+    result += "=======================================================\n";
+    return result;
+}
+
+/*
+ * Get info about a specific spell
+ */
+string query_spell_info(string spell_id) {
+    if (!initialized) load_all_spells();
+    
+    object spell = spells[spell_id];
+    if (!spell) return "Spell not found.\n";
+    
+    return spell->query_info();
+}

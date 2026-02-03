@@ -1,0 +1,120 @@
+/*
+ * /lib/cmds/get.lpc - Pick up items
+ */
+
+#include <globals.h>
+
+int main(string arg) {
+    object user, room, item;
+    
+    user = previous_object();
+    room = user->query_environment();
+    
+    if (!arg || arg == "") {
+        tell_object(user, "Get what?\n");
+        return 1;
+    }
+    
+    if (!room) {
+        tell_object(user, "You are nowhere.\n");
+        return 1;
+    }
+    
+    // Handle "get all"
+    if (arg == "all") {
+        object *items = all_inventory(room);
+        int count = 0;
+        
+        if (!items || sizeof(items) == 0) {
+            tell_object(user, "There's nothing here to get.\n");
+            return 1;
+        }
+        
+        foreach (object obj in items) {
+            if (!living(obj) && function_exists("get", obj)) {
+                if (obj->get(user)) {
+                    count++;
+                }
+            }
+        }
+        
+        if (count > 0) {
+            tell_object(user, sprintf("You pick up %d item%s.\n", 
+                count, (count == 1 ? "" : "s")));
+        } else {
+            tell_object(user, "There's nothing here you can pick up.\n");
+        }
+        
+        return 1;
+    }
+    
+    // Find specific item
+    item = present(arg, room);
+    
+    if (!item) {
+        tell_object(user, "You don't see that here.\n");
+        return 1;
+    }
+    
+    if (living(item)) {
+        tell_object(user, "You can't pick that up!\n");
+        return 1;
+    }
+    
+    // Check if item can be taken
+    if (function_exists("query_no_get", item) && item->query_no_get()) {
+        tell_object(user, "You can't take that.\n");
+        return 1;
+    }
+    
+    // Check weight limit
+    int item_weight = item->query_weight() || 0;
+    int current_weight = 0;
+    object *inv = all_inventory(user);
+    
+    foreach (object obj in inv) {
+        current_weight += (obj->query_weight() || 0);
+    }
+    
+    int max_weight = user->query_max_carry_weight() || 1000;
+    
+    if (current_weight + item_weight > max_weight) {
+        tell_object(user, "That's too heavy. You're already carrying too much.\n");
+        return 1;
+    }
+    
+    // Move item to player
+    if (function_exists("move", item)) {
+        item->move(user);
+    } else {
+        move_object(item, user);
+    }
+    
+    string item_name = item->query_short() || item->query_name() || "something";
+    tell_object(user, sprintf("You pick up %s.\n", item_name));
+    
+    // Tell room
+    object *people = all_inventory(room);
+    foreach (object person in people) {
+        if (living(person) && person != user) {
+            tell_object(person, sprintf("%s picks up %s.\n",
+                capitalize(user->query_name()), item_name));
+        }
+    }
+    
+    return 1;
+}
+
+string query_help() {
+    return
+"GET - Pick up items\n\n"
+"Usage:\n"
+"  get <item>    Pick up an item\n"
+"  get all       Pick up all items in room\n\n"
+"Examples:\n"
+"  get sword\n"
+"  get all\n\n"
+"You cannot pick up living creatures or items that are fixed\n"
+"in place. Weight limits apply based on your strength.\n\n"
+"See also: DROP, GIVE, INVENTORY\n";
+}

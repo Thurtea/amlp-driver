@@ -1,0 +1,110 @@
+/*
+ * /lib/cmds/wield.lpc - Wield a weapon
+ */
+
+#include <globals.h>
+
+int main(string arg) {
+    object user, item, room;
+    string slot;
+    
+    user = previous_object();
+    room = user->query_environment();
+    
+    if (!arg || arg == "") {
+        tell_object(user, "Wield what?\n");
+        return 1;
+    }
+    
+    // Find item in inventory
+    item = present(arg, user);
+    
+    if (!item) {
+        tell_object(user, "You don't have that.\n");
+        return 1;
+    }
+    
+    // Check if item is a weapon
+    if (!function_exists("query_weapon_type", item)) {
+        tell_object(user, "That's not a weapon.\n");
+        return 1;
+    }
+    
+    // Determine slot (right hand by default)
+    slot = "right_hand";
+    
+    // Check for two-handed weapons
+    if (function_exists("query_two_handed", item) && item->query_two_handed()) {
+        mapping equipped = user->query_equipped();
+        
+        if (equipped && (equipped["right_hand"] || equipped["left_hand"])) {
+            tell_object(user, "You need both hands free to wield that.\n");
+            return 1;
+        }
+        
+        // Equip in both hands
+        if (function_exists("equip", user)) {
+            if (!user->equip(item, "right_hand")) {
+                tell_object(user, "You can't wield that.\n");
+                return 1;
+            }
+            user->equip(item, "left_hand");  // Also mark left hand as occupied
+        }
+    } else {
+        // Single-handed weapon
+        mapping equipped = user->query_equipped();
+        
+        if (equipped && equipped["right_hand"]) {
+            // Try left hand
+            if (equipped["left_hand"]) {
+                tell_object(user, "Your hands are full. Remove something first.\n");
+                return 1;
+            }
+            slot = "left_hand";
+        }
+        
+        if (function_exists("equip", user)) {
+            if (!user->equip(item, slot)) {
+                tell_object(user, "You can't wield that.\n");
+                return 1;
+            }
+        }
+    }
+    
+    string item_name = item->query_short() || item->query_name() || "something";
+    string hand = (slot == "right_hand") ? "right" : "left";
+    
+    if (function_exists("query_two_handed", item) && item->query_two_handed()) {
+        tell_object(user, sprintf("You wield %s with both hands.\n", item_name));
+    } else {
+        tell_object(user, sprintf("You wield %s in your %s hand.\n", item_name, hand));
+    }
+    
+    // Tell room
+    if (room) {
+        object *people = all_inventory(room);
+        foreach (object person in people) {
+            if (living(person) && person != user) {
+                tell_object(person, sprintf("%s wields %s.\n",
+                    capitalize(user->query_name()), item_name));
+            }
+        }
+    }
+    
+    return 1;
+}
+
+string query_help() {
+    return
+"WIELD - Wield a weapon\n\n"
+"Usage:\n"
+"  wield <weapon>    Equip a weapon for combat\n\n"
+"Examples:\n"
+"  wield sword\n"
+"  wield rifle\n"
+"  wield vibro-blade\n\n"
+"Single-handed weapons are wielded in your right hand by\n"
+"default (or left if right is full). Two-handed weapons\n"
+"require both hands to be free.\n\n"
+"See also: UNWIELD, WEAR, EQUIPMENT\n";
+}

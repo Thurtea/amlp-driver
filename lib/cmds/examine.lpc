@@ -1,0 +1,136 @@
+/*
+ * /lib/cmds/examine.lpc - Examine an object, person, or room in detail
+ */
+
+#include <globals.h>
+
+int main(string arg) {
+    object user, room, target;
+    string output;
+    
+    user = previous_object();
+    room = user->query_environment();
+    
+    if (!room) {
+        tell_object(user, "You are nowhere.\n");
+        return 1;
+    }
+    
+    // No argument = examine room
+    if (!arg || arg == "") {
+        arg = "room";
+    }
+    
+    // Special case: examine room
+    if (arg == "room" || arg == "here") {
+        output = room->look();
+        
+        // Add extra details if available
+        if (function_exists("query_long", room)) {
+            string long_desc = room->query_long();
+            if (long_desc) {
+                output += "\n" + long_desc + "\n";
+            }
+        }
+        
+        tell_object(user, output);
+        return 1;
+    }
+    
+    // Look for object in room or inventory
+    target = present(arg, room);
+    if (!target) {
+        target = present(arg, user);
+    }
+    
+    if (!target) {
+        tell_object(user, "You don't see that here.\n");
+        return 1;
+    }
+    
+    // Build examination output
+    output = "";
+    
+    if (function_exists("query_long", target)) {
+        string long_desc = target->query_long();
+        if (long_desc && long_desc != "") {
+            output += long_desc + "\n";
+        } else {
+            output += "You see nothing special about it.\n";
+        }
+    } else {
+        output += "You see nothing special about it.\n";
+    }
+    
+    // If it's living, show stats
+    if (living(target)) {
+        if (target == user) {
+            output += "\nThat's you!\n";
+        } else {
+            string race = target->query_race();
+            string occ = target->query_occ();
+            
+            if (race) {
+                output += sprintf("\nRace: %s", capitalize(race));
+                if (occ) {
+                    output += sprintf("  O.C.C.: %s", occ);
+                }
+                output += "\n";
+            }
+            
+            // Show apparent condition
+            int hp = target->query_hp();
+            int max_hp = target->query_max_hp();
+            
+            if (hp && max_hp) {
+                int percent = (hp * 100) / max_hp;
+                
+                if (percent >= 95) {
+                    output += "They appear to be in perfect health.\n";
+                } else if (percent >= 75) {
+                    output += "They have some minor injuries.\n";
+                } else if (percent >= 50) {
+                    output += "They are moderately wounded.\n";
+                } else if (percent >= 25) {
+                    output += "They are seriously wounded.\n";
+                } else {
+                    output += "They are critically injured!\n";
+                }
+            }
+        }
+    }
+    
+    // Show item properties if applicable
+    if (function_exists("query_weight", target)) {
+        int weight = target->query_weight();
+        if (weight > 0) {
+            output += sprintf("Weight: %d lbs\n", weight);
+        }
+    }
+    
+    if (function_exists("query_value", target)) {
+        int value = target->query_value();
+        if (value > 0) {
+            output += sprintf("Value: %d credits\n", value);
+        }
+    }
+    
+    tell_object(user, output);
+    return 1;
+}
+
+string query_help() {
+    return
+"EXAMINE - Examine something in detail\n\n"
+"Usage:\n"
+"  examine <target>    Examine object, person, or room\n"
+"  examine room        Examine current room\n"
+"  examine             Same as 'examine room'\n\n"
+"Examples:\n"
+"  examine sword\n"
+"  examine guard\n"
+"  examine room\n\n"
+"Provides detailed information about the target, including\n"
+"condition, properties, and special features.\n\n"
+"See also: LOOK, INSPECT\n";
+}

@@ -1,0 +1,28 @@
+/*
+ * /lib/cmds/score.lpc - Alias for stats command
+ */
+
+#include <globals.h>
+
+int main(string arg) {
+    object user, stats_cmd;
+    
+    user = previous_object();
+    
+    // Load and call the stats command
+    stats_cmd = load_object("/cmds/stats");
+    
+    if (stats_cmd && function_exists("main", stats_cmd)) {
+        return stats_cmd->main(arg);
+    }
+    
+    tell_object(user, "Error: Stats command not available.\n");
+    return 1;
+}
+
+string query_help() {
+    return
+"SCORE - Show your character statistics\n\n"
+"This is an alias for the STATS command.\n\n"
+"See also: STATS, SKILLS, EQUIPMENT\n";
+}

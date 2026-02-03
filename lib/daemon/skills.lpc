@@ -1,0 +1,243 @@
+/*
+ * /lib/daemon/skills.lpc - Central skills registry and management
+ *
+ * Palladium-style skill categories:
+ * - Communications
+ * - Domestic
+ * - Electrical
+ * - Espionage
+ * - Mechanical
+ * - Medical
+ * - Military
+ * - Physical
+ * - Pilot
+ * - Pilot Related
+ * - Rogue
+ * - Science
+ * - Technical
+ * - Weapon Proficiencies
+ * - Wilderness
+ */
+
+#define SKILLS_DIR "/skills"
+
+/* ========================= Skill Registry ========================= */
+private mapping skills;      /* skill_id: skill object */
+private mapping categories;  /* category: ({ skill_ids }) */
+private int initialized;
+
+void create() {
+    skills = ([]);
+    categories = ([]);
+    initialized = 0;
+}
+
+/* ========================= Loading ========================= */
+
+void load_all_skills() {
+    string *files;
+    string *subdirs;
+    
+    if (initialized) return;
+    
+    /* Load skills from main directory */
+    files = get_dir(SKILLS_DIR + "/*.lpc");
+    if (files) {
+        foreach (string file : files) {
+            string path = SKILLS_DIR + "/" + file;
+            object skill = load_object(path[0..<5]);  /* Remove .lpc */
+            if (skill) {
+                string id = skill->query_skill_id();
+                string cat = skill->query_skill_category();
+                skills[id] = skill;
+                
+                if (!categories[cat]) {
+                    categories[cat] = ({});
+                }
+                categories[cat] += ({ id });
+            }
+        }
+    }
+    
+    /* Load from category subdirectories */
+    subdirs = ({ "physical", "weapons", "technical", "medical", 
+                 "pilot", "rogue", "wilderness", "science", 
+                 "electrical", "mechanical", "espionage",
+                 "communications", "domestic", "military" });
+    
+    foreach (string subdir : subdirs) {
+        files = get_dir(SKILLS_DIR + "/" + subdir + "/*.lpc");
+        if (files) {
+            foreach (string file : files) {
+                string path = SKILLS_DIR + "/" + subdir + "/" + file;
+                object skill = load_object(path[0..<5]);
+                if (skill) {
+                    string id = skill->query_skill_id();
+                    string cat = skill->query_skill_category();
+                    skills[id] = skill;
+                    
+                    if (!categories[cat]) {
+                        categories[cat] = ({});
+                    }
+                    if (member_array(id, categories[cat]) == -1) {
+                        categories[cat] += ({ id });
+                    }
+                }
+            }
+        }
+    }
+    
+    initialized = 1;
+}
+
+/* ========================= Skill Access ========================= */
+
+object query_skill(string skill_id) {
+    if (!initialized) load_all_skills();
+    return skills[skill_id];
+}
+
+string *query_all_skill_ids() {
+    if (!initialized) load_all_skills();
+    return keys(skills);
+}
+
+string *query_skills_in_category(string category) {
+    if (!initialized) load_all_skills();
+    if (categories[category]) {
+        return categories[category];
+    }
+    return ({});
+}
+
+string *query_categories() {
+    if (!initialized) load_all_skills();
+    return keys(categories);
+}
+
+/* ========================= Skill Calculations ========================= */
+
+/*
+ * Calculate what percentage a character would have for a skill
+ * at a given level
+ */
+int calculate_skill_percentage(string skill_id, object living, int level) {
+    if (!initialized) load_all_skills();
+    
+    object skill = skills[skill_id];
+    if (!skill) return 0;
+    
+    return skill->calculate_percentage(living, level);
+}
+
+/*
+ * Check if a living can learn a skill
+ */
+int can_learn_skill(string skill_id, object living, int is_primary) {
+    if (!initialized) load_all_skills();
+    
+    object skill = skills[skill_id];
+    if (!skill) return 0;
+    
+    /* Check if it's primary-only */
+    if (skill->query_is_primary_only() && !is_primary) {
+        return 0;
+    }
+    
+    /* Check stat requirements */
+    if (!skill->meets_requirements(living)) {
+        return 0;
+    }
+    
+    return 1;
+}
+
+/*
+ * Get a formatted skill list for display
+ */
+string format_skill_list(object living) {
+    mapping player_skills = living->query_all_skills();
+    if (!player_skills || sizeof(player_skills) == 0) {
+        return "No skills.\n";
+    }
+    
+    string result = "";
+    result += "=======================================================\n";
+    result += "  SKILLS\n";
+    result += "=======================================================\n";
+    
+    /* Group by category */
+    mapping by_cat = ([]);
+    string *ids = keys(player_skills);
+    
+    foreach (string id : ids) {
+        object skill = skills[id];
+        string cat = skill ? skill->query_skill_category() : "other";
+        if (!by_cat[cat]) by_cat[cat] = ({});
+        by_cat[cat] += ({ id });
+    }
+    
+    string *cats = keys(by_cat);
+    foreach (string cat : cats) {
+        result += "\n  " + capitalize(cat) + ":\n";
+        foreach (string id : by_cat[cat]) {
+            int pct = player_skills[id];
+            object skill = skills[id];
+            string name = skill ? skill->query_skill_name() : id;
+            result += sprintf("    %-25s %3d%%\n", name, pct);
+        }
+    }
+    
+    result += "=======================================================\n";
+    return result;
+}
+
+/*
+ * Attempt a skill check
+ * Returns: 1 = success, 0 = failure, -1 = critical failure
+ */
+int attempt_skill(string skill_id, object living) {
+    if (!living) return 0;
+    
+    int pct = living->query_skill(skill_id);
+    if (pct <= 0) return 0;
+    
+    int roll = random(100) + 1;
+    
+    if (roll >= 96) return -1;  /* Critical failure */
+    if (roll <= pct) return 1;  /* Success */
+    
+    return 0;  /* Normal failure */
+}
+
+/*
+ * Get skill info string for a skill
+ */
+string query_skill_info(string skill_id) {
+    if (!initialized) load_all_skills();
+    
+    object skill = skills[skill_id];
+    if (!skill) return "Skill not found.\n";
+    
+    string result = "";
+    result += "Skill: " + skill->query_skill_name() + "\n";
+    result += "Category: " + capitalize(skill->query_skill_category()) + "\n";
+    result += "Base: " + skill->query_base_percentage() + "%\n";
+    result += "Per Level: +" + skill->query_level_bonus() + "%\n";
+    result += "Max: " + skill->query_max_percentage() + "%\n";
+    result += "\n" + skill->query_skill_desc() + "\n";
+    
+    mapping reqs = skill->query_stat_requirements();
+    if (sizeof(reqs) > 0) {
+        result += "\nRequirements:\n";
+        foreach (string stat, int val : reqs) {
+            result += "  " + upper_case(stat) + ": " + val + "\n";
+        }
+    }
+    
+    if (skill->query_is_primary_only()) {
+        result += "\n* This skill can only be selected as an OCC skill.\n";
+    }
+    
+    return result;
+}

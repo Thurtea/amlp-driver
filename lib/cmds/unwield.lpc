@@ -1,0 +1,125 @@
+/*
+ * /lib/cmds/unwield.lpc - Unwield weapon (alias for remove)
+ */
+
+#include <globals.h>
+
+int main(string arg) {
+    object user, weapon, room;
+    mapping equipped;
+    
+    user = previous_object();
+    room = user->query_environment();
+    
+    // Get equipped items
+    if (!function_exists("query_equipped", user)) {
+        tell_object(user, "Error: Equipment system not available.\n");
+        return 1;
+    }
+    
+    equipped = user->query_equipped();
+    
+    if (!equipped || sizeof(equipped) == 0) {
+        tell_object(user, "You don't have anything equipped.\n");
+        return 1;
+    }
+    
+    // If no argument, unwield primary weapon (right hand)
+    if (!arg || arg == "") {
+        weapon = equipped["right_hand"];
+        
+        if (!weapon) {
+            weapon = equipped["left_hand"];
+        }
+        
+        if (!weapon) {
+            tell_object(user, "You don't have a weapon wielded.\n");
+            return 1;
+        }
+        
+        arg = weapon->query_name() || "weapon";
+    }
+    
+    // Find weapon in hands
+    weapon = 0;
+    string slot = 0;
+    
+    if (equipped["right_hand"]) {
+        object obj = equipped["right_hand"];
+        if (obj->id(arg) || 
+            (obj->query_name() && lower_case(obj->query_name()) == lower_case(arg)) ||
+            (obj->query_short() && strstr(lower_case(obj->query_short()), lower_case(arg)) >= 0)) {
+            weapon = obj;
+            slot = "right_hand";
+        }
+    }
+    
+    if (!weapon && equipped["left_hand"]) {
+        object obj = equipped["left_hand"];
+        if (obj->id(arg) || 
+            (obj->query_name() && lower_case(obj->query_name()) == lower_case(arg)) ||
+            (obj->query_short() && strstr(lower_case(obj->query_short()), lower_case(arg)) >= 0)) {
+            weapon = obj;
+            slot = "left_hand";
+        }
+    }
+    
+    if (!weapon) {
+        tell_object(user, "You don't have that wielded.\n");
+        return 1;
+    }
+    
+    // Check if it's a weapon
+    if (!function_exists("query_weapon_type", weapon)) {
+        tell_object(user, "That's not a weapon. Use 'remove' instead.\n");
+        return 1;
+    }
+    
+    // Unequip the weapon
+    if (function_exists("unequip", user)) {
+        if (!user->unequip(slot)) {
+            tell_object(user, "You can't unwield that.\n");
+            return 1;
+        }
+        
+        // If two-handed, also unequip other hand
+        if (function_exists("query_two_handed", weapon) && weapon->query_two_handed()) {
+            string other_slot = (slot == "right_hand") ? "left_hand" : "right_hand";
+            if (equipped[other_slot] == weapon) {
+                user->unequip(other_slot);
+            }
+        }
+    } else {
+        tell_object(user, "Error: Equipment system not available.\n");
+        return 1;
+    }
+    
+    string weapon_name = weapon->query_short() || weapon->query_name() || "weapon";
+    tell_object(user, sprintf("You unwield %s.\n", weapon_name));
+    
+    // Tell room
+    if (room) {
+        object *people = all_inventory(room);
+        foreach (object person in people) {
+            if (living(person) && person != user) {
+                tell_object(person, sprintf("%s unwields %s.\n",
+                    capitalize(user->query_name()), weapon_name));
+            }
+        }
+    }
+    
+    return 1;
+}
+
+string query_help() {
+    return
+"UNWIELD - Unwield your weapon\n\n"
+"Usage:\n"
+"  unwield            Unwield primary weapon\n"
+"  unwield <weapon>   Unwield specific weapon\n\n"
+"Examples:\n"
+"  unwield\n"
+"  unwield sword\n\n"
+"The weapon will be placed back in your inventory.\n\n"
+"See also: WIELD, REMOVE, EQUIPMENT\n";
+}

@@ -1,0 +1,5 @@
+// Test mapping literals
+void create() {
+    mapping stats = ([ "strength": 10, "dexterity": 12 ]);
+    mapping empty = ([]);
+}

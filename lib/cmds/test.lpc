@@ -1,0 +1,8 @@
+// Test command
+#include <globals.h>
+
+int main(string arg) {
+    object user = previous_object();
+    tell_object(user, "TEST COMMAND WORKS!\n");
+    return 1;
+}

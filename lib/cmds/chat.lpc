@@ -1,0 +1,44 @@
+/*
+ * /lib/cmds/chat.lpc - Global chat channel
+ */
+
+#include <globals.h>
+
+int main(string arg) {
+    object user;
+    object *players;
+    int i;
+    string sender_name;
+    
+    user = previous_object();
+    
+    if (!arg || arg == "") {
+        tell_object(user, "Usage: chat <message>\n");
+        return 1;
+    }
+    
+    sender_name = capitalize(user->query_name());
+    players = users();
+    
+    // Send to all online players
+    for (i = 0; i < sizeof(players); i++) {
+        if (players[i] == user) {
+            tell_object(players[i], sprintf("[CHAT: %s] %s\n", sender_name, arg));
+        } else {
+            tell_object(players[i], sprintf("\n[CHAT: %s] %s\n", sender_name, arg));
+        }
+    }
+    
+    return 1;
+}
+
+string query_help() {
+    return
+"CHAT - Global chat channel\n\n"
+"Usage:\n"
+"  chat <message>    Send message to all online players\n\n"
+"Example:\n"
+"  chat Anyone want to group up?\n\n"
+"Everyone online will see your message prefixed with [CHAT].\n\n"
+"See also: SAY, TELL, SHOUT\n";
+}

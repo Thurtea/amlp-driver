@@ -1,0 +1,71 @@
+/*
+ * /lib/cmds/whisper.lpc - Whisper to someone in the same room
+ */
+
+#include <globals.h>
+
+int main(string arg) {
+    object user, target, room;
+    string target_name, message;
+    
+    user = previous_object();
+    room = user->query_environment();
+    
+    if (!arg || arg == "") {
+        tell_object(user, "Usage: whisper <player> <message>\n");
+        return 1;
+    }
+    
+    if (sscanf(arg, "%s %s", target_name, message) != 2) {
+        tell_object(user, "Usage: whisper <player> <message>\n");
+        return 1;
+    }
+    
+    if (!room) {
+        tell_object(user, "You are nowhere.\n");
+        return 1;
+    }
+    
+    // Find player in room
+    target = present(lower_case(target_name), room);
+    
+    if (!target || !living(target)) {
+        tell_object(user, "Player '" + target_name + "' not found in this room.\n");
+        return 1;
+    }
+    
+    if (target == user) {
+        tell_object(user, "Whispering to yourself is a sign of madness.\n");
+        return 1;
+    }
+    
+    // Send the whisper
+    tell_object(target, sprintf("%s whispers to you: %s\n", 
+        capitalize(user->query_name()), message));
+    tell_object(user, sprintf("You whisper to %s: %s\n", 
+        capitalize(target->query_name()), message));
+    
+    // Let others in room know something was whispered (but not what)
+    object *inv = all_inventory(room);
+    for (int i = 0; i < sizeof(inv); i++) {
+        if (inv[i] != user && inv[i] != target && living(inv[i])) {
+            tell_object(inv[i], sprintf("%s whispers something to %s.\n",
+                capitalize(user->query_name()), 
+                capitalize(target->query_name())));
+        }
+    }
+    
+    return 1;
+}
+
+string query_help() {
+    return
+"WHISPER - Whisper privately to someone in the same room\n\n"
+"Usage:\n"
+"  whisper <player> <message>    Whisper to player\n\n"
+"Example:\n"
+"  whisper guard the password is 'dragon'\n\n"
+"Only the target player sees the message. Others in the room\n"
+"will notice you whispered, but not hear what you said.\n\n"
+"See also: SAY, TELL, EMOTE\n";
+}

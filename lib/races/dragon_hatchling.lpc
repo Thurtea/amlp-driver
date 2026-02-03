@@ -1,0 +1,45 @@
+// /lib/races/.lpc
+//  Race - Placeholder Implementation
+//
+// This is a stub file. Implement the full race details.
+
+inherit "/std/race";
+
+void create() {
+    ::create();
+    set_race_name("Dragon Hatchling");
+    set_race_id("dragon_hatchling");
+    set_race_plural("Dragon Hatchlings");
+    set_race_category(RACE_CAT_DEMIHUMAN);
+
+    set_race_description(
+        "Small, draconic humanoids with glossy scales and a keen curiosity.\n"
+        "Dragon hatchlings are precocious and brave, born with the embers of draconic power.\n"
+        "They are shorter than full-grown dragons but retain sharp teeth, a short tail,\n"
+        "and tiny vestigial wings. Hatchlings make quick learners and fearless explorers."
+    );
+
+    // Physical characteristics
+    set_size_category(SIZE_SMALL);
+    set_height_range(36, 54);   // inches
+    set_weight_range(40, 110);  // pounds
+    set_lifespan(60);
+
+    // Stat modifiers (common keys: str,dex,con,int,wis,cha)
+    set_stat_modifiers(([ "str": 1, "dex": 1, "con": 1, "int": 0, "wis": 0, "cha": 1 ]));
+
+    // Racial abilities: breath (minor), claw attack bonus
+    set_racial_abilities(({ "breath_fire", "natural_claws" }));
+
+    // Occupation (OCC) guidance: allow most martial and magic occs but prefer scout/dragonkin
+    set_allowed_occs(({ }));
+    set_forbidden_occs(({ }));
+    set_recommended_occs(({ }));
+
+    // Starting resources: small talisman and a few coins
+    set_starting_equipment(({ "/obj/items/talisman_small" }));
+    set_starting_credits(50);
+
+    set_languages(({ "common" }));
+    set_primary_language("common");
+}

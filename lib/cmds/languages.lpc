@@ -1,0 +1,59 @@
+/*
+ * /lib/cmds/languages.lpc - List your known languages
+ * 
+ * Usage:
+ *   languages              - List all languages you know
+ */
+
+int cmd(string args) {
+    mapping langs = this_player()->query_languages();
+    string primary = this_player()->query_primary_language();
+    
+    if (!langs || sizeof(langs) == 0) {
+        write("You don't know any languages. That's odd.\n");
+        return 1;
+    }
+    
+    write("Languages you know:\n");
+    write("----------------------------------------------\n");
+    
+    string *lang_ids = keys(langs);
+    
+    foreach (string lang_id : lang_ids) {
+        int prof = langs[lang_id];
+        string marker = (lang_id == primary) ? " [speaking]" : "";
+        string level;
+        
+        if (prof >= 98) level = "Native Speaker";
+        else if (prof >= 90) level = "Fluent";
+        else if (prof >= 75) level = "Advanced";
+        else if (prof >= 50) level = "Conversational";
+        else if (prof >= 25) level = "Basic";
+        else level = "Rudimentary";
+        
+        write(sprintf("  %-15s %3d%% - %s%s\n", 
+            lang_id, prof, level, marker));
+    }
+    
+    write("----------------------------------------------\n");
+    write("Use 'language <name>' to switch your speaking language.\n");
+    
+    return 1;
+}
+
+string query_help() {
+    return
+"LANGUAGES - List your known languages\n\n"
+"Usage:\n"
+"  languages              List all languages you know\n\n"
+"Shows all languages you know and your proficiency in each.\n"
+"Your current speaking language is marked with [speaking].\n\n"
+"Proficiency levels:\n"
+"  98-100%  Native Speaker\n"
+"  90-97%   Fluent\n"
+"  75-89%   Advanced\n"
+"  50-74%   Conversational\n"
+"  25-49%   Basic\n"
+"  1-24%    Rudimentary\n\n"
+"See also: LANGUAGE, SAY\n";
+}

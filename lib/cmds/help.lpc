@@ -1,0 +1,58 @@
+// /cmds/help.lpc
+// Display help information based on privilege level
+
+int main(string args) {
+    object player = this_player();
+    int priv_level;
+    
+    if (!player) {
+        write("Error: No player context.\n");
+        return 1;
+    }
+    
+    priv_level = player->query_privilege_level();
+    
+    write("Available commands:\n");
+    write("  help                 - Show this help\n");
+    write("  look / l             - Look at your surroundings\n");
+    write("  inventory / i        - Check your inventory\n");
+    write("  say <message>        - Say something\n");
+    write("  emote <action>       - Perform an emote\n");
+    write("  who                  - List players online\n");
+    write("  stats                - Show your character stats\n");
+    write("  save                 - Save your character\n");
+    write("  quit / logout        - Save and disconnect\n");
+    write("\n");
+    write("Movement: north, south, east, west, up, down (or n, s, e, w, u, d)\n");
+    
+    // Show wizard commands for privilege level 1+
+    if (priv_level >= 1) {
+        write("\n");
+        write("WIZARD COMMANDS (Level 1+):\n");
+        write("  wiztool              - Load your wiztool\n");
+        write("  wiz <cmd> [args]     - Execute wiztool command\n");
+        write("  goto <room>          - Teleport to a room\n");
+        write("  clone <object>       - Clone an object\n");
+        write("\n");
+        write("Wiztool commands:\n");
+        write("  wiz help             - Show wiztool help\n");
+        write("  wiz ls [path]        - List directory contents\n");
+        write("  wiz cd <path>        - Change working directory\n");
+        write("  wiz pwd              - Print working directory\n");
+        write("  wiz cat <file>       - Display file contents\n");
+        write("  wiz eval <expr>      - Evaluate LPC expression\n");
+        write("  wiz clone <path>     - Clone an object (same as clone cmd)\n");
+    }
+    
+    // Show admin commands for privilege level 2
+    if (priv_level >= 2) {
+        write("\n");
+        write("ADMIN COMMANDS (Level 2):\n");
+        write("  promote <player> <level> - Promote player (0=player, 1=wizard, 2=admin)\n");
+        write("  users                     - Show detailed user list\n");
+        write("  shutdown [delay]          - Shutdown server (optional delay in seconds)\n");
+    }
+    
+    write("\n");
+    return 1;
+}

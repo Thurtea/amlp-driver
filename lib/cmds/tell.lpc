@@ -1,0 +1,57 @@
+/*
+ * /lib/cmds/tell.lpc - Send private message to another player
+ */
+
+#include <globals.h>
+
+int main(string arg) {
+    object user, target;
+    string target_name, message;
+    string user_name, target_display;
+    
+    user = previous_object();
+    
+    if (!arg || arg == "") {
+        tell_object(user, "Usage: tell <player> <message>\n");
+        return 1;
+    }
+    
+    if (sscanf(arg, "%s %s", target_name, message) != 2) {
+        tell_object(user, "Usage: tell <player> <message>\n");
+        return 1;
+    }
+    
+    /* Find the target player */
+    target = find_player(lower_case(target_name));
+    
+    if (!target) {
+        tell_object(user, "Player '" + target_name + "' not found.\n");
+        return 1;
+    }
+    
+    if (target == user) {
+        tell_object(user, "Talking to yourself again?\n");
+        return 1;
+    }
+    
+    /* Get names */
+    user_name = user->query_name();
+    target_display = target->query_name();
+    
+    /* Send the message */
+    tell_object(target, "\n<" + user_name + " tells you> " + message + "\n");
+    tell_object(user, "<You tell " + target_display + "> " + message + "\n");
+    
+    return 1;
+}
+
+string query_help() {
+    return
+"TELL - Send a private message to another player\n\n"
+"Usage:\n"
+"  tell <player> <message>    Send private message\n\n"
+"Example:\n"
+"  tell bob Hey, how are you?\n\n"
+"The message is only seen by you and the target player.\n\n"
+"See also: SAY, CHAT, WHISPER\n";
+}

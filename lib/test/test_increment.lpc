@@ -1,0 +1,8 @@
+// Test increment/decrement operators
+void create() {
+    int x = 0;
+    x++;
+    ++x;
+    x--;
+    --x;
+}

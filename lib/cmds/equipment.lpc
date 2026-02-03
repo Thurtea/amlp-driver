@@ -1,0 +1,74 @@
+/*
+ * /lib/cmds/equipment.lpc - Show equipped items
+ */
+
+#include <globals.h>
+
+// Equipment slot names in display order
+string *slots = ({
+    "head", "neck", "shoulders", "back",
+    "torso", "arms", "hands", "waist",
+    "legs", "feet", "finger_1", "finger_2",
+    "right_hand", "left_hand"
+});
+
+string *slot_names = ({
+    "Head", "Neck", "Shoulders", "Back",
+    "Torso", "Arms", "Hands", "Waist",
+    "Legs", "Feet", "Ring finger", "Ring finger",
+    "Right hand", "Left hand"
+});
+
+int main(string arg) {
+    object user;
+    mapping equipped;
+    string output;
+    int i, count;
+    
+    user = previous_object();
+    
+    output = "\n=== EQUIPMENT ===\n";
+    
+    // Get equipped items
+    if (function_exists("query_equipped", user)) {
+        equipped = user->query_equipped();
+    }
+    
+    if (!equipped || sizeof(equipped) == 0) {
+        output += "You have nothing equipped.\n";
+    } else {
+        for (i = 0; i < sizeof(slots); i++) {
+            string slot = slots[i];
+            string display = slot_names[i];
+            object item = equipped[slot];
+            
+            output += sprintf("  %-15s: ", display);
+            
+            if (item) {
+                string item_name = item->query_short() || item->query_name() || "something";
+                output += item_name;
+                count++;
+            } else {
+                output += "<empty>";
+            }
+            
+            output += "\n";
+        }
+    }
+    
+    output += sprintf("\nTotal equipped: %d items\n", count);
+    
+    tell_object(user, output);
+    return 1;
+}
+
+string query_help() {
+    return
+"EQUIPMENT - Show equipped items\n\n"
+"Usage:\n"
+"  equipment    Show all equipped items\n"
+"  eq           Short form\n\n"
+"Displays your currently equipped armor, weapons, and\n"
+"accessories in each equipment slot.\n\n"
+"See also: WEAR, WIELD, REMOVE, INVENTORY\n";
+}

@@ -1,0 +1,234 @@
+// User object - Enhanced with race, language, wizard system
+
+#include <globals.h>
+
+inherit DIR_STD + "/living";
+
+private string race;
+private int _being_removed;
+private mapping languages;
+private int wizard_level;
+object _wiztool;
+
+void create() {
+    ::create();
+    set_living_name("user");
+    race = DEFAULT_RACE;
+    languages = ([ DEFAULT_LANGUAGE : DEFAULT_FLUENCY ]);
+    wizard_level = PLAYER_LEVEL;
+    _being_removed = 0;
+}
+
+void set_race(string r) {
+    race = r;
+}
+
+string query_race() {
+    return race;
+}
+
+void set_language(string lang, int fluency) {
+    if (!languages) languages = ([]);
+    languages[lang] = fluency;
+}
+
+int query_language(string lang) {
+    if (!languages) return 0;
+    return languages[lang];
+}
+
+mapping query_all_languages() {
+    return languages ? copy(languages) : ([]);
+}
+
+void set_wizard_level(int level) {
+    wizard_level = level;
+    if (wizard_level >= WIZARD_LEVEL) {
+        /* Debug: log attempt to attach wiztool */
+        write_file("/log/server.log", sprintf("[DEBUG user] set_wizard_level(%d) called for %s\n", level, (function_exists("query_name", this_object()) ? this_object()->query_name() : "<unknown>")));
+        if (!objectp(_wiztool)) {
+            write_file("/log/server.log", sprintf("[DEBUG user] no existing _wiztool, checking file_size(%s)\n", STD_WIZTOOL));
+        }
+
+        if (!objectp(_wiztool) && file_size(WIZTOOL) > 0) {
+            object wt = 0;
+            write_file("/log/server.log", sprintf("[DEBUG user] cloning wiztool from %s\n", WIZTOOL));
+            catch(wt = clone_object(WIZTOOL));
+            if (objectp(wt)) {
+                write_file("/log/server.log", sprintf("[DEBUG user] clone_object succeeded: %s\n", file_name(wt)));
+                _wiztool = wt;
+                if (function_exists("attach", _wiztool)) {
+                    int attached = 0;
+                    write_file("/log/server.log", sprintf("[DEBUG user] calling attach on %s\n", file_name(_wiztool)));
+                    catch(attached = (int)_wiztool->attach(this_object()));
+                    write_file("/log/server.log", sprintf("[DEBUG user] attach call returned %d for %s\n", attached, (function_exists("query_name", this_object()) ? this_object()->query_name() : "<unknown>")));
+                } else {
+                    write_file("/log/server.log", sprintf("[DEBUG user] wiztool has no attach() function: %s\n", file_name(_wiztool)));
+                }
+            } else {
+                write_file("/log/server.log", sprintf("[DEBUG user] clone_object failed for %s\n", WIZTOOL));
+            }
+        }
+    }
+}
+
+int query_wizard_level() {
+    return wizard_level;
+}
+
+string query_title() {
+    switch(wizard_level) {
+        case ADMIN_LEVEL:
+            return "[Admin] ";
+        case WIZARD_LEVEL:
+            return "[Wizard] ";
+        default:
+            return "";
+    }
+}
+
+void enter_world() {
+    object room;
+    
+    write("\n");
+    if (wizard_level >= WIZARD_LEVEL) {
+        write("=== ADMINISTRATOR ACCESS GRANTED ===\n");
+        write("Use 'wiz' to see wizard commands.\n");
+        write("\n");
+    }
+    write("Entering the world...\n\n");
+    
+    room = load_object(START_ROOM);
+    if (!room) {
+        write("ERROR: Start room not found!\n");
+        destruct(this_object());
+        return;
+    }
+    
+    move(room);
+    force_me("look");
+}
+
+void net_dead() {
+    if (query_environment()) {
+        tell_room(query_environment(), 
+            query_title() + query_name() + " goes link-dead.\n", 
+            ({this_object()}));
+    }
+}
+
+void reconnect() {
+    if (query_environment()) {
+        tell_room(query_environment(), 
+            query_title() + query_name() + " reconnects.\n", 
+            ({this_object()}));
+    }
+}
+
+int process_input(string input) {
+    if (!input || input == "") return 1;
+
+    string verb, args;
+    int res;
+    object cmd_ob;
+    string cmd_path;
+
+    /* FIRST: Try command daemon (handles wiztool, player, room, global commands) */
+    if (objectp(COMMAND_D)) {
+        res = 0;
+        catch(res = COMMAND_D->execute_command(this_object(), input));
+        if (res) return 1; /* handled by daemon */
+    }
+
+    /* FALLBACK: legacy/local command handling */
+    if (sscanf(input, "%s %s", verb, args) != 2) {
+        verb = input;
+        args = "";
+    }
+    verb = lower_case(verb);
+
+    /* Preserve legacy hardcoded commands - disabled to centralize quit handling
+       through the `quit` command object to avoid duplicate removal/destruct
+       which can crash the driver. If this block is triggered it will log
+       an informational message and fall through to the command dispatcher. */
+    if (verb == "quit" || verb == "logout") {
+        write_file("/log/server.log", sprintf("[DEBUG user] legacy quit handler invoked for %s - delegating to quit command\n", (function_exists("query_name", this_object()) ? (string)this_object()->query_name() : "<unknown>")));
+        /* fall through so the `quit` command object runs */
+    }
+
+    if (wizard_level >= WIZARD_LEVEL) {
+        cmd_path = ADMIN_CMD_PREFIX + verb;
+        catch(cmd_ob = load_object(cmd_path));
+        if (cmd_ob) return cmd_ob->main(args);
+    }
+    cmd_path = CMD_PREFIX + verb;
+    catch(cmd_ob = load_object(cmd_path));
+    if (cmd_ob) return cmd_ob->main(args);
+
+    write("What?\n");
+    return 1;
+}
+
+/* Wiztool helpers */
+// Return the actual wiztool object (or 0) so callers can invoke methods on it.
+
+object query_wiztool() { return _wiztool; }
+
+// Explicit attach helper: allow callers (e.g. login) to set/attach a
+// pre-cloned wiztool object to this player. Return 1 on success, 0 on failure.
+int attach_wiztool(object wt) {
+    int attached = 0;
+    if (!objectp(wt)) {
+        write_file("/log/server.log", "[DEBUG user] attach_wiztool called with invalid object\n");
+        return 0;
+    }
+    _wiztool = wt;
+    write_file("/log/server.log", sprintf("[DEBUG user] attach_wiztool called for %s with wiztool=%s\n",
+        (function_exists("query_name", this_object()) ? this_object()->query_name() : "<unknown>"),
+        file_name(wt)));
+    if (function_exists("attach", _wiztool)) {
+        catch(attached = (int)_wiztool->attach(this_object()));
+        write_file("/log/server.log", sprintf("[DEBUG user] _wiztool->attach() returned %d for %s\n", attached,
+            (function_exists("query_name", this_object()) ? this_object()->query_name() : "<unknown>")));
+        return attached ? 1 : 0;
+    } else {
+        write_file("/log/server.log", sprintf("[DEBUG user] _wiztool has no attach() for %s\n",
+            (function_exists("query_name", this_object()) ? this_object()->query_name() : "<unknown>")));
+        return 0;
+    }
+}
+
+void detach_wiztool() {
+    if (objectp(_wiztool)) {
+        if (function_exists("detach", _wiztool))
+            catch(_wiztool->detach(this_object()));
+        destruct(_wiztool);
+    }
+    _wiztool = 0;
+}
+
+void remove() {
+    if (_being_removed) return;
+    _being_removed = 1;
+    if (query_environment()) {
+        tell_room(query_environment(), 
+            query_title() + query_name() + " leaves this reality.\n", 
+            ({this_object()}));
+    }
+    destruct(this_object());
+}
+
+void save_me() {
+    string save_file;
+    save_file = DIR_SAVE + "/players/" + query_name() + ".o";
+    int res = 0;
+    write_file("/log/server.log", sprintf("[DEBUG save_me] %s attempting to save to %s\n", query_name(), save_file));
+    catch(res = save_object(save_file));
+    write_file("/log/server.log", sprintf("[DEBUG save_me] %s save result: %d\n", query_name(), res));
+}
+
+void restore_me() {
+    string save_file;
+    save_file = DIR_SAVE + "/players/" + query_name() + ".o";
+    restore_object(save_file);
+}

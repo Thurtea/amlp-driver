@@ -1,0 +1,98 @@
+/*
+ * /lib/cmds/remove.lpc - Remove equipped items
+ */
+
+#include <globals.h>
+
+int main(string arg) {
+    object user, item, room;
+    mapping equipped;
+    string slot;
+    
+    user = previous_object();
+    room = user->query_environment();
+    
+    if (!arg || arg == "") {
+        tell_object(user, "Remove what?\n");
+        return 1;
+    }
+    
+    // Get equipped items
+    if (!function_exists("query_equipped", user)) {
+        tell_object(user, "Error: Equipment system not available.\n");
+        return 1;
+    }
+    
+    equipped = user->query_equipped();
+    
+    if (!equipped || sizeof(equipped) == 0) {
+        tell_object(user, "You don't have anything equipped.\n");
+        return 1;
+    }
+    
+    // Find item in equipped slots
+    item = 0;
+    slot = 0;
+    
+    foreach (string s, object obj in equipped) {
+        if (obj && (obj->id(arg) || 
+                   (obj->query_name() && lower_case(obj->query_name()) == lower_case(arg)) ||
+                   (obj->query_short() && strstr(lower_case(obj->query_short()), lower_case(arg)) >= 0))) {
+            item = obj;
+            slot = s;
+            break;
+        }
+    }
+    
+    if (!item) {
+        tell_object(user, "You don't have that equipped.\n");
+        return 1;
+    }
+    
+    // Check if item can be removed
+    if (function_exists("query_no_remove", item) && item->query_no_remove()) {
+        tell_object(user, "You can't remove that!\n");
+        return 1;
+    }
+    
+    // Unequip the item
+    if (function_exists("unequip", user)) {
+        if (!user->unequip(slot)) {
+            tell_object(user, "You can't remove that.\n");
+            return 1;
+        }
+    } else {
+        tell_object(user, "Error: Equipment system not available.\n");
+        return 1;
+    }
+    
+    string item_name = item->query_short() || item->query_name() || "something";
+    tell_object(user, sprintf("You remove %s.\n", item_name));
+    
+    // Tell room
+    if (room) {
+        object *people = all_inventory(room);
+        foreach (object person in people) {
+            if (living(person) && person != user) {
+                tell_object(person, sprintf("%s removes %s.\n",
+                    capitalize(user->query_name()), item_name));
+            }
+        }
+    }
+    
+    return 1;
+}
+
+string query_help() {
+    return
+"REMOVE - Remove equipped items\n\n"
+"Usage:\n"
+"  remove <item>    Unequip armor or equipment\n\n"
+"Examples:\n"
+"  remove helmet\n"
+"  remove armor\n"
+"  remove boots\n\n"
+"The item will be placed back in your inventory.\n"
+"Some cursed items cannot be removed.\n\n"
+"See also: WEAR, UNWIELD, EQUIPMENT\n";
+}

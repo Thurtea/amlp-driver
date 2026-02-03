@@ -1,0 +1,6 @@
+#include <globals.h>
+
+void create() {
+    write("[CLONE_TEST] create() called for clone_test\n");
+    write_file("/log/server.log", "[CLONE_TEST] created.\n");
+}

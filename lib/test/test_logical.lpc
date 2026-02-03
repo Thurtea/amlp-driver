@@ -1,0 +1,13 @@
+// Test logical operators
+void create() {
+    int x = 5;
+    int y = 10;
+    
+    if (x > 0 && y > 0) {
+        // both positive
+    }
+    
+    if (x < 0 || y < 0) {
+        // at least one negative
+    }
+}

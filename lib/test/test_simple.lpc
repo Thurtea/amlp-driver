@@ -1,0 +1,10 @@
+/* Ultra-simple test - no arrays, no complex operators */
+
+void create() {
+}
+
+mixed test_function(string arg) {
+    int x;
+    x = 5;
+    return "hello";
+}

@@ -1,0 +1,42 @@
+// Quit command - SAFE VERSION
+
+#include <globals.h>
+
+int main(string arg) {
+    object user;
+    
+    // Use this_player() to reliably obtain the player object invoking the command
+    user = this_player();
+    
+    if (!user) {
+        write("Error: No user object.\n");
+        return 1;
+    }
+    
+    // Save character before quitting
+    tell_object(user, "Saving character...\n");
+    // Instrumentation: log to server.log for crash diagnostics
+    write_file("/log/server.log", sprintf("[DEBUG quit] %s calling save_me()\n", (function_exists("query_name", user) ? (string)user->query_name() : "<unknown>")));
+    if (catch(user->save_me())) {
+        tell_object(user, "Warning: Save failed.\n");
+        write_file("/log/server.log", sprintf("[DEBUG quit] %s save_me() raised an error\n", (function_exists("query_name", user) ? (string)user->query_name() : "<unknown>")));
+    } else {
+        tell_object(user, "Character saved successfully.\n");
+        write_file("/log/server.log", sprintf("[DEBUG quit] %s save_me() returned normally\n", (function_exists("query_name", user) ? (string)user->query_name() : "<unknown>")));
+    }
+    
+        // Defer the actual removal to next tick to avoid reentrancy crash
+        call_out("delayed_quit", 0, user);
+    
+        return 1;
+    }
+
+    void delayed_quit(object user) {
+        if (!objectp(user)) return;
+        tell_object(user, "Goodbye!\n");
+        destruct(user);
+    }
+    // Note: cannot write after destruct; if driver crashes here, check server.log for previous line
+    
+    return 1;
+}

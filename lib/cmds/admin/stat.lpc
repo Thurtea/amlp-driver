@@ -1,0 +1,45 @@
+// Stat command - Show object information
+
+#include <globals.h>
+
+int main(string arg) {
+    object user, target;
+    string output;
+    
+    user = previous_object();
+    
+    if (user->query_privilege_level() < PRIV_WIZARD) {
+        tell_object(user, "You are not a wizard.\n");
+        return 1;
+    }
+    
+    if (!arg || arg == "") {
+        target = user->query_environment();
+    } else {
+        catch(target = load_object(arg));
+    }
+    
+    if (!target) {
+        tell_object(user, "Object not found: " + arg + "\n");
+        return 1;
+    }
+    
+    output = "\n";
+    output += "Object Statistics:\n";
+    output += "------------------\n";
+    output += "File: " + file_name(target) + "\n";
+    output += "Object ID: " + getoid(target) + "\n";
+    
+    if (target->query_short()) {
+        output += "Short: " + target->query_short() + "\n";
+    }
+    
+    if (target->query_environment()) {
+        output += "Environment: " + file_name(target->query_environment()) + "\n";
+    }
+    
+    output += "\n";
+    
+    tell_object(user, output);
+    return 1;
+}

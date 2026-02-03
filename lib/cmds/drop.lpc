@@ -1,0 +1,104 @@
+/*
+ * /lib/cmds/drop.lpc - Drop items
+ */
+
+#include <globals.h>
+
+int main(string arg) {
+    object user, room, item;
+    
+    user = previous_object();
+    room = user->query_environment();
+    
+    if (!arg || arg == "") {
+        tell_object(user, "Drop what?\n");
+        return 1;
+    }
+    
+    if (!room) {
+        tell_object(user, "You are nowhere.\n");
+        return 1;
+    }
+    
+    // Handle "drop all"
+    if (arg == "all") {
+        object *inv = all_inventory(user);
+        int count = 0;
+        
+        if (!inv || sizeof(inv) == 0) {
+            tell_object(user, "You're not carrying anything.\n");
+            return 1;
+        }
+        
+        foreach (object obj in inv) {
+            if (function_exists("move", obj)) {
+                obj->move(room);
+            } else {
+                move_object(obj, room);
+            }
+            count++;
+        }
+        
+        tell_object(user, sprintf("You drop %d item%s.\n", 
+            count, (count == 1 ? "" : "s")));
+        
+        // Tell room
+        object *people = all_inventory(room);
+        foreach (object person in people) {
+            if (living(person) && person != user) {
+                tell_object(person, sprintf("%s drops everything they were carrying.\n",
+                    capitalize(user->query_name())));
+            }
+        }
+        
+        return 1;
+    }
+    
+    // Find specific item in inventory
+    item = present(arg, user);
+    
+    if (!item) {
+        tell_object(user, "You don't have that.\n");
+        return 1;
+    }
+    
+    // Check if item can be dropped
+    if (function_exists("query_no_drop", item) && item->query_no_drop()) {
+        tell_object(user, "You can't drop that.\n");
+        return 1;
+    }
+    
+    // Move item to room
+    if (function_exists("move", item)) {
+        item->move(room);
+    } else {
+        move_object(item, room);
+    }
+    
+    string item_name = item->query_short() || item->query_name() || "something";
+    tell_object(user, sprintf("You drop %s.\n", item_name));
+    
+    // Tell room
+    object *people = all_inventory(room);
+    foreach (object person in people) {
+        if (living(person) && person != user) {
+            tell_object(person, sprintf("%s drops %s.\n",
+                capitalize(user->query_name()), item_name));
+        }
+    }
+    
+    return 1;
+}
+
+string query_help() {
+    return
+"DROP - Drop items from your inventory\n\n"
+"Usage:\n"
+"  drop <item>    Drop an item\n"
+"  drop all       Drop all items\n\n"
+"Examples:\n"
+"  drop sword\n"
+"  drop all\n\n"
+"Some items (like quest items) cannot be dropped.\n\n"
+"See also: GET, GIVE, INVENTORY\n";
+}

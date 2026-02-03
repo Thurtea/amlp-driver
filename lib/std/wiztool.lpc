@@ -1,0 +1,497 @@
+// /lib/std/wiztool.c
+// Wizard Tool - Provides filesystem and development commands for admins
+
+#include <globals.h>
+
+// State
+private string cwd;          // Current working directory
+private object owner;        // The wizard who owns this tool
+private int trace_level;     // Debug trace level
+
+void create() {
+    cwd = "/";
+    trace_level = 0;
+}
+
+// Attach wiztool to a player
+int attach(object player) {
+    write_file("/log/server.log", sprintf("[DEBUG wiztool] attach() called with player=%s\n",
+        (player && function_exists("query_name", player) ? player->query_name() : "<none>")));
+
+    if (!player) {
+        write_file("/log/server.log", "[DEBUG wiztool] attach() failed: no player\n");
+        return 0;
+    }
+
+    owner = player;
+    catch(tell_object(owner, "\n%^BOLD%^Wiztool attached.%^RESET%^") );
+    catch(tell_object(owner, "Type '%^BOLD%^wiz help%^RESET%^' for wizard commands.\n") );
+
+    write_file("/log/server.log", sprintf("[DEBUG wiztool] attach() succeeded for player=%s\n",
+        (owner && function_exists("query_name", owner) ? owner->query_name() : "<unknown>")));
+
+    return 1;
+}
+
+// Detach from current owner
+void detach() {
+    if (owner) {
+        tell_object(owner, "Wiztool detached.");
+    }
+    owner = 0;
+}
+
+// Get the owner
+object query_owner() {
+    return owner;
+}
+
+// Main command processor
+int process_command(string verb, string args) {
+    if (!owner) return 0;
+    
+    // Check if this is a wiztool command
+    switch(verb) {
+        // Filesystem commands
+        case "cd":      cmd_cd(args); return 1;
+        case "ls":      cmd_ls(args); return 1;
+        case "pwd":     cmd_pwd(); return 1;
+        case "cat":     cmd_cat(args); return 1;
+        case "mkdir":   cmd_mkdir(args); return 1;
+        case "rm":      cmd_rm(args); return 1;
+        
+        // Object commands
+        case "clone":   cmd_clone(args); return 1;
+        case "dest":    cmd_dest(args); return 1;
+        case "update":  cmd_update(args); return 1;
+        case "load":    cmd_load(args); return 1;
+        case "objects": cmd_objects(); return 1;
+        
+        // Development commands
+        case "eval":    cmd_eval(args); return 1;
+        case "call":    cmd_call(args); return 1;
+        case "ed":      cmd_ed(args); return 1;
+        case "trace":   cmd_trace(args); return 1;
+        case "errors":  cmd_errors(); return 1;
+        
+        // Wiztool meta commands
+        case "wiz":     cmd_wiz(args); return 1;
+        case "wiztool": cmd_wiz(args); return 1;
+        
+        // Movement helpers (with absolute paths)
+        case "goto":    cmd_goto(args); return 1;
+    }
+    
+    return 0; // Not a wiztool command
+}
+
+// === FILESYSTEM COMMANDS ===
+
+void cmd_cd(string dir) {
+    if (!dir || dir == "") {
+        cwd = "/";
+        tell_object(owner, "Changed to root directory: /");
+        return;
+    }
+    
+    string new_path = resolve_path(dir);
+    
+    // Check if directory exists
+    if (file_size(new_path) != -2) {
+        tell_object(owner, "Directory not found: " + new_path);
+        return;
+    }
+    
+    cwd = new_path;
+    tell_object(owner, "Changed directory to: " + cwd);
+}
+
+void cmd_ls(string dir) {
+    string path;
+    string *files;
+    int i;
+    
+    if (!dir || dir == "") {
+        path = cwd;
+    } else {
+        path = resolve_path(dir);
+    }
+    
+    if (file_size(path) == -1) {
+        tell_object(owner, "Not found: " + path);
+        return;
+    }
+    
+    files = get_dir(path + "/*");
+    
+    if (!files || sizeof(files) == 0) {
+        tell_object(owner, "Empty directory: " + path);
+        return;
+    }
+    
+    tell_object(owner, "Contents of " + path + ":");
+    tell_object(owner, "---");
+    
+    for (i = 0; i < sizeof(files); i++) {
+        string full_path = path + "/" + files[i];
+        int size = file_size(full_path);
+        string type;
+        
+        if (size == -2) {
+            type = "<DIR>";
+        } else if (size >= 0) {
+            type = sprintf("%6d", size);
+        } else {
+            type = "<?>";
+        }
+        
+        tell_object(owner, sprintf("  %s  %s", type, files[i]));
+    }
+}
+
+void cmd_pwd() {
+    tell_object(owner, "Current directory: " + cwd);
+}
+
+void cmd_cat(string file) {
+    if (!file || file == "") {
+        tell_object(owner, "Usage: cat <filename>");
+        return;
+    }
+    
+    string path = resolve_path(file);
+    string content;
+    
+    content = read_file(path);
+    
+    if (!content) {
+        tell_object(owner, "Cannot read file: " + path);
+        return;
+    }
+    
+    tell_object(owner, "=== " + path + " ===");
+    tell_object(owner, content);
+    tell_object(owner, "=== End of file ===");
+}
+
+void cmd_mkdir(string dir) {
+    if (!dir || dir == "") {
+        tell_object(owner, "Usage: mkdir <directory>");
+        return;
+    }
+    
+    string path = resolve_path(dir);
+    
+    if (mkdir(path)) {
+        tell_object(owner, "Created directory: " + path);
+    } else {
+        tell_object(owner, "Failed to create directory: " + path);
+    }
+}
+
+void cmd_rm(string file) {
+    if (!file || file == "") {
+        tell_object(owner, "Usage: rm <filename>");
+        return;
+    }
+    
+    string path = resolve_path(file);
+    
+    if (rm(path)) {
+        tell_object(owner, "Removed: " + path);
+    } else {
+        tell_object(owner, "Failed to remove: " + path);
+    }
+}
+
+// === OBJECT COMMANDS ===
+
+void cmd_clone(string file) {
+    if (!file || file == "") {
+        tell_object(owner, "Usage: clone <object_file>");
+        return;
+    }
+    
+    string path = resolve_path(file);
+    object obj;
+    
+    // Remove .c extension if present
+    if (path[strlen(path)-2..] == ".c") {
+        path = path[0..strlen(path)-3];
+    }
+    
+    catch {
+        obj = clone_object(path);
+    };
+    
+    if (!obj) {
+        tell_object(owner, "Failed to clone: " + path);
+        tell_object(owner, "Check 'errors' for compilation issues.");
+        return;
+    }
+    
+    // Move object to player's inventory
+    if (obj->move(owner)) {
+        tell_object(owner, "Cloned: " + file_name(obj));
+    } else {
+        tell_object(owner, "Cloned but couldn't move to inventory: " + file_name(obj));
+    }
+}
+
+void cmd_dest(string target) {
+    if (!target || target == "") {
+        tell_object(owner, "Usage: dest <object>");
+        return;
+    }
+    
+    object obj;
+    
+    // Try to find object by name in inventory or environment
+    obj = present(target, owner);
+    if (!obj) {
+        obj = present(target, environment(owner));
+    }
+    
+    if (!obj) {
+        tell_object(owner, "Object not found: " + target);
+        return;
+    }
+    
+    string name = file_name(obj);
+    
+    if (destruct(obj)) {
+        tell_object(owner, "Destructed: " + name);
+    } else {
+        tell_object(owner, "Failed to destruct: " + name);
+    }
+}
+
+void cmd_update(string file) {
+    if (!file || file == "") {
+        tell_object(owner, "Usage: update <object_file>");
+        return;
+    }
+    
+    string path = resolve_path(file);
+    
+    // Remove .c extension
+    if (path[strlen(path)-2..] == ".c") {
+        path = path[0..strlen(path)-3];
+    }
+    
+    if (destruct(load_object(path))) {
+        tell_object(owner, "Updated: " + path);
+    } else {
+        tell_object(owner, "Failed to update: " + path);
+    }
+}
+
+void cmd_load(string file) {
+    if (!file || file == "") {
+        tell_object(owner, "Usage: load <object_file>");
+        return;
+    }
+    
+    string path = resolve_path(file);
+    object obj;
+    
+    // Remove .c extension
+    if (path[strlen(path)-2..] == ".c") {
+        path = path[0..strlen(path)-3];
+    }
+    
+    catch {
+        obj = load_object(path);
+    };
+    
+    if (obj) {
+        tell_object(owner, "Loaded: " + file_name(obj));
+    } else {
+        tell_object(owner, "Failed to load: " + path);
+    }
+}
+
+void cmd_objects() {
+    object *obs = objects();
+    int i;
+    
+    tell_object(owner, "Loaded objects (" + sizeof(obs) + "):");
+    tell_object(owner, "---");
+    
+    for (i = 0; i < sizeof(obs); i++) {
+        tell_object(owner, "  " + file_name(obs[i]));
+    }
+}
+
+// === DEVELOPMENT COMMANDS ===
+
+void cmd_eval(string code) {
+    if (!code || code == "") {
+        tell_object(owner, "Usage: eval <lpc_expression>");
+        return;
+    }
+    
+    mixed result;
+    
+    catch {
+        result = evaluate(code);
+    };
+    
+    tell_object(owner, "Result: " + dump_value(result));
+}
+
+void cmd_call(string args) {
+    if (!args || args == "") {
+        tell_object(owner, "Usage: call <object> <function> [args]");
+        return;
+    }
+    
+    // Parse: object function args
+    string obj_name, func_name, func_args;
+    object obj;
+    mixed result;
+    
+    if (sscanf(args, "%s %s %s", obj_name, func_name, func_args) < 2) {
+        tell_object(owner, "Usage: call <object> <function> [args]");
+        return;
+    }
+    
+    // Find object
+    obj = find_object(resolve_path(obj_name));
+    
+    if (!obj) {
+        tell_object(owner, "Object not found: " + obj_name);
+        return;
+    }
+    
+    // Call function
+    catch {
+        result = call_other(obj, func_name, func_args);
+    };
+    
+    tell_object(owner, "Result: " + dump_value(result));
+}
+
+void cmd_ed(string file) {
+    tell_object(owner, "Ed editor not yet implemented.");
+    tell_object(owner, "Edit files externally and use 'update' to reload.");
+}
+
+void cmd_trace(string args) {
+    if (!args || args == "") {
+        tell_object(owner, "Trace level: " + trace_level);
+        return;
+    }
+    
+    int level = to_int(args);
+    trace_level = level;
+    tell_object(owner, "Trace level set to: " + level);
+}
+
+void cmd_errors() {
+    tell_object(owner, "Recent errors:");
+    tell_object(owner, "---");
+    // TODO: Implement error log reading
+    tell_object(owner, "(Error logging not yet implemented)");
+}
+
+// === HELPER COMMANDS ===
+
+void cmd_goto(string dest) {
+    if (!dest || dest == "") {
+        tell_object(owner, "Usage: goto <room_path>");
+        return;
+    }
+    
+    object room;
+    string path = resolve_path(dest);
+    
+    catch {
+        room = load_object(path);
+    };
+    
+    if (!room) {
+        tell_object(owner, "Room not found: " + path);
+        return;
+    }
+    
+    if (owner->move(room)) {
+        tell_object(owner, "Teleported to: " + path);
+        owner->force_me("look");
+    } else {
+        tell_object(owner, "Failed to move to: " + path);
+    }
+}
+
+void cmd_wiz(string args) {
+    if (!args || args == "" || args == "help") {
+        show_help();
+        return;
+    }
+    
+    tell_object(owner, "Unknown wiztool command: " + args);
+}
+
+void show_help() {
+    tell_object(owner, "\n%^BOLD%^=== Wiztool Commands ===%^RESET%^\n");
+    
+    tell_object(owner, "%^BOLD%^Filesystem:%^RESET%^");
+    tell_object(owner, "  cd <dir>         - Change directory");
+    tell_object(owner, "  ls [dir]         - List directory contents");
+    tell_object(owner, "  pwd              - Show current directory");
+    tell_object(owner, "  cat <file>       - Display file contents");
+    tell_object(owner, "  mkdir <dir>      - Create directory");
+    tell_object(owner, "  rm <file>        - Remove file");
+    
+    tell_object(owner, "\n%^BOLD%^Objects:%^RESET%^");
+    tell_object(owner, "  clone <file>     - Clone an object");
+    tell_object(owner, "  dest <object>    - Destruct an object");
+    tell_object(owner, "  update <file>    - Reload an object");
+    tell_object(owner, "  load <file>      - Load an object");
+    tell_object(owner, "  objects          - List all loaded objects");
+    
+    tell_object(owner, "\n%^BOLD%^Development:%^RESET%^");
+    tell_object(owner, "  eval <code>      - Evaluate LPC expression");
+    tell_object(owner, "  call <obj> <fn>  - Call function on object");
+    tell_object(owner, "  trace <level>    - Set trace level");
+    tell_object(owner, "  errors           - Show recent errors");
+    
+    tell_object(owner, "\n%^BOLD%^Navigation:%^RESET%^");
+    tell_object(owner, "  goto <room>      - Teleport to room");
+    
+    tell_object(owner, "");
+}
+
+// === UTILITY FUNCTIONS ===
+
+// Resolve a path relative to current working directory
+private string resolve_path(string path) {
+    if (!path || path == "") return cwd;
+    
+    // Absolute path
+    if (path[0] == '/') {
+        return path;
+    }
+    
+    // Relative path
+    if (cwd == "/") {
+        return "/" + path;
+    } else {
+        return cwd + "/" + path;
+    }
+}
+
+// Get current working directory
+string query_cwd() {
+    return cwd;
+}
+
+// Helper to dump any value as string
+private string dump_value(mixed val) {
+    if (intp(val)) return "int: " + val;
+    if (stringp(val)) return "string: \"" + val + "\"";
+    if (objectp(val)) return "object: " + file_name(val);
+    if (arrayp(val)) return "array[" + sizeof(val) + "]";
+    if (mappingp(val)) return "mapping[" + sizeof(val) + "]";
+    return "mixed: " + val;
+}

@@ -1,0 +1,129 @@
+/*
+ * /lib/cmds/give.lpc - Give items to other players
+ */
+
+#include <globals.h>
+
+int main(string arg) {
+    object user, room, item, target;
+    string item_name, target_name;
+    
+    user = previous_object();
+    room = user->query_environment();
+    
+    if (!arg || arg == "") {
+        tell_object(user, "Usage: give <item> <player>\n");
+        return 1;
+    }
+    
+    if (!room) {
+        tell_object(user, "You are nowhere.\n");
+        return 1;
+    }
+    
+    // Parse "give <item> <target>" or "give <item> to <target>"
+    if (sscanf(arg, "%s to %s", item_name, target_name) == 2) {
+        // "give sword to bob"
+    } else if (sscanf(arg, "%s %s", item_name, target_name) == 2) {
+        // "give sword bob"
+    } else {
+        tell_object(user, "Usage: give <item> <player>\n");
+        return 1;
+    }
+    
+    // Find item in inventory
+    item = present(item_name, user);
+    
+    if (!item) {
+        tell_object(user, "You don't have that.\n");
+        return 1;
+    }
+    
+    // Find target in room
+    target = present(target_name, room);
+    
+    if (!target || !living(target)) {
+        tell_object(user, "That person isn't here.\n");
+        return 1;
+    }
+    
+    if (target == user) {
+        tell_object(user, "You can't give items to yourself.\n");
+        return 1;
+    }
+    
+    // Check if item can be given
+    if (function_exists("query_no_give", item) && item->query_no_give()) {
+        tell_object(user, "You can't give that away.\n");
+        return 1;
+    }
+    
+    // Check if target can receive
+    if (function_exists("query_no_receive", target)) {
+        if (target->query_no_receive()) {
+            tell_object(user, sprintf("%s doesn't want that.\n", 
+                capitalize(target->query_name())));
+            return 1;
+        }
+    }
+    
+    // Check target's weight limit
+    int item_weight = item->query_weight() || 0;
+    int target_weight = 0;
+    object *target_inv = all_inventory(target);
+    
+    foreach (object obj in target_inv) {
+        target_weight += (obj->query_weight() || 0);
+    }
+    
+    int max_weight = target->query_max_carry_weight() || 1000;
+    
+    if (target_weight + item_weight > max_weight) {
+        tell_object(user, sprintf("%s can't carry that much weight.\n",
+            capitalize(target->query_name())));
+        tell_object(target, sprintf("%s tried to give you something, but you're carrying too much.\n",
+            capitalize(user->query_name())));
+        return 1;
+    }
+    
+    // Move item to target
+    if (function_exists("move", item)) {
+        item->move(target);
+    } else {
+        move_object(item, target);
+    }
+    
+    string display_name = item->query_short() || item->query_name() || "something";
+    
+    tell_object(user, sprintf("You give %s to %s.\n", 
+        display_name, capitalize(target->query_name())));
+    tell_object(target, sprintf("%s gives you %s.\n",
+        capitalize(user->query_name()), display_name));
+    
+    // Tell room
+    object *people = all_inventory(room);
+    foreach (object person in people) {
+        if (living(person) && person != user && person != target) {
+            tell_object(person, sprintf("%s gives %s to %s.\n",
+                capitalize(user->query_name()), 
+                display_name,
+                capitalize(target->query_name())));
+        }
+    }
+    
+    return 1;
+}
+
+string query_help() {
+    return
+"GIVE - Give items to other players\n\n"
+"Usage:\n"
+"  give <item> <player>       Give item to player\n"
+"  give <item> to <player>    Alternative syntax\n\n"
+"Examples:\n"
+"  give sword guard\n"
+"  give potion to wizard\n\n"
+"The target must be in the same room and able to carry\n"
+"the item's weight. Some items cannot be given away.\n\n"
+"See also: GET, DROP, TRADE\n";
+}

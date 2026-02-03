@@ -1,0 +1,205 @@
+/*
+ * /lib/daemon/psionics.lpc - Central psionics registry
+ *
+ * Manages psionic powers by category:
+ * - Physical: Body control, telekinesis
+ * - Sensitive: Detection, empathy, precognition
+ * - Healing: Bio-regeneration, healing
+ * - Super: Most powerful abilities
+ */
+
+#define PSI_DIR "/psionics"
+
+/* ========================= Registry ========================= */
+private mapping powers;       /* power_id: power object */
+private mapping categories;   /* category: ({ power_ids }) */
+private int initialized;
+
+void create() {
+    powers = ([]);
+    categories = ([
+        "physical": ({}),
+        "sensitive": ({}),
+        "healing": ({}),
+        "super": ({}),
+    ]);
+    initialized = 0;
+}
+
+/* ========================= Loading ========================= */
+
+void load_all_powers() {
+    string *subdirs;
+    string *files;
+    
+    if (initialized) return;
+    
+    subdirs = ({ "physical", "sensitive", "healing", "super" });
+    
+    foreach (string subdir : subdirs) {
+        files = get_dir(PSI_DIR + "/" + subdir + "/*.lpc");
+        if (files) {
+            foreach (string file : files) {
+                string path = PSI_DIR + "/" + subdir + "/" + file;
+                object power = load_object(path[0..<5]);
+                if (power) {
+                    string id = power->query_power_id();
+                    string cat = power->query_power_category();
+                    powers[id] = power;
+                    
+                    if (!categories[cat]) {
+                        categories[cat] = ({});
+                    }
+                    if (member_array(id, categories[cat]) == -1) {
+                        categories[cat] += ({ id });
+                    }
+                }
+            }
+        }
+    }
+    
+    initialized = 1;
+}
+
+/* ========================= Power Access ========================= */
+
+object query_power(string power_id) {
+    if (!initialized) load_all_powers();
+    return powers[power_id];
+}
+
+string *query_all_power_ids() {
+    if (!initialized) load_all_powers();
+    return keys(powers);
+}
+
+string *query_powers_in_category(string category) {
+    if (!initialized) load_all_powers();
+    if (categories[category]) {
+        return categories[category];
+    }
+    return ({});
+}
+
+/* ========================= ISP Calculations ========================= */
+
+/*
+ * Calculate starting ISP for a psionic character
+ * Based on ME stat and psionic category
+ */
+int calculate_starting_isp(object living, string psi_category) {
+    int me = living->query_stat("me");
+    int base;
+    
+    switch (psi_category) {
+        case "minor":
+            base = me + random(6) + 1;  /* ME + 1d6 */
+            break;
+        case "major":
+            base = me * 2 + random(6) + random(6) + 2;  /* ME x2 + 2d6 */
+            break;
+        case "master":
+            base = me * 4 + random(6) + random(6) + random(6) + 3;  /* ME x4 + 3d6 */
+            break;
+        default:
+            base = 0;
+    }
+    
+    return base;
+}
+
+/*
+ * Calculate ISP gain per level
+ */
+int calculate_isp_per_level(string psi_category) {
+    switch (psi_category) {
+        case "minor": return random(6) + 1;    /* 1d6 */
+        case "major": return random(6) + 4;    /* 1d6+3 */
+        case "master": return random(10) + 5;  /* 1d10+4 */
+        default: return 0;
+    }
+}
+
+/* ========================= Power Management ========================= */
+
+/*
+ * Activate a psionic power
+ * Returns: 1 = success, 0 = failure
+ */
+int activate_power(string power_id, object user, object target) {
+    if (!initialized) load_all_powers();
+    
+    object power = powers[power_id];
+    if (!power) {
+        tell_object(user, "That power doesn't exist.\n");
+        return 0;
+    }
+    
+    int check = power->can_activate(user);
+    if (check == 0) {
+        tell_object(user, "You don't have that power.\n");
+        return 0;
+    }
+    if (check == -1) {
+        tell_object(user, "You don't have enough ISP.\n");
+        return 0;
+    }
+    
+    return power->activate(user, target);
+}
+
+/*
+ * Get formatted list of a character's powers
+ */
+string format_power_list(object living) {
+    string *my_powers = living->query_psionic_powers();
+    string psi_cat = living->query_psionic_category();
+    
+    if (!my_powers || sizeof(my_powers) == 0) {
+        return "You have no psionic powers.\n";
+    }
+    
+    string result = "";
+    result += "=======================================================\n";
+    result += "  PSIONIC POWERS (" + capitalize(psi_cat) + " Psionics)\n";
+    result += "  ISP: " + living->query_isp() + "/" + living->query_max_isp() + "\n";
+    result += "=======================================================\n";
+    
+    /* Group by category */
+    mapping by_cat = ([]);
+    
+    foreach (string id : my_powers) {
+        object power = powers[id];
+        string cat = power ? power->query_power_category() : "other";
+        if (!by_cat[cat]) by_cat[cat] = ({});
+        by_cat[cat] += ({ id });
+    }
+    
+    string *cats = ({ "sensitive", "physical", "healing", "super" });
+    foreach (string cat : cats) {
+        if (by_cat[cat] && sizeof(by_cat[cat]) > 0) {
+            result += "\n  " + capitalize(cat) + ":\n";
+            foreach (string id : by_cat[cat]) {
+                object power = powers[id];
+                string name = power ? power->query_power_name() : id;
+                int cost = power ? power->query_isp_cost() : 0;
+                result += sprintf("    %-25s (%d ISP)\n", name, cost);
+            }
+        }
+    }
+    
+    result += "=======================================================\n";
+    return result;
+}
+
+/*
+ * Get info about a specific power
+ */
+string query_power_info(string power_id) {
+    if (!initialized) load_all_powers();
+    
+    object power = powers[power_id];
+    if (!power) return "Power not found.\n";
+    
+    return power->query_info();
+}

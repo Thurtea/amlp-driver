@@ -1,0 +1,96 @@
+/*
+ * /lib/cmds/wear.lpc - Wear armor or clothing
+ */
+
+#include <globals.h>
+
+int main(string arg) {
+    object user, item, room;
+    string slot;
+    
+    user = previous_object();
+    room = user->query_environment();
+    
+    if (!arg || arg == "") {
+        tell_object(user, "Wear what?\n");
+        return 1;
+    }
+    
+    // Find item in inventory
+    item = present(arg, user);
+    
+    if (!item) {
+        tell_object(user, "You don't have that.\n");
+        return 1;
+    }
+    
+    // Check if item can be worn
+    if (!function_exists("query_slot", item)) {
+        tell_object(user, "You can't wear that.\n");
+        return 1;
+    }
+    
+    slot = item->query_slot();
+    
+    if (!slot || slot == "") {
+        tell_object(user, "You can't wear that.\n");
+        return 1;
+    }
+    
+    // Check if slot is available
+    mapping equipped = user->query_equipped();
+    
+    if (!equipped) {
+        equipped = ([]);
+    }
+    
+    if (equipped[slot]) {
+        object current = equipped[slot];
+        string current_name = current->query_short() || current->query_name() || "something";
+        tell_object(user, sprintf("You're already wearing %s on your %s.\n",
+            current_name, slot));
+        tell_object(user, "Remove it first.\n");
+        return 1;
+    }
+    
+    // Equip the item
+    if (function_exists("equip", user)) {
+        if (!user->equip(item, slot)) {
+            tell_object(user, "You can't wear that.\n");
+            return 1;
+        }
+    } else {
+        tell_object(user, "Error: Equipment system not available.\n");
+        return 1;
+    }
+    
+    string item_name = item->query_short() || item->query_name() || "something";
+    tell_object(user, sprintf("You wear %s.\n", item_name));
+    
+    // Tell room
+    if (room) {
+        object *people = all_inventory(room);
+        foreach (object person in people) {
+            if (living(person) && person != user) {
+                tell_object(person, sprintf("%s wears %s.\n",
+                    capitalize(user->query_name()), item_name));
+            }
+        }
+    }
+    
+    return 1;
+}
+
+string query_help() {
+    return
+"WEAR - Wear armor or clothing\n\n"
+"Usage:\n"
+"  wear <item>    Equip armor or clothing\n\n"
+"Examples:\n"
+"  wear helmet\n"
+"  wear armor\n"
+"  wear boots\n\n"
+"The item must be in your inventory and the appropriate\n"
+"equipment slot must be empty.\n\n"
+"See also: REMOVE, WIELD, EQUIPMENT\n";
+}

@@ -1,0 +1,12 @@
+// Test array subscripting
+void create() {
+    string cmd = "hello";
+    int idx = 0;
+    
+    while (idx < strlen(cmd)) {
+        if (cmd[idx] == 'e') {
+            break;
+        }
+        idx++;
+    }
+}

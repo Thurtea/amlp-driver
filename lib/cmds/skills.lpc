@@ -1,0 +1,64 @@
+/*
+ * /lib/cmds/skills.lpc - Display your skills
+ * 
+ * Usage:
+ *   skills              - List all your skills
+ *   skills <skill>      - View details about a specific skill
+ */
+
+#define SKILLS_DAEMON "/daemon/skills"
+
+int cmd(string args) {
+    object skills_d = find_object(SKILLS_DAEMON);
+    if (!skills_d) {
+        skills_d = load_object(SKILLS_DAEMON);
+    }
+    
+    if (!args || args == "") {
+        /* Show all skills */
+        if (skills_d) {
+            write(skills_d->format_skill_list(this_player()));
+        } else {
+            /* Fallback if daemon not available */
+            mapping my_skills = this_player()->query_all_skills();
+            if (!my_skills || sizeof(my_skills) == 0) {
+                write("You have no skills.\n");
+                return 1;
+            }
+            
+            write("Your Skills:\n");
+            write("----------------------------------------\n");
+            foreach (string id, int pct : my_skills) {
+                write(sprintf("  %-20s %3d%%\n", id, pct));
+            }
+            write("----------------------------------------\n");
+        }
+        return 1;
+    }
+    
+    /* Show info about a specific skill */
+    args = lower_case(args);
+    
+    if (skills_d) {
+        string info = skills_d->query_skill_info(args);
+        write(info);
+    } else {
+        write("Skills daemon not available.\n");
+    }
+    
+    return 1;
+}
+
+string query_help() {
+    return
+"SKILLS - Display your skills\n\n"
+"Usage:\n"
+"  skills              List all your skills and percentages\n"
+"  skills <skill>      View details about a specific skill\n\n"
+"Skills are rated by percentage (1-98%). When you attempt\n"
+"to use a skill, a d100 roll is made. Rolling equal to or\n"
+"under your skill percentage is a success. Rolling 96-100\n"
+"is always a critical failure.\n\n"
+"Skills improve per level based on OCC/RCC and whether the\n"
+"skill is a primary or secondary selection.\n";
+}
