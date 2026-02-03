@@ -171,7 +171,7 @@ void cmd_look(PlayerSession *sess, const char *args) {
     Room *room = sess->current_room;
     
     send_to_player(sess, "\n%s\n", room->name);
-    send_to_player(sess, "%s", room->description);
+    send_to_player(sess, "%s\n", room->description);
     
     /* List exits */
     int exit_count = 0;
