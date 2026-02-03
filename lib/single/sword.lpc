@@ -1,0 +1,21 @@
+// /lib/single/sword.lpc - Standard longsword
+
+inherit "/std/object";
+
+void create() {
+    ::create();
+    
+    set_id("sword");
+    set_short("a longsword");
+    set_long(
+        "This is a well-crafted steel longsword with a leather-wrapped hilt.\n"
+        "The blade is sharp and ready for combat. It bears the marks of careful\n"
+        "craftsmanship, and seems well-balanced for either one or two-handed combat."
+    );
+    set_weight(4000);  // 4 lbs in grams
+    set_value(800);    // 800 credits
+    set_property("type", "weapon");
+    set_property("weapon_type", "sword");
+    set_property("damage", "2d6");
+    set_property("strike_bonus", 1);
+}

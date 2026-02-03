@@ -1,0 +1,46 @@
+// /lib/domains/staff_castle/room/library.lpc - The Grand Library
+
+#include <globals.h>
+
+inherit "/std/room";
+
+void create() {
+    ::create();
+    
+    set_id("castle_library");
+    set_short("The Grand Library");
+    set_long(
+        "This vast chamber soars three stories high, with wooden galleries circling\n"
+        "the walls at each level. Every inch of wall space is covered with\n"
+        "bookshelves, their shelves laden with thousands of volumes in leather bindings.\n\n"
+        
+        "Spiral staircases connect the levels, and brass railings prevent accidents.\n"
+        "Scholarly desks are placed at regular intervals, some occupied by staff\n"
+        "members engaged in research and study. The air is cool and carries the\n"
+        "distinct smell of old paper and aged leather bindings.\n\n"
+        
+        "Soft magical light emanates from crystal orbs mounted on the shelves,\n"
+        "allowing readers to see clearly without harsh shadows. A librarian's desk\n"
+        "sits near the entrance, though no one is currently there. This library\n"
+        "contains the accumulated knowledge of centuries."
+    );
+    
+    add_exit("west", "/domains/staff_castle/room/war_room");
+    add_exit("south", "/domains/staff_castle/room/dining_hall");
+}
+
+void init() {
+    ::init();
+    add_action("examine_books", "examine");
+}
+
+int examine_books(string str) {
+    if (!str || (str != "books" && str != "shelves" && str != "library")) return 0;
+    
+    write("The books are anything but random. You see titles on history, magic,\n"
+          "diplomacy, strategy, arcane theory, and more. Many are ancient texts,\n"
+          "carefully preserved. You notice some books glow faintly - magical tomes\n"
+          "that contain their own illumination. This collection is priceless.");
+    say(this_player()->query_cap_name() + " browses the extensive library collection.");
+    return 1;
+}

@@ -1,0 +1,44 @@
+// /lib/domains/staff_castle/room/kitchen.lpc - The Kitchen
+
+#include <globals.h>
+
+inherit "/std/room";
+
+void create() {
+    ::create();
+    
+    set_id("castle_kitchen");
+    set_short("The Kitchen");
+    set_long(
+        "This expansive kitchen is a hub of culinary activity. Large iron ranges\n"
+        "line one wall, with copper pots and pans hanging from hooks above. Massive\n"
+        "wooden prep tables dominate the floor space, and the smell of herbs and\n"
+        "spices fills the air.\n\n"
+        
+        "Servants and cooks move efficiently through the kitchen, preparing meals\n"
+        "for the castle residents. Shelves groaning under the weight of provisions\n"
+        "fill the walls. A large pantry is visible through an open doorway, filled\n"
+        "with barrels, sacks, and supplies.\n\n"
+        
+        "This is clearly where the castle's excellent food is prepared. The warmth\n"
+        "and smells make this an inviting place, despite the constant activity."
+    );
+    
+    add_exit("north", "/domains/staff_castle/room/dining_hall");
+}
+
+void init() {
+    ::init();
+    add_action("examine_kitchen", "examine");
+}
+
+int examine_kitchen(string str) {
+    if (!str || (str != "stove" && str != "pots" && str != "kitchen")) return 0;
+    
+    write("The kitchen is immaculate despite the constant work. Copper kettles\n"
+          "gleam in the light, and you can see the castle's emblem emblazoned on\n"
+          "many of them. The ovens are warm, and delicious smells waft from them.\n"
+          "This kitchen could feed an army - and probably has, more than once.");
+    say(this_player()->query_cap_name() + " surveys the bustling kitchen.");
+    return 1;
+}

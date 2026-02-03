@@ -1,0 +1,22 @@
+// /lib/single/leather_armor.lpc - Leather Armor
+
+inherit "/std/object";
+
+void create() {
+    ::create();
+    
+    set_id("leather armor");
+    set_id_alt("armor");
+    set_short("a suit of leather armor");
+    set_long(
+        "This is a well-fitted suit of brown leather armor suitable for adventurers.\n"
+        "The leather is supple yet protective, with reinforced sections at vital points.\n"
+        "Dragon-scale plates are sewn into the shoulders and chest for extra protection."
+    );
+    set_weight(25000);  // 25 lbs
+    set_value(1200);    // 1200 credits
+    set_property("type", "armor");
+    set_property("armor_type", "leather");
+    set_property("armor_rating", 8);
+    set_property("sdc_bonus", 15);
+}

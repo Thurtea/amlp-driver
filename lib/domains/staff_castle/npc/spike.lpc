@@ -1,0 +1,154 @@
+// /lib/domains/staff_castle/npc/spike.lpc - Spike, the Castle Dog
+
+#include <globals.h>
+
+inherit "/std/living";
+
+void create() {
+    ::create();
+    
+    set_id("spike");
+    set_id_alt("dog");
+    set_name("Spike");
+    set_real_name("Spike the Castle Guard Dog");
+    
+    set_short("Spike, a large guard dog");
+    set_long(
+        "Spike is a magnificent guard dog, standing nearly three feet tall at the\n"
+        "shoulder. His coat is a rich auburn and white, with a thick undercoat that\n"
+        "speaks to his outdoor heritage. His intelligent brown eyes watch everyone\n"
+        "with keen interest, assessing both friend and potential foe.\n\n"
+        
+        "A collar of fine leather, embossed with the castle emblem, encircles his\n"
+        "thick neck. Several scars on his flanks tell stories of service and\n"
+        "protection. Despite his fearsome appearance, his tail wags occasionally,\n"
+        "suggesting a friendly nature beneath the tough exterior.\n\n"
+        
+        "Spike is clearly well-fed and well-cared-for. His bearing is proud and\n"
+        "noble - this is no common hound, but a trusted member of the castle staff.\n"
+        "He seems to enjoy the company of visitors and guards alike, though he\n"
+        "remains alert and watchful."
+    );
+    
+    // Stats
+    set_level(5);
+    set_max_hp(45);
+    set_hp(45);
+    
+    set_property("race", "dog");
+    set_property("type", "animal");
+    set_property("alignment", "good");
+    set_property("body_type", "quadruped");
+    
+    // Combat stats
+    set_property("strength", 16);
+    set_property("constitution", 15);
+    set_property("dexterity", 14);
+    
+    // Skills
+    set_property("bite_attack", 60);
+    set_property("dodge", 50);
+    set_property("tracking", 70);
+}
+
+void init() {
+    ::init();
+    add_action("pet_spike", "pet");
+    add_action("talk_to_spike", "talk");
+    add_action("feed_spike", "feed");
+    add_action("play_with_spike", "play");
+}
+
+void heart_beat() {
+    ::heart_beat();
+    
+    // Random dog behaviors
+    switch(random(6)) {
+        case 0:
+            force_me("emote", "wags his tail happily");
+            break;
+        case 1:
+            force_me("emote", "trots around the castle, sniffing for intruders");
+            break;
+        case 2:
+            force_me("emote", "scratches behind his ear with his back leg");
+            break;
+        case 3:
+            force_me("emote", "lies down and watches the surroundings carefully");
+            break;
+        case 4:
+            force_me("emote", "barks once, a deep and authoritative sound");
+            break;
+        case 5:
+            force_me("emote", "noses at the ground, searching for scents");
+            break;
+    }
+}
+
+int pet_spike(string str) {
+    if (!str || (str != "spike" && str != "dog")) return 0;
+    
+    write("You reach down and pet Spike's soft fur. He leans into your hand with\n"
+          "a pleased expression, and you feel his muscular body relax under your touch.");
+    say(this_player()->query_cap_name() + " reaches down and pets Spike.");
+    force_me("emote", "leans into the petting and closes his eyes contentedly");
+    
+    return 1;
+}
+
+int talk_to_spike(string str) {
+    if (!str || (str != "to spike" && str != "with spike" && str != "spike")) return 0;
+    
+    write("Spike looks up at you with intelligent eyes. He cannot speak in words,\n"
+          "but his expression clearly shows understanding. He lets out a friendly\n"
+          "'woof' and his tail wags.");
+    say(this_player()->query_cap_name() + " talks to Spike.");
+    force_me("emote", "tilts his head and woofs in response");
+    
+    return 1;
+}
+
+int feed_spike(string str) {
+    object food;
+    
+    if (!str || (str != "spike" && str != "dog")) return 0;
+    
+    food = present("food", this_player());
+    if (!food) {
+        force_me("emote", "watches you with expectant eyes, but you have no food");
+        write("You have no food to give Spike.");
+        return 1;
+    }
+    
+    write("You offer the food to Spike. He takes it gently from your hand and\n"
+          "devours it with obvious enjoyment, then licks your fingers clean.");
+    say(this_player()->query_cap_name() + " feeds something to Spike.");
+    force_me("emote", "gobbles down the food and enjoys a satisfied look");
+    
+    if (food) food->remove();
+    
+    return 1;
+}
+
+int play_with_spike(string str) {
+    if (!str || (str != "with spike" && str != "spike")) return 0;
+    
+    write("You toss a stick and encourage Spike to fetch. He bounds after it with\n"
+          "surprising speed and agility, bringing it back to drop at your feet.\n"
+          "You play a few rounds, and Spike seems to thoroughly enjoy himself.");
+    say(this_player()->query_cap_name() + " plays with Spike, tossing a stick.");
+    force_me("emote", "bounds determinedly after the stick, panting with joy");
+    
+    return 1;
+}
+
+void die(object ob) {
+    force_me("emote", "yelps in pain and collapses");
+    say("Spike the guard dog has been slain!");
+    remove();
+}
+
+// Spike won't actually be killed, he's too important
+int query_no_kill() {
+    return 1;
+}

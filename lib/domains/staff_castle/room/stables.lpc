@@ -1,0 +1,44 @@
+// /lib/domains/staff_castle/room/stables.lpc - The Castle Stables
+
+#include <globals.h>
+
+inherit "/std/room";
+
+void create() {
+    ::create();
+    
+    set_id("castle_stables");
+    set_short("The Castle Stables");
+    set_long(
+        "This expansive stable complex is home to the finest mounts in the realm.\n"
+        "Rows of stalls stretch out on both sides, each one spotless and well-\n"
+        "maintained. The air smells of hay, leather, and horse. Stable hands move\n"
+        "efficiently among the stalls, tending to the animals.\n\n"
+        
+        "Through the open doors you can see magnificent horses, some saddled and\n"
+        "ready, others at rest. Tack hangs from pegs on the walls - bridles, saddles,\n"
+        "blankets, and all manner of equipment. A large tack room occupies one corner,\n"
+        "filled with grooming supplies and repair tools.\n\n"
+        
+        "The sound of hooves and gentle neighing fills the air. The stables are\n"
+        "clearly well-staffed and maintained to the highest standards."
+    );
+    
+    add_exit("east", "/domains/staff_castle/room/courtyard");
+}
+
+void init() {
+    ::init();
+    add_action("examine_stables", "examine");
+}
+
+int examine_stables(string str) {
+    if (!str || (str != "horses" && str != "stables" && str != "horses" && str != "equipment")) return 0;
+    
+    write("The horses are exceptional specimens - tall, well-built, and clearly\n"
+          "well-cared-for. Some bear the marks of war - battle-scarred but noble.\n"
+          "Others are pristine, their coats gleaming like polished silk. The tack\n"
+          "is of the finest quality, and you notice some pieces are enchanted.");
+    say(this_player()->query_cap_name() + " admires the castle's impressive cavalry.");
+    return 1;
+}

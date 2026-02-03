@@ -161,6 +161,13 @@ VMValue efun_query_verb(VirtualMachine *vm, VMValue *args, int arg_count);
 
 /* ========== Utility Functions ========== */
 
+/* Debugging efuns */
+VMValue efun_debug_set_flags(VirtualMachine *vm, VMValue *args, int arg_count);
+VMValue efun_debug_get_flags(VirtualMachine *vm, VMValue *args, int arg_count);
+VMValue efun_debug_dump_call_stack(VirtualMachine *vm, VMValue *args, int arg_count);
+VMValue efun_debug_dump_bytecode(VirtualMachine *vm, VMValue *args, int arg_count);
+VMValue efun_debug_mem_stats(VirtualMachine *vm, VMValue *args, int arg_count);
+
 /**
  * Register all standard efuns
  * 

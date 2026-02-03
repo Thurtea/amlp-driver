@@ -302,7 +302,26 @@ VMValue obj_call_method(VirtualMachine *vm, obj_t *obj, const char *method_name,
 
     /* Push arguments onto stack (in call order) */
     for (int i = 0; i < arg_count; i++) {
+        fprintf(stderr, "[Object] ARG %d: type=%d", i, args[i].type);
+        if (args[i].type == VALUE_STRING) {
+            fprintf(stderr, " ptr=%p len=%zu", 
+                    (void*)args[i].data.string_value,
+                    args[i].data.string_value ? strlen(args[i].data.string_value) : 0);
+            if (args[i].data.string_value) {
+                fprintf(stderr, " value='%s'", args[i].data.string_value);
+            }
+        }
+        fprintf(stderr, "\n");
+        
         vm_push_value(vm, args[i]);
+        
+        /* Verify it was pushed correctly */
+        if (vm->stack->top > 0) {
+            VMValue pushed = vm->stack->values[vm->stack->top - 1];
+            fprintf(stderr, "[Object]   Pushed to stack[%d]: type=%d ptr=%p\n", 
+                    vm->stack->top - 1, pushed.type,
+                    pushed.type == VALUE_STRING ? (void*)pushed.data.string_value : NULL);
+        }
     }
     
     /* Find method index in VM's function table */
@@ -326,6 +345,16 @@ VMValue obj_call_method(VirtualMachine *vm, obj_t *obj, const char *method_name,
     VMValue result = vm_value_create_null();
     if (vm->stack && vm->stack->top > saved_top) {
         result = vm_pop_value(vm);
+    }
+
+    /* Release all arguments that were pushed on the stack
+     * The vm_pop_value calls above only adjust stack->top, they don't
+     * decrement refcounts. We must explicitly release string argument
+     * references before abandoning them.
+     */
+    while (vm->stack && vm->stack->top > saved_top) {
+        VMValue arg = vm->stack->values[--vm->stack->top];
+        vm_value_release(&arg);
     }
 
     /* Restore stack and running state */

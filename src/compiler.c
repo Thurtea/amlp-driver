@@ -36,6 +36,7 @@ typedef struct {
     } *functions;
     size_t function_count;
     size_t function_capacity;
+    int current_function_idx;  /* Index of function currently being compiled */
     
     struct {
         char *name;
@@ -100,6 +101,7 @@ static compiler_state_t* compiler_state_new(void) {
     state->function_capacity = INITIAL_FUNCTION_COUNT;
     state->functions = malloc(sizeof(state->functions[0]) * state->function_capacity);
     state->function_count = 0;
+    state->current_function_idx = -1;  /* No function being compiled yet */
 
     state->global_capacity = INITIAL_GLOBALS_COUNT;
     state->globals = malloc(sizeof(state->globals[0]) * state->global_capacity);
@@ -286,10 +288,33 @@ static void compiler_codegen_expression(compiler_state_t *state, ASTNode *node) 
         case NODE_IDENTIFIER: {
             IdentifierNode *id = (IdentifierNode *)node->data;
             if (id && id->name) {
-                compiler_emit(state, OP_LOAD_GLOBAL, node->line);
-                // Emit global index (simplified: use first 2 bytes for index)
-                compiler_emit(state, 0, node->line);
-                compiler_emit(state, 0, node->line);
+                // Check if we're in a function and if this identifier is a local/param
+                int local_idx = -1;
+                if (state->current_function_idx >= 0) {
+                    ASTNode *fn_node = state->functions[state->current_function_idx].ast_node;
+                    if (fn_node && fn_node->data) {
+                        FunctionDeclNode *fn = (FunctionDeclNode *)fn_node->data;
+                        // Check parameters
+                        for (int i = 0; i < fn->parameter_count; i++) {
+                            if (fn->parameters[i].name && strcmp(fn->parameters[i].name, id->name) == 0) {
+                                local_idx = i;
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                if (local_idx >= 0) {
+                    // It's a local variable/parameter - use LOAD_LOCAL
+                    compiler_emit(state, OP_LOAD_LOCAL, node->line);
+                    compiler_emit(state, local_idx, node->line);
+                } else {
+                    // It's a global variable - use LOAD_GLOBAL
+                    compiler_emit(state, OP_LOAD_GLOBAL, node->line);
+                    // Emit global index (simplified: use first 2 bytes for index)
+                    compiler_emit(state, 0, node->line);
+                    compiler_emit(state, 0, node->line);
+                }
             }
             break;
         }
@@ -486,6 +511,9 @@ static compile_error_t compiler_generate_bytecode(compiler_state_t *state,
 
         // Record offset for this function
         state->functions[i].offset = (uint16_t)state->bytecode_len;
+        
+        // Set current function context for variable resolution
+        state->current_function_idx = (int)i;
 
         // Generate bytecode for function body
         if (fn->body->type == NODE_BLOCK) {
@@ -499,6 +527,9 @@ static compile_error_t compiler_generate_bytecode(compiler_state_t *state,
             compiler_emit(state, OP_PUSH_NULL, fn->body->line);
             compiler_emit(state, OP_RETURN, fn->body->line);
         }
+        
+        // Clear current function context
+        state->current_function_idx = -1;
     }
 
     // If no bytecode was generated, emit a minimal program (just return)

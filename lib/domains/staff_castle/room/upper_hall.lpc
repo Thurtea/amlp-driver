@@ -1,0 +1,39 @@
+// /lib/domains/staff_castle/room/upper_hall.lpc - Upper Castle Hall
+
+#include <globals.h>
+
+inherit "/std/room";
+
+void create() {
+    ::create();
+    
+    set_id("castle_upper_hall");
+    set_short("The Upper Hall");
+    set_long(
+        "You stand in the upper levels of the castle, in a spacious hall with\n"
+        "polished wooden floors. Large windows along one side offer breathtaking\n"
+        "views of the surrounding lands. Multiple doors lead to various chambers and\n"
+        "quarters for important staff members.\n\n"
+        
+        "The walls are decorated with tapestries and artwork, and soft magical light\n"
+        "orbs provide illumination. The air is cool and carries the scent of\n"
+        "lavender from the nearby chambers.\n\n"
+        
+        "This level houses the private quarters and personal chambers of the castle's\n"
+        "senior staff members. Access to further levels is restricted."
+    );
+    
+    add_exit("down", "/domains/staff_castle/room/stairs");
+    add_exit("west", "/domains/staff_castle/room/observatory");
+}
+
+void init() {
+    ::init();
+    add_action("try_restricted", "open");
+}
+
+int try_restricted(string str) {
+    if (!str) return 0;
+    write("That area is restricted to authorized staff only.");
+    return 0;
+}

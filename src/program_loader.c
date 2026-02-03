@@ -49,6 +49,22 @@ static double read_f64(const uint8_t *bytecode, size_t *offset) {
     return converter.d;
 }
 
+static int program_line_for_offset(Program *program, size_t offset) {
+    if (!program || !program->line_map || program->line_map_count == 0) {
+        return -1;
+    }
+
+    int line = -1;
+    for (size_t i = 0; i < program->line_map_count; i++) {
+        if (program->line_map[i].bytecode_offset > offset) {
+            break;
+        }
+        line = program->line_map[i].source_line;
+    }
+
+    return line;
+}
+
 int program_loader_decode_instruction(const uint8_t *bytecode, size_t offset, VMInstruction *instr) {
     if (!bytecode || !instr) return -1;
     
@@ -239,6 +255,9 @@ int program_loader_load(VirtualMachine *vm, Program *program) {
         func->name = strdup(program->functions[i].name);
         func->param_count = program->functions[i].arg_count;
         func->local_var_count = program->functions[i].local_count;
+        func->source_file = program->filename ? strdup(program->filename) : NULL;
+        func->line_map = NULL;
+        func->line_map_count = 0;
         
         /* Extract function bytecode from main bytecode */
         uint16_t func_offset = program->functions[i].offset;
@@ -263,9 +282,11 @@ int program_loader_load(VirtualMachine *vm, Program *program) {
         func->instructions = (VMInstruction*)malloc(sizeof(VMInstruction) * func_instr_capacity);
         func->instruction_count = 0;
         func->instruction_capacity = func_instr_capacity;
+        int *line_map = (int *)malloc(sizeof(int) * func_instr_capacity);
         
         if (!func->instructions) {
             free(func->name);
+            if (func->source_file) free(func->source_file);
             free(func);
             fprintf(stderr, "[program_loader] Out of memory for function instructions\n");
             return -1;
@@ -281,15 +302,31 @@ int program_loader_load(VirtualMachine *vm, Program *program) {
                 );
                 if (!new_instr) {
                     free(func->instructions);
+                    if (line_map) free(line_map);
                     free(func->name);
+                    if (func->source_file) free(func->source_file);
                     free(func);
                     fprintf(stderr, "[program_loader] Out of memory expanding function instructions\n");
                     return -1;
                 }
                 func->instructions = new_instr;
+                if (line_map) {
+                    int *new_map = (int *)realloc(line_map, sizeof(int) * func->instruction_capacity);
+                    if (!new_map) {
+                        free(func->instructions);
+                        free(line_map);
+                        free(func->name);
+                        if (func->source_file) free(func->source_file);
+                        free(func);
+                        fprintf(stderr, "[program_loader] Out of memory expanding line map\n");
+                        return -1;
+                    }
+                    line_map = new_map;
+                }
             }
             
             VMInstruction instr;
+            size_t instr_offset = func_offset_current;
             int bytes_read = program_loader_decode_instruction(
                 program->bytecode,
                 func_offset_current,
@@ -298,7 +335,9 @@ int program_loader_load(VirtualMachine *vm, Program *program) {
             
             if (bytes_read < 0) {
                 free(func->instructions);
+                if (line_map) free(line_map);
                 free(func->name);
+                if (func->source_file) free(func->source_file);
                 free(func);
                 fprintf(stderr, "[program_loader] Failed to decode function instruction at offset %zu\n",
                         func_offset_current);
@@ -306,13 +345,21 @@ int program_loader_load(VirtualMachine *vm, Program *program) {
             }
             
             func->instructions[func->instruction_count++] = instr;
+            if (line_map) {
+                line_map[func->instruction_count - 1] = program_line_for_offset(program, instr_offset);
+            }
             func_offset_current += bytes_read;
         }
+
+        func->line_map = line_map;
+        func->line_map_count = line_map ? func->instruction_count : 0;
         
         /* Add function to VM */
         if (vm_add_function(vm, func) < 0) {
             free(func->instructions);
+            if (func->line_map) free(func->line_map);
             free(func->name);
+            if (func->source_file) free(func->source_file);
             free(func);
             fprintf(stderr, "[program_loader] Failed to add function to VM\n");
             return -1;

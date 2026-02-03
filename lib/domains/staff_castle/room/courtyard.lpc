@@ -1,0 +1,57 @@
+// /lib/domains/staff_castle/room/courtyard.lpc - Castle Courtyard (Entrance)
+
+#include <globals.h>
+
+inherit "/std/room";
+
+void create() {
+    ::create();
+    
+    set_id("castle_courtyard");
+    set_short("Castle Courtyard");
+    set_long(
+        "You stand in a sprawling courtyard surrounded by high stone walls topped\n"
+        "with arrow slits and battlements. The castle's imposing main gate looms\n"
+        "before you, carved from dark oak and bound with iron bands. A marble\n"
+        "fountain occupies the center of the courtyard, with crystalline water\n"
+        "cascading from a statue of a phoenix.\n\n"
+        
+        "The courtyard is meticulously maintained with perfectly trimmed hedges\n"
+        "lining the stone pathways. Guards periodically pass through, keeping watch.\n"
+        "The castle itself rises majestically to the north, with multiple towers\n"
+        "reaching toward the sky. To the east lies a small garden, and to the west\n"
+        "are the stables.\n\n"
+        
+        "This is the headquarters of the MUD staff and administrative center."
+    );
+    
+    // Exits
+    add_exit("north", "/domains/staff_castle/room/main_hall");
+    add_exit("east", "/domains/staff_castle/room/garden");
+    add_exit("west", "/domains/staff_castle/room/stables");
+    add_exit("out", "/domains/start/room/welcome");
+}
+
+void setup() {
+    ::setup();
+    
+    // Spawn Spike the dog
+    if (!present("spike", this_object())) {
+        new("/domains/staff_castle/npc/spike")->move(this_object());
+    }
+}
+
+void init() {
+    ::init();
+    add_action("examine_fountain", "examine");
+}
+
+int examine_fountain(string str) {
+    if (!str || (str != "fountain" && str != "water" && str != "statue")) return 0;
+    
+    write("The fountain features an intricately carved phoenix, with water flowing\n"
+          "from its wings. The water is cool and refreshing. You notice the\n"
+          "phoenix symbol appears throughout the castle - clearly an important emblem.");
+    say(this_player()->query_cap_name() + " examines the fountain intently.");
+    return 1;
+}

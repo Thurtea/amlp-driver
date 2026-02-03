@@ -1,0 +1,22 @@
+// /lib/single/shield.lpc - Wooden Shield
+
+inherit "/std/object";
+
+void create() {
+    ::create();
+    
+    set_id("shield");
+    set_short("a wooden shield");
+    set_long(
+        "A sturdy wooden shield reinforced with iron bands around the rim.\n"
+        "The face bears the emblem of a phoenix rising from flames, hand-painted\n"
+        "in gold and red. The shield feels solid and protective, ready to turn aside\n"
+        "the blows of enemies."
+    );
+    set_weight(8000);   // 8 lbs
+    set_value(600);     // 600 credits
+    set_property("type", "armor");
+    set_property("armor_type", "shield");
+    set_property("armor_rating", 4);
+    set_property("parry_bonus", 1);
+}

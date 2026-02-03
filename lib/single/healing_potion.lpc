@@ -1,0 +1,21 @@
+// /lib/single/healing_potion.lpc - Healing Potion
+
+inherit "/std/object";
+
+void create() {
+    ::create();
+    
+    set_id("healing potion");
+    set_id_alt("potion");
+    set_short("a healing potion");
+    set_long(
+        "A glass vial filled with shimmering red liquid. The potion gives off a\n"
+        "faint, pleasant warmth to your hand. A label on the side reads:\n"
+        "'Drink to restore health.' This looks like it would heal 2d6 hit points."
+    );
+    set_weight(500);    // half a pound
+    set_value(300);     // 300 credits
+    set_property("type", "consumable");
+    set_property("healing", "2d6");
+    set_property("single_use", 1);
+}

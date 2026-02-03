@@ -1,0 +1,21 @@
+// /lib/domains/staff_castle/room/maze_west.lpc - Hedge Maze West Path
+
+#include <globals.h>
+
+inherit "/std/room";
+
+void create() {
+    ::create();
+    
+    set_id("castle_maze_west");
+    set_short("Western Path through the Hedge Maze");
+    set_long(
+        "This narrow pathway through the hedge maze leads west. Tall, well-maintained\n"
+        "hedges enclose you on all sides, forming an intricate labyrinth. The path\n"
+        "behind you leads back toward the main garden, while other passages branch\n"
+        "off in different directions."
+    );
+    
+    add_exit("east", "/domains/staff_castle/room/hedge_maze");
+    add_exit("north", "/domains/staff_castle/room/maze_center");
+}

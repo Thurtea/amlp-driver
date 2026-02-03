@@ -1,0 +1,24 @@
+// /lib/domains/staff_castle/room/maze_center.lpc - Hedge Maze Center
+
+#include <globals.h>
+
+inherit "/std/room";
+
+void create() {
+    ::create();
+    
+    set_id("castle_maze_center");
+    set_short("The Center of the Hedge Maze");
+    set_long(
+        "In the center of the hedge maze lies a beautiful stone circle with\n"
+        "a comfortable seating area. A small fountain plays in the center, its\n"
+        "cool water providing relief from the heat of the day. The sound of the\n"
+        "fountain is soothing and peaceful.\n\n"
+        
+        "From this vantage point, you can see the castle towers rising above the\n"
+        "hedges in the distance. This appears to be a favorite spot for staff to\n"
+        "rest and contemplate."
+    );
+    
+    add_exit("south", "/domains/staff_castle/room/hedge_maze");
+}

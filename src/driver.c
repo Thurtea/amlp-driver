@@ -70,6 +70,17 @@ static VirtualMachine *global_vm = NULL;
 static PlayerSession *sessions[MAX_CLIENTS];
 static int first_player_created = 0;  /* Track if first player has logged in */
 
+typedef struct {
+    char raw[INPUT_BUFFER_SIZE];
+    char cmd[64];
+    char args[256];
+    char path[32];
+} CommandDebugContext;
+
+static FILE *command_debug_log = NULL;
+static int command_debug_enabled = 0;
+static CommandDebugContext command_debug_ctx;
+
 /* session management functions are implemented in src/session.c */
 
 /* Function prototypes */
@@ -94,6 +105,11 @@ VMValue call_player_command(void *player_obj, const char *command);
 int setup_ws_listener(int port);
 PlayerSession* find_session_for_player(void *player_obj);
 
+static void command_debug_init(void);
+static void command_debug_set_context(const char *raw, const char *cmd,
+                                      const char *args, const char *path);
+static void command_debug_log_result(PlayerSession *session, VMValue result);
+
 /* Filesystem command functions (implemented in server.c) */
 int cmd_ls_filesystem(PlayerSession *session, const char *args);
 int cmd_cd_filesystem(PlayerSession *session, const char *args);
@@ -108,6 +124,99 @@ static int cmd_shout(PlayerSession *session, const char *arg);
 static int cmd_exits(PlayerSession *session, const char *arg);
 static int cmd_examine(PlayerSession *session, const char *arg);
 static int cmd_give_item(PlayerSession *session, const char *arg);
+
+static const char *value_type_name(ValueType type) {
+    switch (type) {
+        case VALUE_UNINITIALIZED: return "uninitialized";
+        case VALUE_INT: return "int";
+        case VALUE_FLOAT: return "float";
+        case VALUE_STRING: return "string";
+        case VALUE_OBJECT: return "object";
+        case VALUE_ARRAY: return "array";
+        case VALUE_MAPPING: return "mapping";
+        case VALUE_NULL: return "null";
+        case VALUE_FUNCTION: return "function";
+        default: return "unknown";
+    }
+}
+
+static void command_debug_init(void) {
+    const char *enabled = getenv("AMLP_COMMAND_DEBUG");
+    if (!enabled || strcmp(enabled, "0") == 0) {
+        return;
+    }
+
+    command_debug_log = fopen("logs/command_debug.log", "a");
+    if (!command_debug_log) {
+        fprintf(stderr, "[Server] WARNING: failed to open logs/command_debug.log\n");
+        return;
+    }
+
+    command_debug_enabled = 1;
+    memset(&command_debug_ctx, 0, sizeof(command_debug_ctx));
+    fprintf(stderr, "[Server] Command debug logging enabled\n");
+}
+
+static void command_debug_set_context(const char *raw, const char *cmd,
+                                      const char *args, const char *path) {
+    if (!command_debug_enabled) return;
+
+    if (raw) {
+        strncpy(command_debug_ctx.raw, raw, sizeof(command_debug_ctx.raw) - 1);
+    } else {
+        command_debug_ctx.raw[0] = '\0';
+    }
+
+    if (cmd) {
+        strncpy(command_debug_ctx.cmd, cmd, sizeof(command_debug_ctx.cmd) - 1);
+    } else {
+        command_debug_ctx.cmd[0] = '\0';
+    }
+
+    if (args) {
+        strncpy(command_debug_ctx.args, args, sizeof(command_debug_ctx.args) - 1);
+    } else {
+        command_debug_ctx.args[0] = '\0';
+    }
+
+    if (path) {
+        strncpy(command_debug_ctx.path, path, sizeof(command_debug_ctx.path) - 1);
+    } else {
+        command_debug_ctx.path[0] = '\0';
+    }
+}
+
+static void command_debug_log_result(PlayerSession *session, VMValue result) {
+    if (!command_debug_enabled || !command_debug_log) return;
+
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+    char timestamp[32];
+    strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
+
+    const char *user = (session && session->username[0]) ? session->username : "guest";
+    const char *ip = (session && session->ip_address[0]) ? session->ip_address : "unknown";
+    const char *path = command_debug_ctx.path[0] ? command_debug_ctx.path : "unknown";
+
+    size_t result_len = 0;
+    if (result.type == VALUE_STRING && result.data.string_value) {
+        result_len = strlen(result.data.string_value);
+    }
+
+    fprintf(command_debug_log,
+            "[%s] user=%s ip=%s state=%d path=%s cmd='%s' args='%s' raw='%s' result=%s len=%zu\n",
+            timestamp,
+            user,
+            ip,
+            session ? session->state : -1,
+            path,
+            command_debug_ctx.cmd,
+            command_debug_ctx.args,
+            command_debug_ctx.raw,
+            value_type_name(result.type),
+            result_len);
+    fflush(command_debug_log);
+}
 
 /* Signal handler */
 void handle_shutdown_signal(int sig) {
@@ -210,12 +319,18 @@ VMValue call_player_command(void *player_obj, const char *command) {
         fprintf(stderr, "[Server] DEBUG: player object '%s' has no process_command()\n",
                 obj->name ? obj->name : "<unnamed>");
     } else {
-        fprintf(stderr, "[Server] DEBUG: player object '%s' has process_command (%d params)\n",
-                obj->name ? obj->name : "<unnamed>", m->param_count);
+        fprintf(stderr, "[Server] DEBUG: player object '%s' has process_command (%d params, %d locals)\n",
+                obj->name ? obj->name : "<unnamed>", m->param_count, m->local_var_count);
     }
+    
+    fprintf(stderr, "[Server] DEBUG: Before call_method: stack->top=%d\n", 
+            global_vm->stack ? global_vm->stack->top : -1);
 
     // Call process_command on the player object
     result = obj_call_method(global_vm, obj, "process_command", &cmd_arg, 1);
+    
+    fprintf(stderr, "[Server] DEBUG: After call_method: stack->top=%d\n", 
+            global_vm->stack ? global_vm->stack->top : -1);
 
     /* Debug: log return type */
     if (result.type == VALUE_STRING) {
@@ -228,8 +343,12 @@ VMValue call_player_command(void *player_obj, const char *command) {
         fprintf(stderr, "[Server] DEBUG: process_command returned type %d\n", result.type);
     }
 
-    // Clean up
-    vm_value_free(&cmd_arg);
+    /* PHASE 2: Release our reference to the string
+     * The string was ref-counted when created and again when pushed to stack.
+     * We release our local reference here.
+     * The stack's reference will be released when the function returns.
+     */
+    vm_value_release(&cmd_arg);
 
     return result;
 }
@@ -688,10 +807,13 @@ VMValue execute_command(PlayerSession *session, const char *command) {
         args++;
         while (*args == ' ') args++;
     }
+
+    command_debug_set_context(command, cmd, args ? args : "", "builtin");
     
     /* Filesystem commands for wizards/admins - CHECK FIRST BEFORE PLAYER OBJECT */
     if (session->privilege_level >= 1) {
         if (strcmp(cmd, "ls") == 0 || strcmp(cmd, "dir") == 0) {
+            command_debug_set_context(command, cmd, args ? args : "", "filesystem");
             cmd_ls_filesystem(session, args);
             result.type = VALUE_STRING;
             result.data.string_value = strdup("");
@@ -699,6 +821,7 @@ VMValue execute_command(PlayerSession *session, const char *command) {
         }
         
         if (strcmp(cmd, "cd") == 0) {
+            command_debug_set_context(command, cmd, args ? args : "", "filesystem");
             cmd_cd_filesystem(session, args);
             result.type = VALUE_STRING;
             result.data.string_value = strdup("");
@@ -706,6 +829,7 @@ VMValue execute_command(PlayerSession *session, const char *command) {
         }
         
         if (strcmp(cmd, "pwd") == 0) {
+            command_debug_set_context(command, cmd, args ? args : "", "filesystem");
             cmd_pwd_filesystem(session);
             result.type = VALUE_STRING;
             result.data.string_value = strdup("");
@@ -713,6 +837,7 @@ VMValue execute_command(PlayerSession *session, const char *command) {
         }
         
         if (strcmp(cmd, "cat") == 0 || strcmp(cmd, "more") == 0) {
+            command_debug_set_context(command, cmd, args ? args : "", "filesystem");
             cmd_cat_filesystem(session, args);
             result.type = VALUE_STRING;
             result.data.string_value = strdup("");
@@ -723,6 +848,7 @@ VMValue execute_command(PlayerSession *session, const char *command) {
     /* If player object exists, route command through it. Set the
      * current VM session so efuns like this_player() can access it. */
     if (session->player_object) {
+        command_debug_set_context(command, cmd, args ? args : "", "vm");
         set_current_session(session);
         result = call_player_command(session->player_object, command);
         set_current_session(NULL);
@@ -731,6 +857,8 @@ VMValue execute_command(PlayerSession *session, const char *command) {
         if (result.type == VALUE_STRING && result.data.string_value) {
             return result;
         }
+
+        command_debug_set_context(command, cmd, args ? args : "", "builtin");
     }
     
     /* Fallback to built-in commands if no player object or no result */
@@ -1297,6 +1425,7 @@ VMValue execute_command(PlayerSession *session, const char *command) {
     }
     
     /* Unknown command */
+    command_debug_set_context(command, cmd, args ? args : "", "unknown");
     char error_msg[512];
     snprintf(error_msg, sizeof(error_msg), 
             "Unknown command: %.200s\r\nType 'help' for available commands.\r\n", cmd);
@@ -1468,6 +1597,8 @@ void process_chargen_state(PlayerSession *session, const char *input) {
 /* Process input during playing state */
 void process_playing_state(PlayerSession *session, const char *input) {
     VMValue result = execute_command(session, input);
+
+    command_debug_log_result(session, result);
     
     if (result.type == VALUE_STRING && result.data.string_value) {
         if (strcmp(result.data.string_value, "quit") == 0) {
@@ -1485,7 +1616,7 @@ void process_playing_state(PlayerSession *session, const char *input) {
         }
         
         if (result.data.string_value) {
-            free(result.data.string_value);
+            vm_value_release(&result);
         }
     } else if (result.type == VALUE_NULL) {
         /* Command handled its own output, just send prompt */
@@ -1808,6 +1939,8 @@ int main(int argc, char **argv) {
     if (initialize_vm(master_path) != 0) {
         return 1;
     }
+
+    command_debug_init();
     
     /* Initialize game world */
     room_init_world();

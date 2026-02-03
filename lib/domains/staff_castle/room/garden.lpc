@@ -1,0 +1,46 @@
+// /lib/domains/staff_castle/room/garden.lpc - The Castle Garden
+
+#include <globals.h>
+
+inherit "/std/room";
+
+void create() {
+    ::create();
+    
+    set_id("castle_garden");
+    set_short("The Castle Garden");
+    set_long(
+        "This enchanting garden is a peaceful oasis within the castle grounds.\n"
+        "Paths of pale stone wind through carefully cultivated flower beds bursting\n"
+        "with color. Ancient apple and pear trees provide shade, their branches\n"
+        "heavy with fruit.\n\n"
+        
+        "A stone bench sits beneath a gazebo covered in climbing roses of deep red.\n"
+        "Fountains trickle quietly in hidden corners, and the air is filled with\n"
+        "the scent of jasmine and honeysuckle. Birds sing among the flowers, and\n"
+        "you can hear bees humming contentedly.\n\n"
+        
+        "This garden is where staff members come to find peace and reflection,\n"
+        "away from the demands of leadership. The careful cultivation and maintenance\n"
+        "suggests this place is deeply valued."
+    );
+    
+    add_exit("west", "/domains/staff_castle/room/courtyard");
+    add_exit("south", "/domains/staff_castle/room/hedge_maze");
+}
+
+void init() {
+    ::init();
+    add_action("examine_flowers", "examine");
+}
+
+int examine_flowers(string str) {
+    if (!str || (str != "flowers" && str != "garden" && str != "roses")) return 0;
+    
+    write("The flowers are extraordinary. Some appear to glow faintly with magical\n"
+          "light, especially as evening falls. You notice that the flowers are\n"
+          "arranged in patterns - together they form the castle emblem when viewed\n"
+          "from above. This is someone's labor of love.");
+    say(this_player()->query_cap_name() + " stops to admire the garden flowers.");
+    return 1;
+}

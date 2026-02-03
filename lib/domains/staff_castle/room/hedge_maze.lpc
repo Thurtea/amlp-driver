@@ -1,0 +1,29 @@
+// /lib/domains/staff_castle/room/hedge_maze.lpc - The Hedge Maze
+
+#include <globals.h>
+
+inherit "/std/room";
+
+void create() {
+    ::create();
+    
+    set_id("castle_hedge_maze");
+    set_short("A Hedge Maze");
+    set_long(
+        "You are in a winding maze formed by twelve-foot-high hedges of evergreen.\n"
+        "The hedges are perfectly trimmed and maintained. Many pathways branch off\n"
+        "in different directions, creating an intricate puzzle. In the distance, you\n"
+        "can see the sky above the hedges.\n\n"
+        
+        "The sound of footsteps and playful laughter echoes through the maze.\n"
+        "Occasionally you catch glimpses of other people navigating the paths,\n"
+        "but the hedges make it difficult to reach them directly.\n\n"
+        
+        "A helpful sign at a junction reads: 'The center fountain lies north.'"
+    );
+    
+    add_exit("north", "/domains/staff_castle/room/maze_center");
+    add_exit("south", "/domains/staff_castle/room/garden");
+    add_exit("east", "/domains/staff_castle/room/maze_east");
+    add_exit("west", "/domains/staff_castle/room/maze_west");
+}

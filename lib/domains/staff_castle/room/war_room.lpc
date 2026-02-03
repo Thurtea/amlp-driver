@@ -1,0 +1,45 @@
+// /lib/domains/staff_castle/room/war_room.lpc - War Room / Strategy Room
+
+#include <globals.h>
+
+inherit "/std/room";
+
+void create() {
+    ::create();
+    
+    set_id("castle_war_room");
+    set_short("The War Room");
+    set_long(
+        "This strategic chamber is where battles are planned and outcomes are\n"
+        "analyzed. A massive table of oak dominates the center of the room, its\n"
+        "surface covered with various maps, scrolls, and tactical documents.\n\n"
+        
+        "The walls are lined with tall bookshelves filled with military histories,\n"
+        "strategy guides, and intelligence reports from across the realm. A large\n"
+        "relief map of the world is mounted on the eastern wall, with various\n"
+        "locations marked with pins of different colors.\n\n"
+        
+        "Comfortable chairs are arranged around the strategy table. Braziers in\n"
+        "the corners provide warmth and light. The air is thick with the smell of\n"
+        "parchment and old leather - the smell of power and preparation."
+    );
+    
+    add_exit("south", "/domains/staff_castle/room/throne_room");
+    add_exit("east", "/domains/staff_castle/room/library");
+}
+
+void init() {
+    ::init();
+    add_action("examine_table", "examine");
+}
+
+int examine_table(string str) {
+    if (!str || (str != "table" && str != "map" && str != "strategy")) return 0;
+    
+    write("The strategy table is a marvel of craftsmanship. Maps from different\n"
+          "eras are layered beneath a polished glass surface. You can see troop\n"
+          "positions, supply routes, and strategic notes scrawled in various hands.\n"
+          "This table has witnessed centuries of important decisions.");
+    say(this_player()->query_cap_name() + " studies the strategy table intently.");
+    return 1;
+}

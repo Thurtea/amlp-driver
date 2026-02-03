@@ -1,0 +1,49 @@
+// /lib/domains/staff_castle/room/dining_hall.lpc - The Dining Hall
+
+#include <globals.h>
+
+inherit "/std/room";
+
+void create() {
+    ::create();
+    
+    set_id("castle_dining_hall");
+    set_short("The Dining Hall");
+    set_long(
+        "This grand dining hall is a testament to elegance and hospitality.\n"
+        "A magnificent oak table stretches nearly the length of the room, with\n"
+        "place settings for dozens of people. Crystal chandeliers hang from the\n"
+        "vaulted ceiling, casting warm light across mahogany-paneled walls.\n\n"
+        
+        "Deep burgundy tapestries depicting feasts and celebrations adorn the walls.\n"
+        "A massive stone fireplace dominates one wall, with dancing flames providing\n"
+        "additional warmth and ambiance. Paintings of previous feasts and celebrations\n"
+        "hang on the walls, showing centuries of gatherings.\n\n"
+        
+        "The room always smells faintly of cooking spices and fine wines. Adjacent\n"
+        "to the hall you can see an open door leading to what appears to be the\n"
+        "kitchen. This is where the staff gathers for important meals and\n"
+        "celebrations."
+    );
+    
+    add_exit("east", "/domains/staff_castle/room/main_hall");
+    add_exit("north", "/domains/staff_castle/room/library");
+    add_exit("south", "/domains/staff_castle/room/kitchen");
+}
+
+void init() {
+    ::init();
+    add_action("examine_table", "examine");
+}
+
+int examine_table(string str) {
+    if (!str || (str != "table" && str != "fireplace" && str != "chandelier")) return 0;
+    
+    write("The table is set with fine china, crystal glasses, and silver cutlery.\n"
+          "You can still smell the lingering aromas of previous feasts. The table's\n"
+          "surface is polished to a mirror shine, and you notice carved into the\n"
+          "wood are the names of some of the great moments in the MUD's history.\n"
+          "This table has hosted legendary gatherings.");
+    say(this_player()->query_cap_name() + " admires the fine dining arrangements.");
+    return 1;
+}

@@ -26,6 +26,26 @@
 #define VM_STRING_POOL_INIT 128
 #define VM_MAPPING_BUCKETS  16
 
+typedef struct {
+    int refcount;
+    size_t length;
+    char data[];
+} VMStringHeader;
+
+static VMStringHeader *vm_string_header(const char *data) {
+    return (VMStringHeader *)((char *)data - offsetof(VMStringHeader, data));
+}
+
+static char *vm_string_create(const char *value, size_t len) {
+    VMStringHeader *hdr = (VMStringHeader *)malloc(sizeof(VMStringHeader) + len + 1);
+    if (!hdr) return NULL;
+    hdr->refcount = 1;
+    hdr->length = len;
+    memcpy(hdr->data, value, len);
+    hdr->data[len] = '\0';
+    return hdr->data;
+}
+
 /**
  * Initialize the virtual machine
  */
@@ -85,12 +105,18 @@ VirtualMachine* vm_init(void) {
     vm->instruction_capacity = 0;
     vm->instruction_pointer = 0;
 
+    vm->debug_flags = 0;
+    vm->trace_output = NULL;
+    memset(&vm->profile, 0, sizeof(vm->profile));
+
     vm->gc = gc_init();
     if (!vm->gc) {
         fprintf(stderr, "Fatal: GC initialization failed for VM\n");
         vm_free(vm);
         return NULL;
     }
+
+    vm_debug_init(vm);
 
     printf("[VM] Virtual machine initialized\n");
     return vm;
@@ -148,6 +174,7 @@ VMValue vm_value_create_int(long value) {
     VMValue v;
     v.type = VALUE_INT;
     v.data.int_value = value;
+    vm_profile_note_create(v, 0);
     return v;
 }
 
@@ -155,6 +182,7 @@ VMValue vm_value_create_float(double value) {
     VMValue v;
     v.type = VALUE_FLOAT;
     v.data.float_value = value;
+    vm_profile_note_create(v, 0);
     return v;
 }
 
@@ -162,10 +190,12 @@ VMValue vm_value_create_string(const char *value) {
     VMValue v;
     v.type = VALUE_STRING;
     if (value) {
-        v.data.string_value = (char *)malloc(strlen(value) + 1);
-        strcpy(v.data.string_value, value);
+        size_t len = strlen(value);
+        v.data.string_value = vm_string_create(value, len);
+        vm_profile_note_create(v, v.data.string_value ? len + 1 : 0);
     } else {
         v.data.string_value = NULL;
+        vm_profile_note_create(v, 0);
     }
     return v;
 }
@@ -173,7 +203,31 @@ VMValue vm_value_create_string(const char *value) {
 VMValue vm_value_create_null(void) {
     VMValue v;
     v.type = VALUE_NULL;
+    vm_profile_note_create(v, 0);
     return v;
+}
+
+void vm_value_addref(VMValue *value) {
+    if (!value) return;
+    if (value->type != VALUE_STRING || !value->data.string_value) return;
+
+    VMStringHeader *hdr = vm_string_header(value->data.string_value);
+    hdr->refcount++;
+}
+
+void vm_value_release(VMValue *value) {
+    if (!value) return;
+    if (value->type != VALUE_STRING || !value->data.string_value) return;
+
+    VMStringHeader *hdr = vm_string_header(value->data.string_value);
+    hdr->refcount--;
+    if (hdr->refcount <= 0) {
+        vm_profile_note_free(*value, hdr->length + 1);
+        free(hdr);
+    }
+
+    value->data.string_value = NULL;
+    value->type = VALUE_UNINITIALIZED;
 }
 
 void vm_value_free(VMValue *value) {
@@ -181,24 +235,24 @@ void vm_value_free(VMValue *value) {
     
     switch (value->type) {
         case VALUE_STRING:
-            if (value->data.string_value) {
-                free(value->data.string_value);
-                value->data.string_value = NULL;
-            }
-            break;
+            vm_value_release(value);
+            return;
         case VALUE_ARRAY:
             if (value->data.array_value) {
                 array_free((array_t *)value->data.array_value);
                 value->data.array_value = NULL;
             }
+            vm_profile_note_free(*value, 0);
             break;
         case VALUE_MAPPING:
             if (value->data.mapping_value) {
                 mapping_free((mapping_t *)value->data.mapping_value);
                 value->data.mapping_value = NULL;
             }
+            vm_profile_note_free(*value, 0);
             break;
         default:
+            vm_profile_note_free(*value, 0);
             break;
     }
     
@@ -301,6 +355,9 @@ VMFunction* vm_function_create(const char *name, int param_count, int local_var_
     func->instruction_count = 0;
     func->instruction_capacity = 32;
     func->instructions = (VMInstruction *)malloc(sizeof(VMInstruction) * func->instruction_capacity);
+    func->source_file = NULL;
+    func->line_map = NULL;
+    func->line_map_count = 0;
     
     return func;
 }
@@ -323,6 +380,8 @@ void vm_function_free(VMFunction *function) {
     
     if (function->name) free(function->name);
     if (function->instructions) free(function->instructions);
+    if (function->source_file) free(function->source_file);
+    if (function->line_map) free(function->line_map);
     free(function);
 }
 
@@ -337,6 +396,7 @@ int vm_push_value(VirtualMachine *vm, VMValue value) {
         return -1;
     }
     
+    vm_value_addref(&value);
     vm->stack->values[vm->stack->top++] = value;
     return 0;
 }
@@ -391,6 +451,8 @@ static void vm_arithmetic_op(VirtualMachine *vm, int op) {
     }        
     
     vm_push_value(vm, result);
+    vm_value_release(&a);
+    vm_value_release(&b);
 }
 
 static void vm_negate(VirtualMachine *vm) {
@@ -404,6 +466,7 @@ static void vm_negate(VirtualMachine *vm) {
     }
     
     vm_push_value(vm, result);
+    vm_value_release(&a);
 }
 
 /* ========== Comparison Operations ========== */
@@ -426,6 +489,8 @@ static void vm_comparison_op(VirtualMachine *vm, int op) {
     }
     
     vm_push_value(vm, vm_value_create_int(result));
+    vm_value_release(&a);
+    vm_value_release(&b);
 }
 
 /* ========== Logical Operations ========== */
@@ -436,6 +501,8 @@ static void vm_logical_and(VirtualMachine *vm) {
     
     long result = vm_value_is_truthy(a) && vm_value_is_truthy(b);
     vm_push_value(vm, vm_value_create_int(result));
+    vm_value_release(&a);
+    vm_value_release(&b);
 }
 
 static void vm_logical_or(VirtualMachine *vm) {
@@ -444,12 +511,15 @@ static void vm_logical_or(VirtualMachine *vm) {
     
     long result = vm_value_is_truthy(a) || vm_value_is_truthy(b);
     vm_push_value(vm, vm_value_create_int(result));
+    vm_value_release(&a);
+    vm_value_release(&b);
 }
 
 static void vm_logical_not(VirtualMachine *vm) {
     VMValue a = vm_pop_value(vm);
     long result = !vm_value_is_truthy(a);
     vm_push_value(vm, vm_value_create_int(result));
+    vm_value_release(&a);
 }
 
 /* ========== Bitwise Operations ========== */
@@ -480,6 +550,10 @@ static void vm_bitwise_op(VirtualMachine *vm, int op) {
     }
     
     vm_push_value(vm, vm_value_create_int(result));
+    vm_value_release(&a);
+    if (op != 3) {
+        vm_value_release(&b);
+    }
 }
 
 /* ========== VM Cleanup ========== */
@@ -528,6 +602,11 @@ void vm_free(VirtualMachine *vm) {
         gc_free(vm->gc);
     }
 
+    if (vm->trace_output && vm->trace_output != stderr) {
+        fclose(vm->trace_output);
+        vm->trace_output = NULL;
+    }
+
     free(vm);
     printf("[VM] Virtual machine freed\n");
 }
@@ -550,9 +629,11 @@ static int vm_execute_instruction(VirtualMachine *vm, VMInstruction *instr) {
         case OP_PUSH_NULL:
             return vm_push_value(vm, vm_value_create_null());
         
-        case OP_POP:
-            vm_pop_value(vm);
+        case OP_POP: {
+            VMValue v = vm_pop_value(vm);
+            vm_value_release(&v);
             return 0;
+        }
         
         case OP_DUP: {
             VMValue v = vm_peek_value(vm);
@@ -560,18 +641,78 @@ static int vm_execute_instruction(VirtualMachine *vm, VMInstruction *instr) {
         }
         
         case OP_LOAD_LOCAL: {
-            if (!vm->current_frame) return -1;
+            if (!vm->current_frame) {
+                fprintf(stderr, "[VM] OP_LOAD_LOCAL ERROR: No current frame!\n");
+                return -1;
+            }
+            
+            fprintf(stderr, "[VM] OP_LOAD_LOCAL called in function: %s\n", 
+                    vm->current_frame->function ? vm->current_frame->function->name : "(null)");
+            
             int idx = instr->operand.int_operand;
-            if (idx < 0 || idx >= vm->current_frame->function->local_var_count) return -1;
+            /* CRITICAL FIX: Bounds check must include BOTH parameters and locals
+             * Parameters are at indices [0..param_count-1]
+             * Locals are at indices [param_count..param_count+local_var_count-1]
+             * Total valid indices: [0..param_count+local_var_count-1] */
+            int total_vars = vm->current_frame->function->param_count + vm->current_frame->function->local_var_count;
+            if (idx < 0 || idx >= total_vars) {
+                fprintf(stderr, "[VM] OP_LOAD_LOCAL ERROR: idx=%d out of bounds (total_vars=%d, params=%d, locals=%d)\n",
+                        idx, total_vars, vm->current_frame->function->param_count, vm->current_frame->function->local_var_count);
+                return -1;
+            }
+            
+            /* Validate frame state */
+            if (!vm->current_frame->local_variables) {
+                fprintf(stderr, "[VM] OP_LOAD_LOCAL ERROR: No local_variables array in frame!\n");
+                return -1;
+            }
+            
             VMValue v = vm->current_frame->local_variables[idx];
+            
+            /* Debug ALL OP_LOAD_LOCAL in process_command */
+            if (strcmp(vm->current_frame->function->name, "process_command") == 0) {
+                fprintf(stderr, "[VM] OP_LOAD_LOCAL idx=%d in %s: type=%d", 
+                        idx, vm->current_frame->function->name, v.type);
+                if (idx < vm->current_frame->function->param_count) {
+                    fprintf(stderr, " (PARAM %d/%d)", idx+1, vm->current_frame->function->param_count);
+                } else {
+                    fprintf(stderr, " (LOCAL %d)", idx - vm->current_frame->function->param_count);
+                }
+                if (v.type == VALUE_STRING) {
+                    fprintf(stderr, " ptr=%p", (void*)v.data.string_value);
+                    if (v.data.string_value) {
+                        fprintf(stderr, " value='%s'", v.data.string_value);
+                    } else {
+                        fprintf(stderr, " (NULL STRING POINTER!)");
+                    }
+                }
+                fprintf(stderr, " frame=%p local_vars=%p\n", 
+                        (void*)vm->current_frame, (void*)vm->current_frame->local_variables);
+                
+                /* Warn if parameter is NULL */
+                if (v.type == VALUE_NULL && idx < vm->current_frame->function->param_count) {
+                    fprintf(stderr, "[VM] ERROR: Parameter %d is NULL! Frame corruption?\n", idx);
+                }
+            }
+            
             return vm_push_value(vm, v);
         }
         
         case OP_STORE_LOCAL: {
             if (!vm->current_frame) return -1;
             int idx = instr->operand.int_operand;
-            if (idx < 0 || idx >= vm->current_frame->function->local_var_count) return -1;
+            /* CRITICAL FIX: Bounds check must include BOTH parameters and locals
+             * Parameters are at indices [0..param_count-1]
+             * Locals are at indices [param_count..param_count+local_var_count-1]
+             * Total valid indices: [0..param_count+local_var_count-1] */
+            int total_vars = vm->current_frame->function->param_count + vm->current_frame->function->local_var_count;
+            if (idx < 0 || idx >= total_vars) {
+                fprintf(stderr, "[VM] OP_STORE_LOCAL ERROR: idx=%d out of bounds (total_vars=%d, params=%d, locals=%d)\n",
+                        idx, total_vars, vm->current_frame->function->param_count, vm->current_frame->function->local_var_count);
+                return -1;
+            }
             VMValue v = vm_pop_value(vm);
+            vm_value_release(&vm->current_frame->local_variables[idx]);
             vm->current_frame->local_variables[idx] = v;
             return 0;
         }
@@ -594,6 +735,9 @@ static int vm_execute_instruction(VirtualMachine *vm, VMInstruction *instr) {
                 idx = vm->global_count++;
             }
             VMValue v = vm_pop_value(vm);
+            if (idx >= 0 && idx < vm->global_count) {
+                vm_value_release(&vm->global_variables[idx]);
+            }
             vm->global_variables[idx] = v;
             return 0;
         }
@@ -632,6 +776,7 @@ static int vm_execute_instruction(VirtualMachine *vm, VMInstruction *instr) {
             if (!vm_value_is_truthy(cond)) {
                 vm->instruction_pointer = instr->operand.address_operand;
             }
+            vm_value_release(&cond);
             return 0;
         }
         
@@ -640,6 +785,7 @@ static int vm_execute_instruction(VirtualMachine *vm, VMInstruction *instr) {
             if (vm_value_is_truthy(cond)) {
                 vm->instruction_pointer = instr->operand.address_operand;
             }
+            vm_value_release(&cond);
             return 0;
         }
         
@@ -662,7 +808,12 @@ static int vm_execute_instruction(VirtualMachine *vm, VMInstruction *instr) {
                             }
                         }
                         VMValue result = efun_entry->callback(vm, args, arg_count);
-                        if (args) free(args);
+                        if (args) {
+                            for (int i = 0; i < arg_count; i++) {
+                                vm_value_release(&args[i]);
+                            }
+                            free(args);
+                        }
                         return vm_push_value(vm, result);
                     }
                 }
@@ -765,6 +916,7 @@ static int vm_execute_instruction(VirtualMachine *vm, VMInstruction *instr) {
             char *str = vm_value_to_string(v);
             printf("%s\n", str);
             free(str);
+            vm_value_release(&v);
             return 0;
         }
         
@@ -848,8 +1000,14 @@ int vm_execute(VirtualMachine *vm) {
     
     while (vm->running && vm->instruction_pointer < vm->instruction_count) {
         VMInstruction *instr = &vm->instructions[vm->instruction_pointer++];
+        if (vm->debug_flags & VM_DEBUG_TRACE) {
+            vm_trace_instruction(vm, vm->current_frame, instr, vm->instruction_pointer - 1);
+        }
         if (vm_execute_instruction(vm, instr) < 0) {
             vm->error_count++;
+            if (vm->debug_flags & VM_DEBUG_CALLSTACK) {
+                vm_trace_dump_call_stack(vm, "vm_execute error");
+            }
             return -1;
         }
     }
@@ -857,38 +1015,88 @@ int vm_execute(VirtualMachine *vm) {
     return 0;
 }
 
+/* Forward declaration */
+static const char* opcode_name(OpCode opcode);
+
 int vm_call_function(VirtualMachine *vm, int function_index, int arg_count) {
     if (!vm || function_index < 0 || function_index >= vm->function_count) return -1;
     
     VMFunction *func = vm->functions[function_index];
     if (!func || arg_count != func->param_count) return -1;
     
+    /* CRITICAL: Allocate space for BOTH parameters and local variables
+     * Parameters are stored in local_variables[0..param_count-1]
+     * Local variables are stored in local_variables[param_count..param_count+local_var_count-1]
+     * Previous code allocated only local_var_count space, causing buffer overflow when params > 0 */
+    int total_vars = func->param_count + func->local_var_count;
+    fprintf(stderr, "[VM] ALLOCATION DEBUG: func->param_count=%d, func->local_var_count=%d, total_vars=%d, size=%zu bytes\n",
+            func->param_count, func->local_var_count, total_vars, sizeof(VMValue) * total_vars);
+    
     CallFrame *frame = (CallFrame *)malloc(sizeof(CallFrame));
     frame->function = func;
-    frame->local_variables = (VMValue *)malloc(sizeof(VMValue) * func->local_var_count);
+    frame->local_variables = (VMValue *)malloc(sizeof(VMValue) * total_vars);
+    fprintf(stderr, "[VM] ALLOCATION DEBUG: allocated frame->local_variables=%p\n", (void*)frame->local_variables);
     frame->instruction_pointer = 0;
     frame->stack_base = vm->stack->top - arg_count;
     frame->prev = vm->current_frame;
     
-    for (int i = 0; i < func->local_var_count; i++) {
+    /* Initialize all local variables (parameters + locals) to uninitialized
+     * Parameters will be overwritten in the next loop, locals need initialization */
+    for (int i = 0; i < total_vars; i++) {
         frame->local_variables[i].type = VALUE_UNINITIALIZED;
     }
     
+    /* Copy parameters from stack to local variables array */
     for (int i = 0; i < arg_count; i++) {
         frame->local_variables[i] = vm->stack->values[frame->stack_base + i];
+        vm_value_addref(&frame->local_variables[i]);
+        fprintf(stderr, "[VM] DEBUG: Copied param %d from stack[%d] to local[%d]: type=%d", 
+                i, frame->stack_base + i, i, frame->local_variables[i].type);
+        if (frame->local_variables[i].type == VALUE_STRING) {
+            fprintf(stderr, " str_ptr=%p value='%s'", 
+                    (void*)frame->local_variables[i].data.string_value,
+                    frame->local_variables[i].data.string_value ? frame->local_variables[i].data.string_value : "(null)");
+        }
+        fprintf(stderr, "\n");
     }
     
     vm->current_frame = frame;
+    
+    /* Debug: Print frame state before execution */
+    if (strcmp(func->name, "process_command") == 0) {
+        fprintf(stderr, "[VM] FRAME SETUP for %s: frame=%p local_vars=%p param_count=%d local_count=%d\n",
+                func->name, (void*)frame, (void*)frame->local_variables, 
+                func->param_count, func->local_var_count);
+        /* Enable instruction tracing for this function */
+        vm->debug_flags |= VM_DEBUG_TRACE;
+    }
     
     int saved_running = vm->running;
     vm->running = 1;
 
     while (frame->instruction_pointer < func->instruction_count && vm->running) {
         VMInstruction *instr = &func->instructions[frame->instruction_pointer++];
+        
+        /* Debug EVERY instruction in process_command */
+        if (strcmp(func->name, "process_command") == 0) {
+            fprintf(stderr, "[VM] [%s] IP=%d opcode=%d\n", 
+                    func->name, frame->instruction_pointer - 1, instr->opcode);
+        }
+        
+        if (vm->debug_flags & VM_DEBUG_TRACE) {
+            vm_trace_instruction(vm, frame, instr, frame->instruction_pointer - 1);
+        }
         if (vm_execute_instruction(vm, instr) < 0) {
             vm->error_count++;
+            if (vm->debug_flags & VM_DEBUG_CALLSTACK) {
+                vm_trace_dump_call_stack(vm, "vm_call_function error");
+            }
             vm->running = saved_running;
             vm->current_frame = frame->prev;
+            /* Release all variables (parameters and locals) */
+            for (int i = 0; i < total_vars; i++) {
+                vm_value_release(&frame->local_variables[i]);
+            }
             if (frame->local_variables) free(frame->local_variables);
             free(frame);
             return -1;
@@ -897,6 +1105,10 @@ int vm_call_function(VirtualMachine *vm, int function_index, int arg_count) {
 
     vm->running = saved_running;
     vm->current_frame = frame->prev;
+    /* Release all variables (parameters and locals) */
+    for (int i = 0; i < total_vars; i++) {
+        vm_value_release(&frame->local_variables[i]);
+    }
     if (frame->local_variables) free(frame->local_variables);
     free(frame);
     

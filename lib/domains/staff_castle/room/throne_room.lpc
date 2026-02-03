@@ -1,0 +1,47 @@
+// /lib/domains/staff_castle/room/throne_room.lpc - The Throne Room
+
+#include <globals.h>
+
+inherit "/std/room";
+
+void create() {
+    ::create();
+    
+    set_id("castle_throne_room");
+    set_short("The Throne Room");
+    set_long(
+        "This chamber is the pinnacle of power and prestige within the castle.\n"
+        "A magnificent throne of carved ebony and inlaid with gems sits at the\n"
+        "far end of the room, elevated on a dais of white marble. The throne's\n"
+        "backing rises high, crowned with a phoenix spreading its wings in flight.\n\n"
+        
+        "Crimson velvet carpets with gold threading lead from the entrance to the\n"
+        "throne. Columns of polished granite line both sides of the chamber, each\n"
+        "topped with a glowing crystal that illuminates the room with soft light.\n\n"
+        
+        "The walls are paneled with dark wood from ancient forests, and gilt-framed\n"
+        "paintings of previous leaders adorn the walls. A sense of authority and\n"
+        "command permeates this space. This is where the highest decisions of the\n"
+        "MUD are discussed and made."
+    );
+    
+    add_exit("west", "/domains/staff_castle/room/main_hall");
+    add_exit("north", "/domains/staff_castle/room/war_room");
+}
+
+void init() {
+    ::init();
+    add_action("examine_throne", "examine");
+}
+
+int examine_throne(string str) {
+    if (!str || (str != "throne" && str != "seat")) return 0;
+    
+    write("The throne is a work of incredible craftsmanship. Each armrest features\n"
+          "a phoenix head carved in exquisite detail. The seat itself is plush with\n"
+          "cushioning, and the backrest supports the weary. You notice small crystal\n"
+          "insignias set into the wood - the full roster of staff members who have\n"
+          "passed through these halls.");
+    say(this_player()->query_cap_name() + " reverently examines the throne.");
+    return 1;
+}

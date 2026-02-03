@@ -1,0 +1,44 @@
+// /lib/domains/staff_castle/room/observatory.lpc - The Observatory
+
+#include <globals.h>
+
+inherit "/std/room";
+
+void create() {
+    ::create();
+    
+    set_id("castle_observatory");
+    set_short("The Tower Observatory");
+    set_long(
+        "You stand in a circular chamber at the top of the castle's tallest tower.\n"
+        "The domed ceiling slides open to reveal the night sky, and an enormous\n"
+        "telescope is mounted on a rotating base at the center of the room.\n\n"
+        
+        "Charts and star maps cover every available surface - suspended from the\n"
+        "ceiling and covering the walls. Magical instruments of mysterious purpose\n"
+        "are arranged on various tables. The air is crisp and cool from the open\n"
+        "dome above.\n\n"
+        
+        "From the windows, you can see across the entire realm - mountains, forests,\n"
+        "settlements, all laid out below like a map come to life. The stars\n"
+        "overhead are brilliant and clear, undimmed by the lights below."
+    );
+    
+    add_exit("east", "/domains/staff_castle/room/upper_hall");
+}
+
+void init() {
+    ::init();
+    add_action("examine_stars", "examine");
+}
+
+int examine_stars(string str) {
+    if (!str || (str != "stars" && str != "sky" && str != "telescope")) return 0;
+    
+    write("The stars wheel overhead in their eternal dance. Through the telescope,\n"
+          "you can see details of distant celestial bodies - moons of other worlds,\n"
+          "distant nebulae, and the great cosmic mysteries. This observatory is\n"
+          "clearly used for both magical and purely astronomical study.");
+    say(this_player()->query_cap_name() + " gazes through the telescope.");
+    return 1;
+}

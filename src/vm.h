@@ -16,6 +16,8 @@
 #include "parser.h"
 #include "gc.h"
 #include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 
 /* ========== Bytecode Opcodes ========== */
 
@@ -154,6 +156,9 @@ typedef struct VMFunction {
     VMInstruction *instructions;
     int instruction_count;
     int instruction_capacity;
+    char *source_file;
+    int *line_map;
+    int line_map_count;
 } VMFunction;
 
 /* ========== Execution Stack ========== */
@@ -173,6 +178,28 @@ typedef struct CallFrame {
     int stack_base;             /* Base of stack frame */
     struct CallFrame *prev;     /* Previous call frame */
 } CallFrame;
+
+/* ========== Debug Flags ========== */
+
+#define VM_DEBUG_TRACE        0x01u
+#define VM_DEBUG_TRACE_STACK  0x02u
+#define VM_DEBUG_TRACE_LOCALS 0x04u
+#define VM_DEBUG_CALLSTACK    0x08u
+#define VM_DEBUG_MEMPROFILE   0x10u
+#define VM_DEBUG_BYTECODE     0x20u
+
+/* ========== Memory Profile Stats ========== */
+
+#define VM_VALUE_TYPE_MAX VALUE_FUNCTION
+
+typedef struct {
+    unsigned long create_count[VM_VALUE_TYPE_MAX + 1];
+    unsigned long free_count[VM_VALUE_TYPE_MAX + 1];
+    unsigned long string_allocs;
+    unsigned long string_frees;
+    size_t string_bytes_alloc;
+    size_t string_bytes_free;
+} VMProfileStats;
 
 /* ========== Virtual Machine Structure ========== */
 
@@ -208,6 +235,11 @@ typedef struct {
     int instruction_pointer;
     int instruction_count;
     int instruction_capacity;
+
+    /* Debugging and profiling */
+    unsigned int debug_flags;
+    FILE *trace_output;
+    VMProfileStats profile;
 } VirtualMachine;
 
 /* ========== VM API Functions ========== */
@@ -343,6 +375,8 @@ VMValue vm_value_create_null(void);
  * Frees any dynamically allocated memory associated with the value.
  */
 void vm_value_free(VMValue *value);
+void vm_value_addref(VMValue *value);
+void vm_value_release(VMValue *value);
 
 /**
  * vm_value_to_string - Convert a value to string representation
@@ -417,5 +451,22 @@ void vm_disassemble_instruction(VMInstruction instruction, int index);
  * @function: The function to disassemble
  */
 void vm_disassemble_function(VMFunction *function);
+
+/* ========== Debugging/Tracing API ========== */
+
+void vm_debug_init(VirtualMachine *vm);
+void vm_debug_set_flags(VirtualMachine *vm, unsigned int flags);
+unsigned int vm_debug_get_flags(VirtualMachine *vm);
+void vm_debug_enable(VirtualMachine *vm, unsigned int flags);
+void vm_debug_disable(VirtualMachine *vm, unsigned int flags);
+
+void vm_trace_instruction(VirtualMachine *vm, CallFrame *frame,
+                          VMInstruction *instr, int instruction_index);
+void vm_trace_dump_call_stack(VirtualMachine *vm, const char *reason);
+void vm_trace_dump_function(VirtualMachine *vm, VMFunction *function, FILE *out);
+
+void vm_profile_note_create(VMValue value, size_t bytes);
+void vm_profile_note_free(VMValue value, size_t bytes);
+void vm_profile_report(FILE *out);
 
 #endif /* VM_H */

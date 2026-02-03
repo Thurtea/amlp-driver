@@ -1,0 +1,30 @@
+// /lib/domains/staff_castle/room/stairs.lpc - The Grand Staircase
+
+#include <globals.h>
+
+inherit "/std/room";
+
+void create() {
+    ::create();
+    
+    set_id("castle_stairs");
+    set_short("The Grand Staircase");
+    set_long(
+        "You stand upon the grand staircase that serves as the main thoroughfare\n"
+        "between the lower levels and the upper towers of the castle. The marble\n"
+        "steps are polished to perfection, and the railings of wrought iron are\n"
+        "works of art in themselves.\n\n"
+        
+        "The stairs sweep upward in an elegant curve, supporting the castle's\n"
+        "weight with architectural grace. Large windows along the stairwell flood\n"
+        "the space with natural light, revealing the castle grounds below and the\n"
+        "distant lands beyond.\n\n"
+        
+        "Portraits of important figures line the walls on both sides of the\n"
+        "staircase. The sound of footsteps echoes through the stairwell as people\n"
+        "move between levels."
+    );
+    
+    add_exit("down", "/domains/staff_castle/room/main_hall");
+    add_exit("up", "/domains/staff_castle/room/upper_hall");
+}

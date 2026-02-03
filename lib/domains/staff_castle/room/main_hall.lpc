@@ -1,0 +1,48 @@
+// /lib/domains/staff_castle/room/main_hall.lpc - Great Hall
+
+#include <globals.h>
+
+inherit "/std/room";
+
+void create() {
+    ::create();
+    
+    set_id("castle_main_hall");
+    set_short("The Great Hall");
+    set_long(
+        "You stand in the impressive Great Hall of the Staff Castle. Soaring\n"
+        "arched ceilings stretch high overhead, supported by ornate pillars carved\n"
+        "with intricate designs. Massive stained glass windows filter the sunlight\n"
+        "into colored patterns across the polished stone floor.\n\n"
+        
+        "A grand staircase dominates the northern wall, its railings inlaid with\n"
+        "silver. Tapestries depicting important events from the game's history\n"
+        "hang from the walls. Suits of ornate armor stand at attention along the\n"
+        "eastern and western walls.\n\n"
+        
+        "The air is cool and carries the faint scent of incense. Staff members\n"
+        "move purposefully through the hall, attending to their duties. This is\n"
+        "clearly the heart of the castle's administrative operations."
+    );
+    
+    add_exit("south", "/domains/staff_castle/room/courtyard");
+    add_exit("north", "/domains/staff_castle/room/stairs");
+    add_exit("east", "/domains/staff_castle/room/throne_room");
+    add_exit("west", "/domains/staff_castle/room/dining_hall");
+}
+
+void init() {
+    ::init();
+    add_action("examine_tapestries", "examine");
+}
+
+int examine_tapestries(string str) {
+    if (!str || (str != "tapestries" && str != "tapestry" && str != "history")) return 0;
+    
+    write("The tapestries tell the story of the MUD's founding and expansion. You\n"
+          "see scenes of battles, peaceful settlements, and cooperative achievements.\n"
+          "Each tapestry is a masterwork of weaving, with intricate details and\n"
+          "vibrant colors that seem to shimmer in the light.");
+    say(this_player()->query_cap_name() + " examines the historical tapestries.");
+    return 1;
+}

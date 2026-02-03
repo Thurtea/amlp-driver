@@ -1,0 +1,74 @@
+/*
+ * debug_commands.lpc - Debug command helpers for AMLP
+ *
+ * Usage examples (from LPC or a command handler):
+ *   cmd_vmtrace("on")
+ *   cmd_vmtrace("off")
+ *   cmd_callstack()
+ *   cmd_memstats()
+ *   cmd_bytecode("process_command", "logs/bytecode_dump.log")
+ */
+
+#define VM_DEBUG_TRACE        1
+#define VM_DEBUG_TRACE_STACK  2
+#define VM_DEBUG_TRACE_LOCALS 4
+#define VM_DEBUG_CALLSTACK    8
+#define VM_DEBUG_MEMPROFILE   16
+#define VM_DEBUG_BYTECODE     32
+
+int cmd_vmtrace(string arg) {
+    int flags = debug_get_flags();
+
+    if (!arg || arg == "") {
+        write("Usage: vmtrace on|off\n");
+        return 1;
+    }
+
+    if (arg == "on") {
+        flags |= (VM_DEBUG_TRACE | VM_DEBUG_TRACE_STACK | VM_DEBUG_TRACE_LOCALS);
+        debug_set_flags(flags);
+        write("VM trace enabled.\n");
+        return 1;
+    }
+
+    if (arg == "off") {
+        flags &= ~(VM_DEBUG_TRACE | VM_DEBUG_TRACE_STACK | VM_DEBUG_TRACE_LOCALS);
+        debug_set_flags(flags);
+        write("VM trace disabled.\n");
+        return 1;
+    }
+
+    write("Usage: vmtrace on|off\n");
+    return 1;
+}
+
+int cmd_callstack(void) {
+    debug_dump_call_stack();
+    write("Call stack dumped to server logs.\n");
+    return 1;
+}
+
+int cmd_memstats(void) {
+    string stats = debug_mem_stats();
+    if (stats) {
+        write(stats);
+    }
+    return 1;
+}
+
+int cmd_bytecode(string func, string path) {
+    if (!func || func == "") {
+        write("Usage: bytecode <function> [path]\n");
+        return 1;
+    }
+
+    if (!path || path == "") {
+        debug_dump_bytecode(func);
+        write("Bytecode dumped to logs/bytecode_dump.log\n");
+        return 1;
+    }
+
+    debug_dump_bytecode(func, path);
+    write("Bytecode dumped.\n");
+    return 1;
+}

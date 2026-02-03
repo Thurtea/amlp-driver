@@ -610,6 +610,12 @@ VMValue efun_write(VirtualMachine *vm, VMValue *args, int arg_count) {
     (void)vm;
     (void)arg_count;
     
+    fprintf(stderr, "[EFUN] write() called with arg type=%d", args[0].type);
+    if (args[0].type == VALUE_STRING) {
+        fprintf(stderr, " value='%s'", args[0].data.string_value ? args[0].data.string_value : "(null)");
+    }
+    fprintf(stderr, "\n");
+    
     // Convert argument to string
     char buffer[1024];
     if (args[0].type == VALUE_STRING) {
@@ -1324,6 +1330,96 @@ VMValue efun_query_verb(VirtualMachine *vm, VMValue *args, int arg_count) {
     return vm_value_create_string("");
 }
 
+/* ========== Debugging Efuns ========== */
+
+VMValue efun_debug_set_flags(VirtualMachine *vm, VMValue *args, int arg_count) {
+    if (!vm || arg_count < 1 || args[0].type != VALUE_INT) {
+        return vm_value_create_null();
+    }
+
+    vm_debug_set_flags(vm, (unsigned int)args[0].data.int_value);
+    return vm_value_create_int((long)vm_debug_get_flags(vm));
+}
+
+VMValue efun_debug_get_flags(VirtualMachine *vm, VMValue *args, int arg_count) {
+    (void)args;
+    (void)arg_count;
+    if (!vm) return vm_value_create_null();
+    return vm_value_create_int((long)vm_debug_get_flags(vm));
+}
+
+VMValue efun_debug_dump_call_stack(VirtualMachine *vm, VMValue *args, int arg_count) {
+    (void)args;
+    (void)arg_count;
+    if (!vm) return vm_value_create_null();
+    vm_trace_dump_call_stack(vm, "efun_debug_dump_call_stack");
+    return vm_value_create_int(1);
+}
+
+VMValue efun_debug_dump_bytecode(VirtualMachine *vm, VMValue *args, int arg_count) {
+    if (!vm || arg_count < 1 || args[0].type != VALUE_STRING) {
+        return vm_value_create_null();
+    }
+
+    const char *func_name = args[0].data.string_value;
+    const char *out_path = "logs/bytecode_dump.log";
+    if (arg_count >= 2 && args[1].type == VALUE_STRING && args[1].data.string_value) {
+        out_path = args[1].data.string_value;
+    }
+
+    VMFunction *target = NULL;
+    for (int i = 0; i < vm->function_count; i++) {
+        if (vm->functions[i] && strcmp(vm->functions[i]->name, func_name) == 0) {
+            target = vm->functions[i];
+            break;
+        }
+    }
+
+    if (!target) {
+        fprintf(stderr, "[Efun] debug_dump_bytecode: function '%s' not found\n", func_name);
+        return vm_value_create_null();
+    }
+
+    FILE *out = fopen(out_path, "a");
+    if (!out) {
+        fprintf(stderr, "[Efun] debug_dump_bytecode: failed to open %s\n", out_path);
+        return vm_value_create_null();
+    }
+
+    vm_trace_dump_function(vm, target, out);
+    fclose(out);
+    return vm_value_create_int(1);
+}
+
+VMValue efun_debug_mem_stats(VirtualMachine *vm, VMValue *args, int arg_count) {
+    (void)args;
+    (void)arg_count;
+    if (!vm) return vm_value_create_null();
+
+    char buffer[512];
+    unsigned long outstanding = 0;
+    size_t bytes_outstanding = 0;
+    if (vm->profile.string_allocs >= vm->profile.string_frees) {
+        outstanding = vm->profile.string_allocs - vm->profile.string_frees;
+    }
+    if (vm->profile.string_bytes_alloc >= vm->profile.string_bytes_free) {
+        bytes_outstanding = vm->profile.string_bytes_alloc - vm->profile.string_bytes_free;
+    }
+
+    snprintf(buffer, sizeof(buffer),
+             "VM memory stats:\n"
+             "  strings: alloc=%lu free=%lu outstanding=%lu\n"
+             "  string_bytes: alloc=%zu free=%zu outstanding=%zu\n",
+             vm->profile.string_allocs,
+             vm->profile.string_frees,
+             outstanding,
+             vm->profile.string_bytes_alloc,
+             vm->profile.string_bytes_free,
+             bytes_outstanding);
+
+    return vm_value_create_string(buffer);
+}
+
 /* ========== Utility Functions ========== */
 
 int efun_register_all(EfunRegistry *registry) {
@@ -1393,6 +1489,16 @@ int efun_register_all(EfunRegistry *registry) {
     efun_register(registry, "write", efun_write, 1, 1, "int write(mixed)");
     efun_register(registry, "printf", efun_printf, 1, -1, "int printf(string, ...)");
     count += 2;
+
+    /* Debugging efuns */
+    efun_register(registry, "debug_set_flags", efun_debug_set_flags, 1, 1, "int debug_set_flags(int)");
+    efun_register(registry, "debug_get_flags", efun_debug_get_flags, 0, 0, "int debug_get_flags()");
+    efun_register(registry, "debug_dump_call_stack", efun_debug_dump_call_stack, 0, 0,
+                  "int debug_dump_call_stack()");
+    efun_register(registry, "debug_dump_bytecode", efun_debug_dump_bytecode, 1, 2,
+                  "int debug_dump_bytecode(string, string|void)");
+    efun_register(registry, "debug_mem_stats", efun_debug_mem_stats, 0, 0,
+                  "string debug_mem_stats()");
     
     int registered = registry->efun_count - before;
     printf("[Efun] Registered %d standard efuns\n", registered);
