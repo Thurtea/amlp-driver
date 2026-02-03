@@ -1118,16 +1118,88 @@ VMValue efun_file_name(VirtualMachine *vm, VMValue *args, int arg_count) {
 /* ========== Additional Object Efuns ========== */
 
 VMValue efun_load_object(VirtualMachine *vm, VMValue *args, int arg_count) {
-    (void)vm;
     if (arg_count != 1 || args[0].type != VALUE_STRING) return vm_value_create_null();
     
-    const char *path = args[0].data.string_value;
-    if (!path) return vm_value_create_null();
+    const char *lpc_path = args[0].data.string_value;
+    if (!lpc_path) return vm_value_create_null();
     
-    /* Try to find or load object from path
-     * For now, return null - full implementation requires file I/O + compilation */
-    fprintf(stderr, "[Efun] load_object: requested %s (not yet implemented)\n", path);
-    return vm_value_create_null();
+    fprintf(stderr, "[Efun] load_object: requested '%s'\n", lpc_path);
+    
+    /* Check if object is already loaded (singleton pattern) */
+    ObjManager *mgr = get_global_obj_manager();
+    if (mgr) {
+        obj_t *existing = obj_manager_find(mgr, lpc_path);
+        if (existing) {
+            fprintf(stderr, "[Efun] load_object: '%s' already loaded, returning existing object\n", lpc_path);
+            VMValue v;
+            v.type = VALUE_OBJECT;
+            v.data.object_value = existing;
+            return v;
+        }
+    }
+    
+    /* Map LPC path like "/cmds/admin/wiztool" -> <MUDLIB>/lib/cmds/admin/wiztool.lpc */
+    char fs_path[PATH_MAX];
+    const char *mudlib = getenv("AMLP_MUDLIB");
+    if (!mudlib || !*mudlib) mudlib = "./lib";
+    
+    /* Strip leading slash */
+    const char *p = lpc_path[0] == '/' ? lpc_path + 1 : lpc_path;
+    if (snprintf(fs_path, sizeof(fs_path), "%s/%s.lpc", mudlib, p) >= (int)sizeof(fs_path)) {
+        fprintf(stderr, "[Efun] load_object: path too long\n");
+        return vm_value_create_null();
+    }
+    
+    fprintf(stderr, "[Efun] load_object: compiling '%s'\n", fs_path);
+    
+    /* Compile source file */
+    Program *prog = compiler_compile_file(fs_path);
+    if (!prog) {
+        fprintf(stderr, "[Efun] load_object: compilation failed for '%s'\n", fs_path);
+        return vm_value_create_null();
+    }
+    
+    /* Load into VM (adds VMFunction entries) */
+    if (program_loader_load(vm, prog) != 0) {
+        fprintf(stderr, "[Efun] load_object: program_loader_load failed\n");
+        program_free(prog);
+        return vm_value_create_null();
+    }
+    
+    /* Create object and register it */
+    obj_t *o = obj_new(lpc_path);
+    if (!o) {
+        fprintf(stderr, "[Efun] load_object: obj_new failed\n");
+        program_free(prog);
+        return vm_value_create_null();
+    }
+    if (mgr) obj_manager_register(mgr, o);
+    
+    /* Attach functions from program to object by name lookup in VM */
+    for (size_t fi = 0; fi < prog->function_count; fi++) {
+        const char *fname = prog->functions[fi].name;
+        if (!fname) continue;
+        /* Find VMFunction pointer by name */
+        for (int i = 0; i < vm->function_count; i++) {
+            if (vm->functions[i] && strcmp(vm->functions[i]->name, fname) == 0) {
+                obj_add_method(o, vm->functions[i]);
+                break;
+            }
+        }
+    }
+    
+    fprintf(stderr, "[Efun] load_object: created '%s' with %d methods\n", 
+            o->name ? o->name : "<noname>", o->method_count);
+    
+    /* Call create() on object if present */
+    obj_call_method(vm, o, "create", NULL, 0);
+    
+    program_free(prog);
+    
+    VMValue v;
+    v.type = VALUE_OBJECT;
+    v.data.object_value = o;
+    return v;
 }
 
 VMValue efun_all_inventory(VirtualMachine *vm, VMValue *args, int arg_count) {

@@ -6,6 +6,7 @@
 
 /* Forward declarations */
 typedef struct PlayerSession PlayerSession;
+struct Character;
 
 /* Magic Spell Schools */
 typedef enum {

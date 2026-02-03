@@ -45,6 +45,7 @@ typedef struct PlayerSession {
     void *player_object;
     char ip_address[INET_ADDRSTRLEN];
     int privilege_level;
+    char *current_dir;       /* Wizard/admin filesystem navigation directory */
     
     /* Character generation and game state */
     ChargenState chargen_state;

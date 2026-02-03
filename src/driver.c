@@ -93,6 +93,12 @@ void* create_player_object(const char *username, const char *password_hash);
 VMValue call_player_command(void *player_obj, const char *command);
 int setup_ws_listener(int port);
 
+/* Filesystem command functions (implemented in server.c) */
+int cmd_ls_filesystem(PlayerSession *session, const char *args);
+int cmd_cd_filesystem(PlayerSession *session, const char *args);
+int cmd_pwd_filesystem(PlayerSession *session);
+int cmd_cat_filesystem(PlayerSession *session, const char *args);
+
 /* Signal handler */
 void handle_shutdown_signal(int sig) {
     (void)sig;
@@ -376,21 +382,7 @@ VMValue execute_command(PlayerSession *session, const char *command) {
         return result;
     }
     
-    /* If player object exists, route command through it. Set the
-     * current VM session so efuns like this_player() can access it. */
-    if (session->player_object) {
-        set_current_session(session);
-        result = call_player_command(session->player_object, command);
-        set_current_session(NULL);
-
-        /* If VM returns valid result, use it */
-        if (result.type == VALUE_STRING && result.data.string_value) {
-            return result;
-        }
-    }
-    
-    /* Fallback to built-in commands if no player object or no result */
-    
+    /* Parse command early for filesystem checks */
     char cmd_buffer[256];
     strncpy(cmd_buffer, command, sizeof(cmd_buffer) - 1);
     cmd_buffer[sizeof(cmd_buffer) - 1] = '\0';
@@ -408,6 +400,52 @@ VMValue execute_command(PlayerSession *session, const char *command) {
         args++;
         while (*args == ' ') args++;
     }
+    
+    /* Filesystem commands for wizards/admins - CHECK FIRST BEFORE PLAYER OBJECT */
+    if (session->privilege_level >= 1) {
+        if (strcmp(cmd, "ls") == 0 || strcmp(cmd, "dir") == 0) {
+            cmd_ls_filesystem(session, args);
+            result.type = VALUE_STRING;
+            result.data.string_value = strdup("");
+            return result;
+        }
+        
+        if (strcmp(cmd, "cd") == 0) {
+            cmd_cd_filesystem(session, args);
+            result.type = VALUE_STRING;
+            result.data.string_value = strdup("");
+            return result;
+        }
+        
+        if (strcmp(cmd, "pwd") == 0) {
+            cmd_pwd_filesystem(session);
+            result.type = VALUE_STRING;
+            result.data.string_value = strdup("");
+            return result;
+        }
+        
+        if (strcmp(cmd, "cat") == 0 || strcmp(cmd, "more") == 0) {
+            cmd_cat_filesystem(session, args);
+            result.type = VALUE_STRING;
+            result.data.string_value = strdup("");
+            return result;
+        }
+    }
+    
+    /* If player object exists, route command through it. Set the
+     * current VM session so efuns like this_player() can access it. */
+    if (session->player_object) {
+        set_current_session(session);
+        result = call_player_command(session->player_object, command);
+        set_current_session(NULL);
+
+        /* If VM returns valid result, use it */
+        if (result.type == VALUE_STRING && result.data.string_value) {
+            return result;
+        }
+    }
+    
+    /* Fallback to built-in commands if no player object or no result */
     
     /* Built-in commands */
     

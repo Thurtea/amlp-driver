@@ -653,8 +653,7 @@ bool equipment_equip(struct Character *ch, struct PlayerSession *sess, Item *ite
             return false;
         }
     } else {
-        if (sess) send_to_player(sess
-        send_to_player(ch->fd, "You cannot equip that type of item.\n");
+        if (sess) send_to_player(sess, "You cannot equip that type of item.\n");
         return false;
     }
     

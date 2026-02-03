@@ -5,6 +5,9 @@
 #include <string.h>
 #include <stdio.h>
 
+/* Forward declaration */
+void send_to_player(PlayerSession *session, const char *format, ...);
+
 /* =============== MAGIC SPELLS DATABASE =============== */
 
 MagicSpell MAGIC_SPELLS[34] = {
@@ -323,7 +326,7 @@ MagicSpell* magic_find_spell_by_name(const char *name) {
     return NULL;
 }
 
-KnownSpell* magic_find_known_spell(Character *ch, int spell_id) {
+KnownSpell* magic_find_known_spell(struct Character *ch, int spell_id) {
     if (!ch || !ch->magic.spells) return NULL;
     
     for (int i = 0; i < ch->magic.spell_count; i++) {
@@ -430,12 +433,12 @@ void magic_add_starting_spells(struct Character *ch, const char *occ_name) {
 
 /* =============== PPE MANAGEMENT =============== */
 
-int magic_get_ppe_max(Character *ch) {
+int magic_get_ppe_max(struct Character *ch) {
     if (!ch) return 0;
     return ch->magic.ppe_max;
 }
 
-int magic_get_ppe_current(Character *ch) {
+int magic_get_ppe_current(struct Character *ch) {
     if (!ch) return 0;
     return ch->magic.ppe_current;
 }
@@ -463,7 +466,7 @@ void magic_spend_ppe(struct Character *ch, int amount) {
     }
 }
 
-bool magic_can_cast_spell(Character *ch, int spell_id) {
+bool magic_can_cast_spell(struct Character *ch, int spell_id) {
     if (!ch) return false;
     
     MagicSpell *spell = magic_find_spell_by_id(spell_id);
@@ -506,24 +509,24 @@ bool magic_start_casting(PlayerSession *sess, struct Character *ch,
     return true;
 }
 
-bool magic_continue_casting(Character *ch) {
+bool magic_continue_casting(struct Character *ch) {
     if (!ch || !ch->magic.is_casting) return false;
     
     ch->magic.casting_rounds_remaining--;
     return ch->magic.casting_rounds_remaining > 0;
 }
 
-void magic_complete_cast(PlayerSession *sess, struct Character *ch) {
-    if (!sess || !ch) return;
+bool magic_complete_cast(PlayerSession *sess, struct Character *ch) {
+    if (!sess || !ch) return false;
     
-    if (!ch->magic.is_casting) return;
+    if (!ch->magic.is_casting) return false;
     
     int spell_id = ch->magic.casting_spell_id;
     MagicSpell *spell = magic_find_spell_by_id(spell_id);
     
     if (!spell) {
         ch->magic.is_casting = false;
-        return;
+        return false;
     }
     
     /* Spend PPE */
@@ -536,6 +539,7 @@ void magic_complete_cast(PlayerSession *sess, struct Character *ch) {
     
     ch->magic.is_casting = false;
     ch->magic.casting_spell_id = -1;
+    return true;
 }
 
 void magic_interrupt_cast(struct Character *ch) {

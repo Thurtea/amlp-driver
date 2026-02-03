@@ -5,6 +5,7 @@
 
 /* Forward declarations to avoid circular includes */
 typedef struct PlayerSession PlayerSession;
+struct Character;
 
 /* Item Types */
 typedef enum {

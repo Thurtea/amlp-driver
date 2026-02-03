@@ -1,0 +1,873 @@
+/*
+ * simple_mud_server.c - AMLP Driver Network Server with Command Execution
+ * 
+ * Features:
+ * - Multi-client TCP server using select()
+ * - VM-based command execution through player objects
+ * - Login system with character creation
+ * - Session management with timeouts
+ * - Graceful error handling and recovery
+ */
+
+#define _GNU_SOURCE  /* for strdup() */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <errno.h>
+#include <signal.h>
+#include <time.h>
+#include <ctype.h>
+#include <stdarg.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/select.h>
+#include <sys/time.h>
+#include <sys/stat.h>
+#include <dirent.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+#include "vm.h"
+#include "compiler.h"
+#include "master_object.h"
+#include "psionics.h"
+#include "magic.h"
+#include "session_internal.h"  /* Provides PlayerSession struct definition */
+
+#define MAX_CLIENTS 100
+#define BUFFER_SIZE 4096
+#define INPUT_BUFFER_SIZE 2048
+#define DEFAULT_PORT 3000
+#define DEFAULT_MASTER_PATH "lib/secure/master.lpc"
+#define SESSION_TIMEOUT 1800  /* 30 minutes */
+
+/* Global state */
+static volatile sig_atomic_t server_running = 1;
+static VirtualMachine *global_vm = NULL;
+static PlayerSession *sessions[MAX_CLIENTS];
+static int first_player_created = 0;  /* Track if first player has logged in */
+
+/* Function prototypes */
+void handle_shutdown_signal(int sig);
+int initialize_vm(const char *master_path);
+void cleanup_vm(void);
+void init_session(PlayerSession *session, int fd, const char *ip);
+void free_session(PlayerSession *session);
+void handle_session_input(PlayerSession *session, const char *input);
+void process_login_state(PlayerSession *session, const char *input);
+void process_playing_state(PlayerSession *session, const char *input);
+void send_to_player(PlayerSession *session, const char *format, ...);
+void send_prompt(PlayerSession *session);
+VMValue execute_command(PlayerSession *session, const char *command);
+void broadcast_message(const char *message, PlayerSession *exclude);
+void check_session_timeouts(void);
+void game_tick_all_players(void);
+void* create_player_object(const char *username, const char *password_hash);
+VMValue call_player_command(void *player_obj, const char *command);
+
+/* Signal handler */
+void handle_shutdown_signal(int sig) {
+    (void)sig;
+    fprintf(stderr, "\n[Server] Received shutdown signal\n");
+    server_running = 0;
+}
+
+/* Initialize VM and master object */
+int initialize_vm(const char *master_path) {
+    fprintf(stderr, "[Server] Initializing VM...\n");
+    
+    global_vm = vm_init();
+    if (!global_vm) {
+        fprintf(stderr, "[Server] ERROR: Failed to initialize VM\n");
+        return -1;
+    }
+    
+    fprintf(stderr, "[Server] Loading master object: %s\n", master_path);
+    
+    if (master_object_init(master_path, global_vm) != 0) {
+        fprintf(stderr, "[Server] ERROR: Failed to load master object\n");
+        vm_free(global_vm);
+        global_vm = NULL;
+        return -1;
+    }
+    
+    fprintf(stderr, "[Server] VM initialized successfully\n");
+    return 0;
+}
+
+/* Cleanup VM resources */
+void cleanup_vm(void) {
+    if (global_vm) {
+        fprintf(stderr, "[Server] Cleaning up VM...\n");
+        master_object_cleanup();
+        vm_free(global_vm);
+        global_vm = NULL;
+    }
+}
+
+/* Create player object through VM */
+void* create_player_object(const char *username, const char *password_hash) {
+    if (!global_vm) return NULL;
+    
+    fprintf(stderr, "[Server] Creating player object for: %s\n", username);
+    
+    /* TODO: Implement when object system is ready
+     * 
+     * VMValue path = vm_value_create_string("/std/player");
+     * vm_push_value(global_vm, path);
+     * 
+     * VMValue result = master_call("clone_object", &path, 1);
+     * 
+     * if (result.type == VALUE_OBJECT) {
+     *     Object *player = result.data.object_value;
+     *     
+     *     // Call setup_player(username, password_hash)
+     *     VMValue args[2];
+     *     args[0] = vm_value_create_string(username);
+     *     args[1] = vm_value_create_string(password_hash);
+     *     
+     *     object_call_method(player, "setup_player", args, 2);
+     *     
+     *     vm_value_free(&args[0]);
+     *     vm_value_free(&args[1]);
+     *     
+     *     return player;
+     * }
+     */
+    
+    /* For now, return placeholder */
+    return (void*)1;  /* Non-null to indicate "created" */
+}
+
+/* Call player object's process_command method */
+VMValue call_player_command(void *player_obj, const char *command) {
+    VMValue result;
+    result.type = VALUE_NULL;
+    
+    if (!player_obj || !global_vm) {
+        return result;
+    }
+    
+    fprintf(stderr, "[Server] Calling player command: %s\n", command);
+    
+    /* TODO: Implement when object system is ready
+     *
+     * VMValue cmd_arg = vm_value_create_string(command);
+     * vm_push_value(global_vm, cmd_arg);
+     * 
+     * result = object_call_method((Object*)player_obj, "process_command", &cmd_arg, 1);
+     * 
+     * vm_value_free(&cmd_arg);
+     */
+    
+    return result;
+}
+
+/* Initialize a new player session */
+void init_session(PlayerSession *session, int fd, const char *ip) {
+    memset(session, 0, sizeof(PlayerSession));
+    session->fd = fd;
+    session->state = STATE_CONNECTING;
+    session->last_activity = time(NULL);
+    session->connect_time = time(NULL);
+    session->player_object = NULL;
+    session->privilege_level = 0;  /* Default to player */
+    session->current_dir = strdup("");  /* Start at root directory */
+    strncpy(session->ip_address, ip, INET_ADDRSTRLEN - 1);
+    session->input_length = 0;
+}
+
+/* Free session resources */
+void free_session(PlayerSession *session) {
+    if (!session) return;
+    
+    if (session->player_object) {
+        /* TODO: Call destruct on player object when object system ready */
+        session->player_object = NULL;
+    }
+    
+    if (session->current_dir) {
+        free(session->current_dir);
+        session->current_dir = NULL;
+    }
+    
+    if (session->fd > 0) {
+        close(session->fd);
+        session->fd = -1;
+    }
+    
+    free(session);
+}
+
+/* Send formatted output to player */
+void send_to_player(PlayerSession *session, const char *format, ...) {
+    if (!session || session->fd <= 0) return;
+    
+    char buffer[BUFFER_SIZE];
+    va_list args;
+    va_start(args, format);
+    int len = vsnprintf(buffer, sizeof(buffer) - 3, format, args);
+    va_end(args);
+    
+    if (len > 0 && len < BUFFER_SIZE - 3) {
+        /* Ensure CRLF line endings for telnet */
+        if (buffer[len-1] == '\n' && (len < 2 || buffer[len-2] != '\r')) {
+            buffer[len-1] = '\r';
+            buffer[len] = '\n';
+            buffer[len+1] = '\0';
+            len++;
+        }
+        send(session->fd, buffer, len, 0);
+    }
+}
+
+/* Send command prompt based on state */
+void send_prompt(PlayerSession *session) {
+    switch (session->state) {
+        case STATE_CONNECTING:
+            send_to_player(session,
+                "\r\n"
+                "=========================================\r\n"
+                "    AMLP Driver - Development Server\r\n"
+                "             Version 0.1.0\r\n"
+                "=========================================\r\n"
+                "\r\n"
+                "Welcome to the AMLP MUD!\r\n"
+                "\r\n"
+                "Enter your name: ");
+            session->state = STATE_GET_NAME;
+            break;
+            
+        case STATE_GET_NAME:
+            send_to_player(session, "Enter your name: ");
+            break;
+            
+        case STATE_GET_PASSWORD:
+            send_to_player(session, "Password: ");
+            break;
+            
+        case STATE_NEW_PASSWORD:
+            send_to_player(session, "Choose a password: ");
+            break;
+            
+        case STATE_CONFIRM_PASSWORD:
+            send_to_player(session, "Confirm password: ");
+            break;
+            
+        case STATE_PLAYING:
+            send_to_player(session, "\r\n> ");
+            break;
+            
+        default:
+            break;
+    }
+}
+
+/* ==========================================================================
+ * Filesystem Commands for Wizards/Admins
+ * ========================================================================== */
+
+/* ls - List directory contents */
+int cmd_ls_filesystem(PlayerSession *session, const char *args) {
+    char path[512];
+    char full_path[1024];
+    
+    /* Determine path */
+    if (args && *args != '\0') {
+        if (args[0] == '/') {
+            snprintf(path, sizeof(path), "%s", args);
+        } else {
+            if (session->current_dir && strlen(session->current_dir) > 0) {
+                snprintf(path, sizeof(path), "%s/%s", session->current_dir, args);
+            } else {
+                snprintf(path, sizeof(path), "/%s", args);
+            }
+        }
+    } else {
+        if (session->current_dir && strlen(session->current_dir) > 0) {
+            snprintf(path, sizeof(path), "%s", session->current_dir);
+        } else {
+            snprintf(path, sizeof(path), "/");
+        }
+    }
+    
+    /* Build full filesystem path */
+    snprintf(full_path, sizeof(full_path), "lib%s", path);
+    
+    /* Open directory */
+    DIR *dir = opendir(full_path);
+    if (!dir) {
+        send_to_player(session, "Directory not found: %s\r\n", path);
+        return 0;
+    }
+    
+    /* List contents */
+    struct dirent *entry;
+    char output[4096] = "";
+    int count = 0;
+    
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_name[0] == '.') continue; /* Skip hidden files */
+        
+        /* Build full item path */
+        char item_path[1024];
+        snprintf(item_path, sizeof(item_path), "%s/%s", full_path, entry->d_name);
+        
+        /* Check if directory */
+        struct stat st;
+        if (stat(item_path, &st) == 0) {
+            char line[256];
+            if (S_ISDIR(st.st_mode)) {
+                snprintf(line, sizeof(line), "%-30s/\r\n", entry->d_name);
+            } else {
+                snprintf(line, sizeof(line), "%-30s\r\n", entry->d_name);
+            }
+            strncat(output, line, sizeof(output) - strlen(output) - 1);
+            count++;
+        }
+    }
+    
+    closedir(dir);
+    
+    if (count == 0) {
+        send_to_player(session, "Directory is empty.\r\n");
+    } else {
+        send_to_player(session, "%s", output);
+    }
+    
+    return 1;
+}
+
+/* cd - Change directory */
+int cmd_cd_filesystem(PlayerSession *session, const char *args) {
+    char new_dir[512];
+    char test_path[1024];
+    
+    if (!args || *args == '\0') {
+        /* cd with no args = go to root */
+        free(session->current_dir);
+        session->current_dir = strdup("");
+        send_to_player(session, "Changed to: /\r\n");
+        return 1;
+    }
+    
+    /* Handle different path types */
+    if (args[0] == '/') {
+        /* Absolute path */
+        snprintf(new_dir, sizeof(new_dir), "%s", args);
+    } else if (strcmp(args, "..") == 0) {
+        /* Go up one directory */
+        if (!session->current_dir || strlen(session->current_dir) == 0 || strcmp(session->current_dir, "/") == 0) {
+            send_to_player(session, "Already at root.\r\n");
+            return 0;
+        }
+        
+        /* Find last slash */
+        char *last_slash = strrchr(session->current_dir, '/');
+        if (last_slash && last_slash != session->current_dir) {
+            *last_slash = '\0';
+            snprintf(new_dir, sizeof(new_dir), "%s", session->current_dir);
+            *last_slash = '/'; /* Restore for later */
+        } else {
+            snprintf(new_dir, sizeof(new_dir), "");
+        }
+    } else {
+        /* Relative path */
+        if (session->current_dir && strlen(session->current_dir) > 0) {
+            snprintf(new_dir, sizeof(new_dir), "%s/%s", session->current_dir, args);
+        } else {
+            snprintf(new_dir, sizeof(new_dir), "/%s", args);
+        }
+    }
+    
+    /* Verify directory exists */
+    snprintf(test_path, sizeof(test_path), "lib%s", new_dir);
+    DIR *dir = opendir(test_path);
+    if (!dir) {
+        send_to_player(session, "Directory not found: %s\r\n", args);
+        return 0;
+    }
+    closedir(dir);
+    
+    /* Update current directory */
+    free(session->current_dir);
+    session->current_dir = strdup(new_dir);
+    
+    send_to_player(session, "Changed to: %s\r\n", new_dir[0] ? new_dir : "/");
+    return 1;
+}
+
+/* pwd - Print working directory */
+int cmd_pwd_filesystem(PlayerSession *session) {
+    if (session->current_dir && strlen(session->current_dir) > 0) {
+        send_to_player(session, "%s\r\n", session->current_dir);
+    } else {
+        send_to_player(session, "/\r\n");
+    }
+    return 1;
+}
+
+/* cat - Display file contents */
+int cmd_cat_filesystem(PlayerSession *session, const char *filename) {
+    if (!filename || *filename == '\0') {
+        send_to_player(session, "Usage: cat <filename>\r\n");
+        return 0;
+    }
+    
+    char filepath[1024];
+    
+    /* Build full path */
+    if (filename[0] == '/') {
+        snprintf(filepath, sizeof(filepath), "lib%s", filename);
+    } else {
+        if (session->current_dir && strlen(session->current_dir) > 0) {
+            snprintf(filepath, sizeof(filepath), "lib%s/%s", session->current_dir, filename);
+        } else {
+            snprintf(filepath, sizeof(filepath), "lib/%s", filename);
+        }
+    }
+    
+    /* Open file */
+    FILE *f = fopen(filepath, "r");
+    if (!f) {
+        send_to_player(session, "File not found: %s\r\n", filename);
+        return 0;
+    }
+    
+    /* Read and send contents (with line limit for safety) */
+    char line[512];
+    int line_count = 0;
+    while (fgets(line, sizeof(line), f) && line_count < 1000) {
+        send_to_player(session, "%s", line);
+        line_count++;
+    }
+    
+    if (line_count >= 1000) {
+        send_to_player(session, "\r\n[File truncated at 1000 lines]\r\n");
+    }
+    
+    fclose(f);
+    return 1;
+}
+
+/* Broadcast message to all players except one */
+void broadcast_message(const char *message, PlayerSession *exclude) {
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (sessions[i] && 
+            sessions[i]->state == STATE_PLAYING && 
+            sessions[i] != exclude) {
+            send_to_player(sessions[i], "%s", message);
+        }
+    }
+}
+
+/* Process input during login states */
+void process_login_state(PlayerSession *session, const char *input) {
+    char clean_input[256];
+    strncpy(clean_input, input, sizeof(clean_input) - 1);
+    clean_input[sizeof(clean_input) - 1] = '\0';
+    
+    /* Strip whitespace */
+    char *start = clean_input;
+    while (*start && isspace(*start)) start++;
+    char *end = start + strlen(start) - 1;
+    while (end > start && isspace(*end)) *end-- = '\0';
+    
+    switch (session->state) {
+        case STATE_GET_NAME:
+            if (strlen(start) < 3 || strlen(start) > 15) {
+                send_to_player(session, 
+                    "Name must be between 3 and 15 characters.\r\n");
+                send_prompt(session);
+                return;
+            }
+            
+            strncpy(session->username, start, sizeof(session->username) - 1);
+            
+            /* For now, always treat as new user */
+            send_to_player(session, 
+                "\r\nWelcome, %s! You appear to be new here.\r\n", 
+                session->username);
+            session->state = STATE_NEW_PASSWORD;
+            send_prompt(session);
+            break;
+            
+        case STATE_GET_PASSWORD:
+            send_to_player(session, "\r\nWelcome back, %s!\r\n", session->username);
+            session->state = STATE_PLAYING;
+            
+            send_to_player(session, "\r\nYou materialize in the starting room.\r\n");
+            send_prompt(session);
+            
+            /* Announce login */
+            char login_msg[256];
+            snprintf(login_msg, sizeof(login_msg), 
+                    "%s has entered the game.\r\n", session->username);
+            broadcast_message(login_msg, session);
+            break;
+            
+        case STATE_NEW_PASSWORD:
+            if (strlen(start) < 6) {
+                send_to_player(session, 
+                    "Password must be at least 6 characters.\r\n");
+                send_prompt(session);
+                return;
+            }
+            
+            strncpy(session->password_buffer, start, sizeof(session->password_buffer) - 1);
+            session->state = STATE_CONFIRM_PASSWORD;
+            send_prompt(session);
+            break;
+            
+        case STATE_CONFIRM_PASSWORD:
+            if (strcmp(session->password_buffer, start) != 0) {
+                send_to_player(session, 
+                    "\r\nPasswords don't match. Let's try again.\r\n");
+                memset(session->password_buffer, 0, sizeof(session->password_buffer));
+                session->state = STATE_NEW_PASSWORD;
+                send_prompt(session);
+                return;
+            }
+            
+            /* Create player object */
+            session->player_object = create_player_object(
+                session->username, 
+                session->password_buffer);
+            
+            if (!session->player_object) {
+                send_to_player(session, 
+                    "\r\nError: Failed to create player object.\r\n");
+                session->state = STATE_DISCONNECTING;
+                return;
+            }
+            
+            /* First player becomes admin */
+            if (!first_player_created) {
+                session->privilege_level = 2;  /* Admin */
+                first_player_created = 1;
+                fprintf(stderr, "[Server] First player created: %s (privilege: Admin)\n",
+                       session->username);
+                
+                send_to_player(session, 
+                    "\r\nCharacter created successfully!\r\n"
+                    "As the first player, you have been granted Admin privileges.\r\n"
+                    "You materialize in the starting room.\r\n");
+            } else {
+                session->privilege_level = 0;  /* Regular player */
+                send_to_player(session, 
+                    "\r\nCharacter created successfully!\r\n"
+                    "You materialize in the starting room.\r\n");
+            }
+            
+            memset(session->password_buffer, 0, sizeof(session->password_buffer));
+            session->state = STATE_PLAYING;
+            send_prompt(session);
+            
+            /* Announce login */
+            char create_msg[256];
+            snprintf(create_msg, sizeof(create_msg), 
+                    "%s has entered the game for the first time!\r\n", 
+                    session->username);
+            broadcast_message(create_msg, session);
+            break;
+            
+        default:
+            break;
+    }
+}
+
+/* Process input during playing state */
+void process_playing_state(PlayerSession *session, const char *input) {
+    VMValue result = execute_command(session, input);
+    
+    if (result.type == VALUE_STRING && result.data.string_value) {
+        if (strcmp(result.data.string_value, "quit") == 0) {
+            send_to_player(session, "\r\nGoodbye, %s!\r\n", session->username);
+            
+            char logout_msg[256];
+            snprintf(logout_msg, sizeof(logout_msg), 
+                    "%s has left the game.\r\n", session->username);
+            broadcast_message(logout_msg, session);
+            
+            session->state = STATE_DISCONNECTING;
+        } else {
+            send_to_player(session, "%s", result.data.string_value);
+            send_prompt(session);
+        }
+        
+        if (result.data.string_value) {
+            free(result.data.string_value);
+        }
+    } else {
+        send_to_player(session, "Command failed to execute.\r\n");
+        send_prompt(session);
+    }
+}
+
+/* Handle incoming input for a session */
+void handle_session_input(PlayerSession *session, const char *input) {
+    if (!session) return;
+    
+    session->last_activity = time(NULL);
+    
+    size_t input_len = strlen(input);
+    if (session->input_length + input_len >= INPUT_BUFFER_SIZE - 1) {
+        send_to_player(session, "\r\nInput too long. Clearing buffer.\r\n");
+        session->input_length = 0;
+        send_prompt(session);
+        return;
+    }
+    
+    memcpy(session->input_buffer + session->input_length, input, input_len);
+    session->input_length += input_len;
+    session->input_buffer[session->input_length] = '\0';
+    
+    char *line_start = session->input_buffer;
+    char *newline;
+    
+    while ((newline = strchr(line_start, '\n')) != NULL) {
+        *newline = '\0';
+        
+        char *cr = strchr(line_start, '\r');
+        if (cr) *cr = '\0';
+        
+        if (session->state == STATE_CONNECTING) {
+            send_prompt(session);
+        } else if (session->state == STATE_PLAYING) {
+            if (strlen(line_start) > 0) {
+                process_playing_state(session, line_start);
+            } else {
+                send_prompt(session);
+            }
+        } else {
+            process_login_state(session, line_start);
+        }
+        
+        line_start = newline + 1;
+    }
+    
+    size_t remaining = strlen(line_start);
+    if (remaining > 0) {
+        memmove(session->input_buffer, line_start, remaining + 1);
+        session->input_length = remaining;
+    } else {
+        session->input_length = 0;
+        session->input_buffer[0] = '\0';
+    }
+}
+
+/* Check for idle session timeouts */
+void check_session_timeouts(void) {
+    time_t now = time(NULL);
+    
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (sessions[i]) {
+            time_t idle = now - sessions[i]->last_activity;
+            
+            if (idle > SESSION_TIMEOUT) {
+                send_to_player(sessions[i], 
+                    "\r\nYou have been idle too long. Disconnecting...\r\n");
+                fprintf(stderr, "[Server] Timeout disconnect: %s (slot %d)\n",
+                       sessions[i]->username[0] ? sessions[i]->username : "guest",
+                       i);
+                sessions[i]->state = STATE_DISCONNECTING;
+            }
+        }
+    }
+}
+
+/* Game tick for all active players - handles meditation, recovery, etc */
+void game_tick_all_players(void) {
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (!sessions[i] || sessions[i]->state != STATE_PLAYING) continue;
+        
+        struct Character *ch = &sessions[i]->character;
+        
+        /* Update psionic abilities - ISP recovery and meditation */
+        psionics_power_tick(ch);
+        psionics_meditate_tick(ch);
+        
+        /* Update magic abilities - PPE recovery and meditation */
+        magic_spell_tick(ch);
+        magic_meditate_tick(ch);
+    }
+}
+
+/* Main server */
+int main(int argc, char **argv) {
+    int port = DEFAULT_PORT;
+    const char *master_path = DEFAULT_MASTER_PATH;
+    
+    if (argc >= 2) {
+        port = atoi(argv[1]);
+        if (port <= 0 || port > 65535) {
+            fprintf(stderr, "Usage: %s [port] [master_path]\n", argv[0]);
+            return 1;
+        }
+    }
+    
+    if (argc >= 3) {
+        master_path = argv[2];
+    }
+    
+    signal(SIGINT, handle_shutdown_signal);
+    signal(SIGTERM, handle_shutdown_signal);
+    signal(SIGPIPE, SIG_IGN);
+    
+    if (initialize_vm(master_path) != 0) {
+        return 1;
+    }
+    
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        sessions[i] = NULL;
+    }
+    
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd < 0) {
+        fprintf(stderr, "[Server] ERROR: socket() failed: %s\n", strerror(errno));
+        cleanup_vm();
+        return 1;
+    }
+    
+    int opt = 1;
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    
+    struct sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(port);
+    
+    if (bind(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        fprintf(stderr, "[Server] ERROR: bind() failed: %s\n", strerror(errno));
+        close(server_fd);
+        cleanup_vm();
+        return 1;
+    }
+    
+    if (listen(server_fd, 10) < 0) {
+        fprintf(stderr, "[Server] ERROR: listen() failed: %s\n", strerror(errno));
+        close(server_fd);
+        cleanup_vm();
+        return 1;
+    }
+    
+    fprintf(stderr, "[Server] Listening on port %d\n", port);
+    fprintf(stderr, "[Server] Ready for connections\n\n");
+    
+    time_t last_timeout_check = time(NULL);
+    time_t last_game_tick = time(NULL);
+    
+    while (server_running) {
+        fd_set read_fds;
+        FD_ZERO(&read_fds);
+        FD_SET(server_fd, &read_fds);
+        
+        int max_fd = server_fd;
+        
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            if (sessions[i] && sessions[i]->fd > 0) {
+                FD_SET(sessions[i]->fd, &read_fds);
+                if (sessions[i]->fd > max_fd) {
+                    max_fd = sessions[i]->fd;
+                }
+            }
+        }
+        
+        struct timeval timeout;
+        timeout.tv_sec = 1;
+        timeout.tv_usec = 0;
+        
+        int activity = select(max_fd + 1, &read_fds, NULL, NULL, &timeout);
+        
+        if (activity < 0 && errno != EINTR) {
+            fprintf(stderr, "[Server] ERROR: select() failed: %s\n", strerror(errno));
+            break;
+        }
+        
+        if (activity < 0) continue;
+        
+        if (FD_ISSET(server_fd, &read_fds)) {
+            struct sockaddr_in client_addr;
+            socklen_t addr_len = sizeof(client_addr);
+            int new_fd = accept(server_fd, (struct sockaddr*)&client_addr, &addr_len);
+            
+            if (new_fd >= 0) {
+                int slot = -1;
+                for (int i = 0; i < MAX_CLIENTS; i++) {
+                    if (!sessions[i]) {
+                        slot = i;
+                        break;
+                    }
+                }
+                
+                if (slot >= 0) {
+                    sessions[slot] = malloc(sizeof(PlayerSession));
+                    init_session(sessions[slot], new_fd, inet_ntoa(client_addr.sin_addr));
+                    fprintf(stderr, "[Server] New connection slot %d from %s\n", 
+                           slot, sessions[slot]->ip_address);
+                    send_prompt(sessions[slot]);
+                } else {
+                    const char *msg = "Server full.\r\n";
+                    send(new_fd, msg, strlen(msg), 0);
+                    close(new_fd);
+                }
+            }
+        }
+        
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            if (!sessions[i] || sessions[i]->fd <= 0) continue;
+            
+            if (sessions[i]->state == STATE_DISCONNECTING) {
+                fprintf(stderr, "[Server] Closing slot %d\n", i);
+                free_session(sessions[i]);
+                sessions[i] = NULL;
+                continue;
+            }
+            
+            if (FD_ISSET(sessions[i]->fd, &read_fds)) {
+                char buffer[BUFFER_SIZE];
+                ssize_t bytes = recv(sessions[i]->fd, buffer, sizeof(buffer) - 1, 0);
+                
+                if (bytes <= 0) {
+                    fprintf(stderr, "[Server] Disconnect slot %d\n", i);
+                    free_session(sessions[i]);
+                    sessions[i] = NULL;
+                } else {
+                    buffer[bytes] = '\0';
+                    handle_session_input(sessions[i], buffer);
+                }
+            }
+        }
+        
+        time_t now = time(NULL);
+        
+        /* Game ticks every 6 seconds (10 ticks per minute) */
+        if (now - last_game_tick >= 6) {
+            game_tick_all_players();
+            last_game_tick = now;
+        }
+        
+        if (now - last_timeout_check > 60) {
+            check_session_timeouts();
+            last_timeout_check = now;
+        }
+    }
+    
+    fprintf(stderr, "\n[Server] Shutting down...\n");
+    
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (sessions[i]) {
+            send_to_player(sessions[i], "\r\nServer shutting down...\r\n");
+            free_session(sessions[i]);
+        }
+    }
+    
+    close(server_fd);
+    cleanup_vm();
+    
+    fprintf(stderr, "[Server] Shutdown complete\n");
+    return 0;
+}

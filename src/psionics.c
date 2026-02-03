@@ -5,6 +5,9 @@
 #include <string.h>
 #include <stdio.h>
 
+/* Forward declaration */
+void send_to_player(PlayerSession *session, const char *format, ...);
+
 /* =============== PSIONIC POWERS DATABASE =============== */
 
 PsionicPower PSION_POWERS[25] = {

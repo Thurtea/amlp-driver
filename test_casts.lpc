@@ -1,0 +1,29 @@
+// Test file for type cast parsing
+
+void create() {
+    string name;
+    int number;
+    object obj;
+    mixed value;
+    
+    // Test 1: Cast to string
+    name = (string)this_object()->query_name();
+    
+    // Test 2: Cast to int
+    number = (int)"42";
+    
+    // Test 3: Cast to object
+    obj = (object)find_player("test");
+    
+    // Test 4: Cast to mixed
+    value = (mixed)({ 1, 2, 3 });
+    
+    // Test 5: Cast in function call
+    write((string)query_level());
+    
+    // Test 6: Cast in expression
+    number = (int)query_stat("strength") + 5;
+    
+    // Test 7: Cast with mapping
+    value = (mapping)query_properties();
+}
