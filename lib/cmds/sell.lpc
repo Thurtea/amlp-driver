@@ -1,0 +1,79 @@
+// sell.lpc - Sell items to shops
+
+int cmd_sell(string arg) {
+    object player, room, item_obj;
+    string item_name, item_path;
+    int price_uc, price_bmc, sell_uc, sell_bmc, currency_type;
+    float sell_rate;
+    
+    player = this_player();
+    room = environment(player);
+    
+    if (!player || !room) return 0;
+    
+    // Check if in a shop
+    if (!room->query_property("shop")) {
+        write("You are not in a shop.\n");
+        return 1;
+    }
+    
+    if (!arg || arg == "") {
+        write("Sell what?\n");
+        return 1;
+    }
+    
+    // Find item in player inventory
+    item_obj = present(arg, player);
+    
+    if (!item_obj) {
+        write("You don't have that item.\n");
+        return 1;
+    }
+    
+    item_name = item_obj->query_short();
+    item_path = file_name(item_obj);
+    
+    // Remove instance number from path (e.g., "/lib/objects/sword#123" -> "/lib/objects/sword")
+    sscanf(item_path, "%s#%*d", item_path);
+    
+    // Check if shop buys this item
+    price_uc = room->get_price_uc(item_path);
+    price_bmc = room->get_price_bmc(item_path);
+    
+    if (price_uc == 0 && price_bmc == 0) {
+        write(room->query_shopkeeper() + " says: \"Sorry, I don't buy that kind of item.\"\n");
+        return 1;
+    }
+    
+    sell_rate = room->query_sell_rate();
+    sell_uc = to_int(to_float(price_uc) * sell_rate);
+    sell_bmc = to_int(to_float(price_bmc) * sell_rate);
+    
+    currency_type = room->query_currency_type();
+    
+    // Pay the player
+    if (currency_type == 0) {  // UC only
+        player->add_universal_credits(sell_uc);
+        write("You sell " + item_name + " for " + sell_uc + " UC.\n");
+    } else if (currency_type == 1) {  // BMC only
+        player->add_black_market_credits(sell_bmc);
+        write("You sell " + item_name + " for " + sell_bmc + " BMC.\n");
+    } else if (currency_type == 2) {  // Both - default to UC
+        player->add_universal_credits(sell_uc);
+        write("You sell " + item_name + " for " + sell_uc + " UC.\n");
+    }
+    
+    write(room->query_shopkeeper() + " says: \"Thank you! Always happy to do business.\"\n");
+    
+    tell_room(room, player->query_cap_name() + " sells " + item_name + " to " + room->query_shopkeeper() + ".", ({ player }));
+    
+    // Remove item from player, add to shop stock
+    item_obj->remove();
+    room->sell_item_to_shop(item_path);
+    
+    return 1;
+}
+
+void create() {
+    // Command registration
+}

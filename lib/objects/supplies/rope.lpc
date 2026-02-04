@@ -1,0 +1,22 @@
+// /lib/objects/supplies/rope.lpc
+// Rope
+
+inherit "/std/object";
+
+void create() {
+    ::create();
+    
+    set_name("rope");
+    set_id(({"rope", "cord", "line"}));
+    set_short("50 feet of rope");
+    set_long(
+        "This is 50 feet of strong rope, useful for climbing, tying things, or "
+        "restraining prisoners. Every adventurer should carry some rope.\n"
+    );
+    
+    set_weight(5);
+    set_value(100);
+    
+    set_property("rope", 1);
+    set_property("length", 50);
+}

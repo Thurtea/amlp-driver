@@ -1,0 +1,85 @@
+// /lib/domains/start/npcs/grok_merchant.lpc
+// Grok the merchant NPC
+
+inherit "/std/living";
+
+void create() {
+    ::create();
+    
+    set_name("Grok");
+    set_id(({"grok", "merchant", "shopkeeper", "shop keeper"}));
+    set_short("Grok the merchant");
+    set_long(
+        "Grok is a burly human merchant with a weathered face and shrewd eyes. He's "
+        "spent years trading goods across the wilderness, and his shop is well-stocked "
+        "with equipment for adventurers. He wears practical clothing with many pockets "
+        "and keeps a vibro-blade at his belt.\n"
+    );
+    
+    set_race("human");
+    set_gender("male");
+    set_level(5);
+    
+    set_max_hp(50);
+    set_hp(50);
+    set_max_sdc(40);
+    set_sdc(40);
+    
+    set_property("no_attack", 1);  // Can't be attacked
+}
+
+void init() {
+    ::init();
+    add_action("talk_to_grok", "talk");
+    add_action("greet_grok", "greet");
+}
+
+int talk_to_grok(string arg) {
+    object player;
+    string *responses;
+    
+    player = this_player();
+    
+    if (!arg || (arg != "grok" && arg != "merchant" && arg != "shopkeeper" && arg != "to grok")) {
+        return 0;
+    }
+    
+    responses = ({
+        "Grok says: \"Welcome to my shop! Use LIST to see what I've got.\"",
+        "Grok says: \"Fair prices, quality goods. You won't find better.\"",
+        "Grok says: \"I buy and sell. BUY what you need, SELL what you don't.\"",
+        "Grok says: \"Been trading for twenty years.  I know good equipment when I see it.\"",
+        "Grok says: \"The wilderness is dangerous. Make sure you're properly equipped.\""
+    });
+    
+    write(responses[random(sizeof(responses))] + "\n");
+    
+    return 1;
+}
+
+int greet_grok(string arg) {
+    if (!arg || (arg != "grok" && arg != "merchant")) {
+        return 0;
+    }
+    
+    write("Grok nods at you and says: \"Come to trade?\"\n");
+    return 1;
+}
+
+void heart_beat() {
+    ::heart_beat();
+    
+    // Random ambient actions
+    if (random(30) == 0) {
+        string *emotes = ({
+            "Grok adjusts some items on the shelves.",
+            "Grok counts coins behind the counter.",
+            "Grok polishes a weapon thoughtfully.",
+            "Grok calls out: \"Best prices in the region!\"",
+            "Grok examines a piece of equipment critically."
+        });
+        
+        tell_room(environment(this_object()),
+            emotes[random(sizeof(emotes))]);
+    }
+}

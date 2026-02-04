@@ -1,0 +1,68 @@
+// /lib/cmds/wizard/eval.lpc
+// Execute LPC code directly - for wizards and admins only
+
+int cmd_eval(string arg) {
+    object player;
+    mixed result;
+    int privilege;
+    
+    player = this_player();
+    
+    if (!player) return 0;
+    
+    privilege = player->query_privilege();
+    
+    if (privilege < 1) {
+        write("You must be a wizard to use this command.\n");
+        return 1;
+    }
+    
+    if (!arg || arg == "") {
+        write("Usage: eval <LPC code>\n");
+        write("Example: eval me->set_universal_credits(10000)\n");
+        write("Example: eval environment(me)->query_short()\n");
+        write("Note: 'me' refers to your player object\n");
+        return 1;
+    }
+    
+    // Add convenient aliases
+    arg = replace_string(arg, "me->", "this_player()->");
+    arg = replace_string(arg, "here->", "environment(this_player())->");
+    
+    // Try to execute the code
+    if (catch(result = evaluate(arg))) {
+        write("Error executing code: " + arg + "\n");
+        return 1;
+    }
+    
+    // Display result
+    if (result == 0) {
+        write("Result: 0\n");
+    } else if (!result) {
+        write("Result: (null)\n");
+    } else if (stringp(result)) {
+        write("Result: \"" + result + "\"\n");
+    } else if (intp(result)) {
+        write("Result: " + result + "\n");
+    } else if (objectp(result)) {
+        write("Result: " + file_name(result) + "\n");
+    } else if (arrayp(result)) {
+        write("Result: Array of " + sizeof(result) + " elements\n");
+        if (sizeof(result) > 0 && sizeof(result) <= 10) {
+            int i;
+            for (i = 0; i < sizeof(result); i++) {
+                write("  [" + i + "]: " + sprintf("%O", result[i]) + "\n");
+            }
+        }
+    } else if (mappingp(result)) {
+        write("Result: Mapping with " + sizeof(keys(result)) + " keys\n");
+    } else {
+        write("Result: " + sprintf("%O", result) + "\n");
+    }
+    
+    return 1;
+}
+
+void create() {
+    // Command registration
+}

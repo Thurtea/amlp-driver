@@ -1,0 +1,93 @@
+// /lib/objects/supplies/medkit.lpc
+// Medical kit for healing
+
+inherit "/std/object";
+
+void create() {
+    ::create();
+    
+    set_name("medkit");
+    set_id(({"medkit", "med kit", "medical kit", "kit", "bandages"}));
+    set_short("a medical kit");
+    set_long(
+        "This compact medical kit contains bandages, antiseptic, painkillers, and "
+        "basic medical supplies. It can be used to treat wounds and restore health "
+        "in the field. The kit has enough supplies for several uses.\n"
+    );
+    
+    set_weight(2);
+    set_value(500);
+    
+    set_property("medical", 1);
+    set_property("heal_amount", "3d6");
+    set_property("uses", 5);
+}
+
+void init() {
+    ::init();
+    add_action("use_medkit", "use");
+}
+
+int use_medkit(string arg) {
+    object player;
+    int heal, uses, current_hp, current_sdc, max_hp, max_sdc;
+    
+    player = this_player();
+    
+    if (!arg || (arg != "medkit" && arg != "medkit on me" && arg != "med kit")) {
+        return 0;
+    }
+    
+    if (environment(this_object()) != player) {
+        write("You must be holding the medkit to use it.\n");
+        return 1;
+    }
+    
+    uses = query_property("uses");
+    if (uses <= 0) {
+        write("The medkit is empty.\n");
+        return 1;
+    }
+    
+    // Calculate healing
+    heal = random(6) + random(6) + random(6) + 3;  // 3d6
+    
+    current_hp = player->query_hp();
+    max_hp = player->query_max_hp();
+    current_sdc = player->query_sdc();
+    max_sdc = player->query_max_sdc();
+    
+    // Heal HP first, then SDC
+    if (current_hp < max_hp) {
+        player->set_hp(current_hp + heal);
+        if (player->query_hp() > max_hp) {
+            player->set_hp(max_hp);
+        }
+        write("You use the medkit to treat your wounds. You heal " + heal + " HP.\n");
+    } else if (current_sdc < max_sdc) {
+        player->set_sdc(current_sdc + heal);
+        if (player->query_sdc() > max_sdc) {
+            player->set_sdc(max_sdc);
+        }
+        write("You use the medkit to patch up your armor. You restore " + heal + " SDC.\n");
+    } else {
+        write("You don't need healing right now.\n");
+        return 1;
+    }
+    
+    // Reduce uses
+    uses--;
+    set_property("uses", uses);
+    
+    if (uses == 0) {
+        write("The medkit is now empty.\n");
+    } else {
+        write("The medkit has " + uses + " uses remaining.\n");
+    }
+    
+    tell_room(environment(player), 
+        player->query_cap_name() + " uses a medical kit.",
+        ({ player }));
+    
+    return 1;
+}

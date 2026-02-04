@@ -1,0 +1,26 @@
+// /lib/objects/weapons/wilks_laser.lpc
+// Wilks laser pistol
+
+inherit "/std/object";
+
+void create() {
+    ::create();
+    
+    set_name("wilks laser pistol");
+    set_id(({"wilks", "laser", "pistol", "laser pistol", "wilks laser"}));
+    set_short("a Wilks laser pistol");
+    set_long(
+        "This is a Wilks 320 laser pistol, one of the most common energy weapons in "
+        "North America. Reliable, easy to use, and deadly. The pistol has a sleek "
+        "design with an ergonomic grip. A small display shows the charge level.\n"
+    );
+    
+    set_weight(2);
+    set_value(8000);
+    
+    set_property("weapon", 1);
+    set_property("weapon_type", "energy");
+    set_property("damage_dice", "3d6");
+    set_property("damage_type", "laser");
+    set_property("range", 500);
+}

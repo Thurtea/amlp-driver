@@ -1,0 +1,44 @@
+{
+  "name": "lpc-language-support",
+  "displayName": "LPC Language Support (AMLP)",
+  "description": "Language support for LPC (Lars Pensjö C) MUD library files - Optimized for AMLP driver with snippets, syntax highlighting, and efun recognition",
+  "version": "1.0.0",
+  "publisher": "amlp",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets"
+  ],
+  "keywords": [
+    "lpc",
+    "mud",
+    "amlp",
+    "lars-pensjo-c",
+    "game-development"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "lpc",
+        "aliases": ["LPC", "lpc"],
+        "extensions": [".lpc"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "lpc",
+        "scopeName": "source.lpc",
+        "path": "./syntaxes/lpc.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "lpc",
+        "path": "./snippets/lpc.json"
+      }
+    ]
+  }
+}

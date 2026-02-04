@@ -1,0 +1,114 @@
+// buy.lpc - Purchase items from shops
+
+int cmd_buy(string arg) {
+    object player, room, item_obj;
+    string item_path, item_name;
+    int price_uc, price_bmc, player_uc, player_bmc, currency_type;
+    
+    player = this_player();
+    room = environment(player);
+    
+    if (!player || !room) return 0;
+    
+    // Check if in a shop
+    if (!room->query_property("shop")) {
+        write("You are not in a shop.\n");
+        return 1;
+    }
+    
+    if (!arg || arg == "") {
+        write("Buy what? Use 'list' to see available items.\n");
+        return 1;
+    }
+    
+    // Find the item
+    item_path = room->find_item(arg);
+    
+    if (!item_path) {
+        write("The shop doesn't sell that item.\n");
+        return 1;
+    }
+    
+    // Check stock
+    if (!room->has_item(item_path)) {
+        write("That item is currently out of stock.\n");
+        return 1;
+    }
+    
+    // Load item to get info
+    item_obj = load_object(item_path);
+    if (!item_obj) {
+        write("Error loading item.\n");
+        return 1;
+    }
+    
+    item_name = item_obj->query_short();
+    price_uc = room->get_price_uc(item_path);
+    price_bmc = room->get_price_bmc(item_path);
+    currency_type = room->query_currency_type();
+    
+    player_uc = player->query_universal_credits();
+    player_bmc = player->query_black_market_credits();
+    
+    // Determine which currency to use
+    if (currency_type == 0) {  // UC only
+        if (player_uc < price_uc) {
+            write("You don't have enough universal credits. You need " + price_uc + " UC, but only have " + player_uc + " UC.\n");
+            return 1;
+        }
+        
+        // Purchase with UC
+        player->remove_universal_credits(price_uc);
+        
+    } else if (currency_type == 1) {  // BMC only
+        if (player_bmc < price_bmc) {
+            write("You don't have enough black market credits. You need " + price_bmc + " BMC, but only have " + player_bmc + " BMC.\n");
+            return 1;
+        }
+        
+        // Purchase with BMC
+        player->remove_black_market_credits(price_bmc);
+        
+    } else if (currency_type == 2) {  // Both currencies accepted
+        // Try UC first
+        if (player_uc >= price_uc) {
+            player->remove_universal_credits(price_uc);
+        } else if (player_bmc >= price_bmc) {
+            player->remove_black_market_credits(price_bmc);
+        } else {
+            write("You don't have enough credits. Price: " + price_uc + " UC or " + price_bmc + " BMC.\n");
+            write("You have: " + player_uc + " UC, " + player_bmc + " BMC.\n");
+            return 1;
+        }
+    }
+    
+    // Create the item and give to player
+    item_obj = clone_object(item_path);
+    if (!item_obj) {
+        write("Error creating item. Contact an administrator.\n");
+        // Refund
+        if (currency_type == 0) {
+            player->add_universal_credits(price_uc);
+        } else if (currency_type == 1) {
+            player->add_black_market_credits(price_bmc);
+        }
+        return 1;
+    }
+    
+    item_obj->move(player);
+    
+    // Reduce shop stock
+    room->purchase_item(item_path);
+    
+    // Success message
+    write("You purchase " + item_name + ".\n");
+    write(room->query_shopkeeper() + " says: \"Thank you for your business!\"\n");
+    
+    tell_room(room, player->query_cap_name() + " purchases " + item_name + ".", ({ player }));
+    
+    return 1;
+}
+
+void create() {
+    // Command registration
+}

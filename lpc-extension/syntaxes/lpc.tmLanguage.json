@@ -1,0 +1,141 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "LPC",
+  "scopeName": "source.lpc",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#efuns" },
+    { "include": "#constants" },
+    { "include": "#numbers" },
+    { "include": "#operators" },
+    { "include": "#functions" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.lpc",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.lpc",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.lpc",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.lpc",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.lpc",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.lpc",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.lpc",
+          "match": "\\b(if|else|while|for|do|switch|case|default|break|continue|return|foreach|catch)\\b"
+        },
+        {
+          "name": "keyword.other.lpc",
+          "match": "\\b(inherit|include)\\b"
+        },
+        {
+          "name": "storage.modifier.lpc",
+          "match": "\\b(static|private|protected|public|varargs|nomask|virtual|nosave)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.lpc",
+          "match": "\\b(int|string|object|mapping|mixed|void|float|status|array|function|buffer|class|struct)\\b"
+        }
+      ]
+    },
+    "efuns": {
+      "patterns": [
+        {
+          "name": "support.function.room.lpc",
+          "match": "\\b(set_short|set_long|set_id|add_exit|set_exits|query_short|query_long|query_exits)\\b"
+        },
+        {
+          "name": "support.function.object.lpc",
+          "match": "\\b(set_name|set_adjectives|query_name|query_adjectives|set_property|query_property)\\b"
+        },
+        {
+          "name": "support.function.efun.lpc",
+          "match": "\\b(call_other|call_out|clone_object|destruct|environment|find_object|load_object|move_object|present|query_verb|remove_call_out|say|tell_object|tell_room|this_object|this_player|write|sprintf|sscanf|explode|implode|replace_string|strlen|lower_case|upper_case|capitalize|trim|map|filter|sort_array|sizeof|member_array|allocate|keys|values|m_delete|random|time|ctime|localtime|file_size|read_file|write_file|read_bytes|write_bytes|get_dir|rm|mkdir|cp|rename|query_ip_name|query_ip_number|users|enable_commands|disable_commands|add_action|query_actions|remove_action|living|set_living_name|query_living|command|all_inventory|deep_inventory|first_inventory|next_inventory|set_heart_beat|query_heart_beat|set_light|query_light|add_weight|query_weight|can_put_and_get|prevent_insert|prevent_shadow|query_prevent_shadow|shadow|query_shadowing|set_hide|query_hide|previous_object|calling_function|function_exists|variables|call_stack|origin|caller_stack|get_eval_cost|reset_eval_cost|max_eval_cost|regexp|reg_assoc|replace_program|interactive|input_to|get_char|exec|snoop|query_snoop|query_snooping|query_idle|query_ed_mode|ed|save_object|restore_object|export_uid|geteuid|getuid|seteuid|set_bit|clear_bit|test_bit|next_bit|last_bit|count_bits|or_bits|xor_bits|and_bits|invert_bits|copy_bits|crypt|oldcrypt|md5|sha1|abs|sqrt|pow|min|max|arrayp|intp|floatp|stringp|objectp|mappingp|reverse_array)\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.lpc",
+          "match": "\\b(TRUE|FALSE|NULL)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.lpc",
+          "match": "\\b([0-9]+\\.?[0-9]*|\\.[0-9]+)([eE][+-]?[0-9]+)?\\b"
+        },
+        {
+          "name": "constant.numeric.hex.lpc",
+          "match": "\\b0[xX][0-9a-fA-F]+\\b"
+        },
+        {
+          "name": "constant.numeric.octal.lpc",
+          "match": "\\b0[0-7]+\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.scope.lpc",
+          "match": "::"
+        },
+        {
+          "name": "keyword.operator.lpc",
+          "match": "(\\+\\+|\\-\\-|\\+|\\-|\\*|\\/|%|==|!=|<=|>=|<|>|&&|\\|\\||!|&|\\||\\^|~|<<|>>|=|\\+=|\\-=|\\*=|\\/=|%=|&=|\\|=|\\^=|<<=|>>=|\\?|:)"
+        }
+      ]
+    },
+    "functions": {
+      "patterns": [
+        {
+          "name": "entity.name.function.lpc",
+          "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\()"
+        }
+      ]
+    }
+  }
+}

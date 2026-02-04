@@ -1,0 +1,54 @@
+// /lib/cmds/wizard/goto.lpc
+// Teleport to a room
+
+int cmd_goto(string arg) {
+    object player, room;
+    int privilege;
+    
+    player = this_player();
+    
+    if (!player) return 0;
+    
+    privilege = player->query_privilege();
+    
+    if (privilege < 1) {
+        write("You must be a wizard to use this command.\n");
+        return 1;
+    }
+    
+    if (!arg || arg == "") {
+        write("Usage: goto <room path>\n");
+        write("Example: goto /domains/start/village_center\n");
+        return 1;
+    }
+    
+    // Try to load the room
+    room = load_object(arg);
+    
+    if (!room) {
+        write("Failed to load room: " + arg + "\n");
+        return 1;
+    }
+    
+    // Teleport
+    write("Teleporting to: " + room->query_short() + "\n");
+    
+    tell_room(environment(player), 
+        player->query_cap_name() + " vanishes in a puff of smoke.",
+        ({ player }));
+    
+    player->move(room);
+    
+    tell_room(room,
+        player->query_cap_name() + " appears in a puff of smoke.",
+        ({ player }));
+    
+    // Look at new room
+    player->force_me("look");
+    
+    return 1;
+}
+
+void create() {
+    // Command registration
+}

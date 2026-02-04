@@ -1,0 +1,248 @@
+{
+  "Inherit Standard Room": {
+    "prefix": "room",
+    "body": [
+      "// ${1:Room Name}",
+      "",
+      "#include <globals.h>",
+      "",
+      "inherit DIR_STD + \"/room\";",
+      "",
+      "void create() {",
+      "    ::create();",
+      "    ",
+      "    set_id(\"${2:room_id}\");",
+      "    set_short(\"${3:Short Description}\");",
+      "    set_long(",
+      "        \"${4:Long description of the room.}\\n\"",
+      "    );",
+      "    ",
+      "    ${5:// add_exit(\"direction\", \"path/to/room\");}",
+      "}"
+    ],
+    "description": "Create a standard room with inherit"
+  },
+  
+  "Inherit Standard Object": {
+    "prefix": "object",
+    "body": [
+      "// ${1:Object Name}",
+      "",
+      "#include <globals.h>",
+      "",
+      "inherit DIR_STD + \"/object\";",
+      "",
+      "void create() {",
+      "    ::create();",
+      "    ",
+      "    set_id(\"${2:object_id}\");",
+      "    set_short(\"${3:a short description}\");",
+      "    set_long(\"${4:A longer description.}\");",
+      "    ${5}",
+      "}"
+    ],
+    "description": "Create a standard object with inherit"
+  },
+  
+  "Inherit Statement": {
+    "prefix": "inherit",
+    "body": [
+      "inherit ${1:DIR_STD} + \"/${2:base}\";"
+    ],
+    "description": "Add an inherit statement"
+  },
+  
+  "Include Statement": {
+    "prefix": "include",
+    "body": [
+      "#include <${1:header}>"
+    ],
+    "description": "Add an include statement"
+  },
+  
+  "Void Function": {
+    "prefix": "func",
+    "body": [
+      "void ${1:function_name}(${2}) {",
+      "    ${3:// function body}",
+      "}"
+    ],
+    "description": "Create a void function"
+  },
+  
+  "Function with Return": {
+    "prefix": "funcr",
+    "body": [
+      "${1:int} ${2:function_name}(${3}) {",
+      "    ${4:// function body}",
+      "    return ${5:value};",
+      "}"
+    ],
+    "description": "Create a function with return value"
+  },
+  
+  "Create Function": {
+    "prefix": "create",
+    "body": [
+      "void create() {",
+      "    ::create();",
+      "    ${1:// initialization code}",
+      "}"
+    ],
+    "description": "Create the standard create() function"
+  },
+  
+  "Init Function": {
+    "prefix": "init",
+    "body": [
+      "void init() {",
+      "    ::init();",
+      "    ${1:// initialization code for when object enters inventory}",
+      "}"
+    ],
+    "description": "Create the standard init() function"
+  },
+  
+  "Add Exit": {
+    "prefix": "exit",
+    "body": [
+      "add_exit(\"${1:direction}\", ${2:DIR_DOMAINS} + \"/${3:path/to/room}\");"
+    ],
+    "description": "Add an exit to a room"
+  },
+  
+  "Set Property": {
+    "prefix": "prop",
+    "body": [
+      "set_property(\"${1:property_name}\", ${2:value});"
+    ],
+    "description": "Set an object property"
+  },
+  
+  "Query Property": {
+    "prefix": "qprop",
+    "body": [
+      "query_property(\"${1:property_name}\")"
+    ],
+    "description": "Query an object property"
+  },
+  
+  "If Statement": {
+    "prefix": "if",
+    "body": [
+      "if (${1:condition}) {",
+      "    ${2:// code}",
+      "}"
+    ],
+    "description": "Create an if statement"
+  },
+  
+  "For Loop": {
+    "prefix": "for",
+    "body": [
+      "for (${1:int i = 0}; ${2:i < count}; ${3:i++}) {",
+      "    ${4:// code}",
+      "}"
+    ],
+    "description": "Create a for loop"
+  },
+  
+  "Foreach Loop": {
+    "prefix": "foreach",
+    "body": [
+      "foreach (${1:element} in ${2:array}) {",
+      "    ${3:// code}",
+      "}"
+    ],
+    "description": "Create a foreach loop"
+  },
+  
+  "Switch Statement": {
+    "prefix": "switch",
+    "body": [
+      "switch (${1:expression}) {",
+      "    case ${2:value1}:",
+      "        ${3:// code}",
+      "        break;",
+      "    case ${4:value2}:",
+      "        ${5:// code}",
+      "        break;",
+      "    default:",
+      "        ${6:// default code}",
+      "        break;",
+      "}"
+    ],
+    "description": "Create a switch statement"
+  },
+  
+  "Mapping Declaration": {
+    "prefix": "mapping",
+    "body": [
+      "mapping ${1:map_name} = ([ ${2} ]);"
+    ],
+    "description": "Declare a mapping"
+  },
+  
+  "Array Declaration": {
+    "prefix": "array",
+    "body": [
+      "${1:int} *${2:array_name} = ({ ${3} });"
+    ],
+    "description": "Declare an array"
+  },
+  
+  "String Concatenation": {
+    "prefix": "concat",
+    "body": [
+      "\"${1:string1}\" + \"${2:string2}\""
+    ],
+    "description": "Concatenate strings"
+  },
+  
+  "This Object": {
+    "prefix": "to",
+    "body": [
+      "this_object()"
+    ],
+    "description": "Reference to this object"
+  },
+  
+  "This Player": {
+    "prefix": "tp",
+    "body": [
+      "this_player()"
+    ],
+    "description": "Reference to this player"
+  },
+  
+  "Call Other": {
+    "prefix": "call",
+    "body": [
+      "call_other(${1:object}, \"${2:function}\", ${3:args})"
+    ],
+    "description": "Call a function in another object"
+  },
+  
+  "Clone Object": {
+    "prefix": "clone",
+    "body": [
+      "clone_object(${1:DIR_DOMAINS} + \"/${2:path/to/object}\")"
+    ],
+    "description": "Clone an object"
+  },
+  
+  "File Header Comment": {
+    "prefix": "header",
+    "body": [
+      "/**",
+      " * ${1:File Name}",
+      " * ",
+      " * ${2:Description}",
+      " * ",
+      " * @author ${3:Author Name}",
+      " * @created ${4:$CURRENT_YEAR-$CURRENT_MONTH-$CURRENT_DATE}",
+      " */"
+    ],
+    "description": "Add a file header comment"
+  }
+}

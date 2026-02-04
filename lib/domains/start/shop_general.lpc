@@ -1,0 +1,61 @@
+// /lib/domains/start/shop_general.lpc
+// General Store in the starting village
+
+inherit "/std/shop";
+
+void create() {
+    ::create();
+    
+    set_short("General Store");
+    set_long(
+        "This is a well-stocked general store in the heart of the village. Shelves "
+        "line the walls, filled with supplies, weapons, armor, and various adventuring "
+        "gear. A large wooden counter dominates the center of the room, behind which "
+        "the shopkeeper conducts business. A sign on the wall reads: 'BUY and SELL - "
+        "Type LIST to see inventory'.\n"
+    );
+    
+    set_exits(([
+        "out": "/domains/start/village_center"
+    ]));
+    
+    set_property("indoors", 1);
+    set_property("light", 1);
+    
+    // Configure shop
+    set_shopkeeper("Grok the merchant");
+    set_currency_type(2);  // Accept both UC and BMC
+    set_sell_rate(0.5);    // Buy items for 50% of sell price
+    
+    // Add items to inventory
+    // add_item(path, stock, uc_price, bmc_price)
+    
+    // Weapons
+    add_item("/lib/objects/weapons/vibro_blade", 5, 5000, 4000);
+    add_item("/lib/objects/weapons/wilks_laser", 3, 8000, 6500);
+    add_item("/lib/objects/weapons/ion_blaster", 2, 12000, 10000);
+    
+    // Armor
+    add_item("/lib/objects/armor/light_armor", 4, 3000, 2500);
+    add_item("/lib/objects/armor/medium_armor", 3, 7000, 6000);
+    add_item("/lib/objects/armor/heavy_armor", 2, 15000, 12000);
+    
+    // Supplies
+    add_item("/lib/objects/supplies/medkit", 10, 500, 400);
+    add_item("/lib/objects/supplies/rations", -1, 50, 40);  // Unlimited stock
+    add_item("/lib/objects/supplies/rope", -1, 100, 80);
+    add_item("/lib/objects/supplies/torch", -1, 25, 20);
+}
+
+void reset() {
+    ::reset();
+    
+    // Spawn shopkeeper NPC if not present
+    if (!present("shopkeeper")) {
+        object keeper;
+        keeper = load_object("/lib/domains/start/npcs/grok_merchant");
+        if (keeper) {
+            keeper->move(this_object());
+        }
+    }
+}

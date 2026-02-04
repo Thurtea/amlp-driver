@@ -1,0 +1,21 @@
+// /lib/objects/supplies/rations.lpc
+// Food rations
+
+inherit "/std/object";
+
+void create() {
+    ::create();
+    
+    set_name("rations");
+    set_id(({"rations", "food", "supplies", "ration pack"}));
+    set_short("a pack of rations");
+    set_long(
+        "This is a sealed pack of field rations containing preserved food and water. "
+        "Not the most appetizing meal, but it will keep you going in the wilderness.\n"
+    );
+    
+    set_weight(1);
+    set_value(50);
+    
+    set_property("food", 1);
+}

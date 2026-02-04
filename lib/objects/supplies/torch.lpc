@@ -1,0 +1,22 @@
+// /lib/objects/supplies/torch.lpc
+// Torch for light
+
+inherit "/std/object";
+
+void create() {
+    ::create();
+    
+    set_name("torch");
+    set_id(({"torch", "light"}));
+    set_short("an unlit torch");
+    set_long(
+        "This is a simple wooden torch wrapped with oil-soaked rags. It can be lit "
+        "to provide light in dark areas.\n"
+    );
+    
+    set_weight(1);
+    set_value(25);
+    
+    set_property("torch", 1);
+    set_property("lit", 0);
+}

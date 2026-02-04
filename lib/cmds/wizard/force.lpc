@@ -1,0 +1,53 @@
+// /lib/cmds/wizard/force.lpc
+// Force another player to execute a command
+
+int cmd_force(string arg) {
+    object player, target;
+    string target_name, command;
+    int privilege;
+    
+    player = this_player();
+    
+    if (!player) return 0;
+    
+    privilege = player->query_privilege();
+    
+    if (privilege < 2) {
+        write("You must be an admin to use this command.\n");
+        return 1;
+    }
+    
+    if (!arg || arg == "") {
+        write("Usage: force <player> <command>\n");
+        write("Example: force bob say hello\n");
+        return 1;
+    }
+    
+    // Parse: force <target> <command>
+    if (sscanf(arg, "%s %s", target_name, command) != 2) {
+        write("Usage: force <player> <command>\n");
+        return 1;
+    }
+    
+    // Find target
+    target = find_player(target_name);
+    
+    if (!target) {
+        write("Player '" + target_name + "' not found.\n");
+        return 1;
+    }
+    
+    // Execute command as target
+    write("Forcing " + target->query_cap_name() + " to: " + command + "\n");
+    
+    tell_object(target, "[You are being forced to: " + command + "]\n");
+    
+    // Have the target execute the command
+    target->force_me(command);
+    
+    return 1;
+}
+
+void create() {
+    // Command registration
+}

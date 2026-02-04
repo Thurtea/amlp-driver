@@ -1,0 +1,216 @@
+// /std/shop.lpc
+// Standard shop inherit for merchant locations
+
+inherit "/std/room";
+
+// Shop configuration
+mapping inventory;        // Maps item_path -> stock_quantity (-1 = unlimited)
+mapping prices_uc;        // Maps item_path -> UC price
+mapping prices_bmc;       // Maps item_path -> BMC price
+string *item_list;        // Ordered list of items for display
+string shopkeeper_name;   // Name of merchant
+int currency_type;        // 0 = UC only, 1 = BMC only, 2 = both
+float sell_rate;          // Percentage of buy price when selling (0.5 = 50%)
+
+void create() {
+    ::create();
+    
+    inventory = ([ ]);
+    prices_uc = ([ ]);
+    prices_bmc = ([ ]);
+    item_list = ({});
+    shopkeeper_name = "the shopkeeper";
+    currency_type = 0;  // Default: UC only
+    sell_rate = 0.5;    // Default: sell for 50% of buy price
+    
+    set_property("shop", 1);
+    set_property("no_combat", 1);  // No fighting in shops
+}
+
+void set_shopkeeper(string name) {
+    shopkeeper_name = name;
+}
+
+string query_shopkeeper() {
+    return shopkeeper_name;
+}
+
+void set_currency_type(int type) {
+    // 0 = UC only, 1 = BMC only, 2 = both
+    currency_type = type;
+}
+
+int query_currency_type() {
+    return currency_type;
+}
+
+void set_sell_rate(float rate) {
+    if (rate < 0.0) rate = 0.0;
+    if (rate > 1.0) rate = 1.0;
+    sell_rate = rate;
+}
+
+float query_sell_rate() {
+    return sell_rate;
+}
+
+// Add an item to shop inventory
+void add_item(string item_path, int stock, int price_uc, int price_bmc) {
+    object item_obj;
+    
+    // Validate item exists
+    item_obj = load_object(item_path);
+    if (!item_obj) {
+        write("ERROR: Failed to load item: " + item_path + "\n");
+        return;
+    }
+    
+    inventory[item_path] = stock;
+    prices_uc[item_path] = price_uc;
+    prices_bmc[item_path] = price_bmc;
+    item_list += ({ item_path });
+}
+
+// Query if item is in stock
+int has_item(string item_path) {
+    if (!member_array(item_path, item_list)) return 0;
+    if (inventory[item_path] == 0) return 0;  // Out of stock
+    return 1;
+}
+
+// Get UC price for item
+int get_price_uc(string item_path) {
+    if (!prices_uc[item_path]) return 0;
+    return prices_uc[item_path];
+}
+
+// Get BMC price for item
+int get_price_bmc(string item_path) {
+    if (!prices_bmc[item_path]) return 0;
+    return prices_bmc[item_path];
+}
+
+// Reduce stock when item purchased
+void purchase_item(string item_path) {
+    if (inventory[item_path] == -1) return;  // Unlimited stock
+    inventory[item_path]--;
+    if (inventory[item_path] < 0) inventory[item_path] = 0;
+}
+
+// Increase stock when item sold to shop
+void sell_item_to_shop(string item_path) {
+    if (inventory[item_path] == -1) return;  // Unlimited stock
+    inventory[item_path]++;
+}
+
+// Display shop inventory
+void list_inventory() {
+    object player, item_obj;
+    string item_path, output;
+    int i, price_uc, price_bmc, stock;
+    
+    player = this_player();
+    if (!player) return;
+    
+    output = "\n";
+    output += "===========================[ SHOP INVENTORY ]===========================\n";
+    output += shopkeeper_name + " says: \"Welcome! Here's what I have for sale:\"\n\n";
+    
+    if (sizeof(item_list) == 0) {
+        output += "  (Shop is currently empty)\n";
+    } else {
+        for (i = 0; i < sizeof(item_list); i++) {
+            item_path = item_list[i];
+            item_obj = load_object(item_path);
+            
+            if (!item_obj) continue;
+            
+            stock = inventory[item_path];
+            price_uc = prices_uc[item_path];
+            price_bmc = prices_bmc[item_path];
+            
+            output += "  [" + (i+1) + "] " + item_obj->query_short();
+            
+            if (stock == -1) {
+                output += " (unlimited stock)";
+            } else if (stock == 0) {
+                output += " [OUT OF STOCK]";
+            } else {
+                output += " (" + stock + " in stock)";
+            }
+            output += "\n";
+            
+            // Show prices based on currency type
+            if (currency_type == 0 || currency_type == 2) {
+                if (price_uc > 0) {
+                    output += "      Price: " + price_uc + " UC";
+                    if (currency_type == 2 && price_bmc > 0) {
+                        output += " or " + price_bmc + " BMC";
+                    }
+                    output += "\n";
+                }
+            } else if (currency_type == 1) {
+                if (price_bmc > 0) {
+                    output += "      Price: " + price_bmc + " BMC\n";
+                }
+            }
+            
+            output += "\n";
+        }
+    }
+    
+    output += "\nUse 'buy <item name>' or 'buy <number>' to purchase.\n";
+    output += "Use 'sell <item name>' to sell items to the shop.\n";
+    output += "========================================================================\n\n";
+    
+    write(output);
+}
+
+// Find item by name or number
+string find_item(string search) {
+    object item_obj;
+    string item_path;
+    int item_num, i;
+    
+    if (!search) return 0;
+    
+    // Check if it's a number
+    if (sscanf(search, "%d", item_num) == 1) {
+        if (item_num < 1 || item_num > sizeof(item_list)) {
+            return 0;
+        }
+        return item_list[item_num - 1];
+    }
+    
+    // Search by name
+    for (i = 0; i < sizeof(item_list); i++) {
+        item_path = item_list[i];
+        item_obj = load_object(item_path);
+        
+        if (!item_obj) continue;
+        
+        // Check if search matches short description
+        if (regexp(lower_case(item_obj->query_short()), lower_case(search))) {
+            return item_path;
+        }
+        
+        // Check if search matches an ID
+        if (item_obj->id(search)) {
+            return item_path;
+        }
+    }
+    
+    return 0;
+}
+
+void init() {
+    ::init();
+    add_action("list_cmd", "list");
+    add_action("list_cmd", "browse");
+    add_action("list_cmd", "shop");
+}
+
+int list_cmd(string arg) {
+    list_inventory();
+    return 1;
+}

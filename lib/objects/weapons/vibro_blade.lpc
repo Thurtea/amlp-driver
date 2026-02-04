@@ -1,0 +1,25 @@
+// /lib/objects/weapons/vibro_blade.lpc
+// Standard vibro-blade weapon
+
+inherit "/std/object";
+
+void create() {
+    ::create();
+    
+    set_name("vibro-blade");
+    set_id(({"vibro-blade", "blade", "sword", "vibroblade"}));
+    set_short("a vibrating combat blade");
+    set_long(
+        "This is a vibro-blade, a high-frequency vibrating sword that can cut through "
+        "most materials with ease. The blade hums with barely contained energy, its "
+        "edge a blur of motion. Standard issue for many mercenaries and soldiers.\n"
+    );
+    
+    set_weight(3);
+    set_value(5000);
+    
+    set_property("weapon", 1);
+    set_property("weapon_type", "blade");
+    set_property("damage_dice", "2d6");
+    set_property("damage_bonus", 4);
+}

@@ -49,6 +49,10 @@ int lives;                // Current lives remaining
 int max_lives;            // Maximum lives (starts 5, caps at 15)
 string *scars;            // Array of scar descriptions from deaths
 
+// Currency system
+int universal_credits;    // Standard currency (UC)
+int black_market_credits; // Black market currency (BMC)
+
 // Action registry for add_action/enable_commands
 private int commands_enabled;
 private mapping actions;  // Maps verb -> ({ function, flags })
@@ -88,6 +92,10 @@ void create() {
     lives = 5;            // Start with 5 lives
     max_lives = 5;        // Max lives starts at 5
     scars = ({});         // No scars initially
+    
+    // Currency init
+    universal_credits = 0;
+    black_market_credits = 0;
     
     // Combat system init
     combat_target = 0;
@@ -1522,5 +1530,73 @@ void die(object killer) {
     // End combat
     if (combat_target) {
         set_combat_target(0);
+    }
+}
+
+// ==================== CURRENCY SYSTEM ====================
+
+int query_universal_credits() {
+    return universal_credits;
+}
+
+int query_black_market_credits() {
+    return black_market_credits;
+}
+
+int query_credits() {
+    return universal_credits;  // Default to UC
+}
+
+void set_universal_credits(int amount) {
+    if (amount < 0) amount = 0;
+    universal_credits = amount;
+}
+
+void set_black_market_credits(int amount) {
+    if (amount < 0) amount = 0;
+    black_market_credits = amount;
+}
+
+void add_universal_credits(int amount) {
+    universal_credits += amount;
+    if (universal_credits < 0) universal_credits = 0;
+}
+
+void add_black_market_credits(int amount) {
+    black_market_credits += amount;
+    if (black_market_credits < 0) black_market_credits = 0;
+}
+
+int remove_universal_credits(int amount) {
+    if (universal_credits < amount) {
+        return 0;  // Not enough credits
+    }
+    universal_credits -= amount;
+    return 1;  // Success
+}
+
+int remove_black_market_credits(int amount) {
+    if (black_market_credits < amount) {
+        return 0;  // Not enough credits
+    }
+    black_market_credits -= amount;
+    return 1;  // Success
+}
+
+// Transfer credits between players/NPCs
+int transfer_credits(object target, int amount, int type) {
+    if (!target) return 0;
+    if (amount <= 0) return 0;
+    
+    if (type == 0) {  // Universal credits
+        if (universal_credits < amount) return 0;
+        universal_credits -= amount;
+        target->add_universal_credits(amount);
+        return 1;
+    } else {  // Black market credits
+        if (black_market_credits < amount) return 0;
+        black_market_credits -= amount;
+        target->add_black_market_credits(amount);
+        return 1;
     }
 }

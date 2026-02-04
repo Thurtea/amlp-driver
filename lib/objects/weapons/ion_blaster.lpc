@@ -1,0 +1,27 @@
+// /lib/objects/weapons/ion_blaster.lpc
+// Ion blaster weapon
+
+inherit "/std/object";
+
+void create() {
+    ::create();
+    
+    set_name("ion blaster");
+    set_id(({"ion", "blaster", "ion blaster"}));
+    set_short("an ion blaster");
+    set_long(
+        "This powerful ion blaster fires concentrated bolts of ionized energy capable "
+        "of punching through armor and dealing devastating damage. The weapon is heavier "
+        "than standard laser rifles but packs considerably more punch. Blue energy "
+        "crackles along the barrel.\n"
+    );
+    
+    set_weight(5);
+    set_value(12000);
+    
+    set_property("weapon", 1);
+    set_property("weapon_type", "energy");
+    set_property("damage_dice", "4d6");
+    set_property("damage_type", "ion");
+    set_property("damage_bonus", 6);
+}

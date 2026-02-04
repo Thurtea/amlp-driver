@@ -1,0 +1,9 @@
+// balance.lpc - Alias for credits command
+
+int cmd_balance(string arg) {
+    return call_other("/lib/cmds/credits", "cmd_credits", arg);
+}
+
+void create() {
+    // Command registration happens through add_action in player init
+}

@@ -1,0 +1,25 @@
+// /lib/objects/armor/medium_armor.lpc
+// Medium armor
+
+inherit "/std/object";
+
+void create() {
+    ::create();
+    
+    set_name("medium armor");
+    set_id(({"armor", "medium armor", "medium", "platemail", "armor"}));
+    set_short("medium combat armor");
+    set_long(
+        "This medium armor provides a good balance between protection and mobility. "
+        "It consists of reinforced plates covering vital areas, with flexible joints "
+        "allowing for reasonable movement. Popular among soldiers and mercenaries.\n"
+    );
+    
+    set_weight(20);
+    set_value(7000);
+    
+    set_property("armor", 1);
+    set_property("armor_type", "medium");
+    set_property("sdc_bonus", 60);
+    set_property("ac_bonus", 4);
+}
