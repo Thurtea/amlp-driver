@@ -86,13 +86,19 @@ mixed main(object caller, string arg) {
     tell_object(caller,
                 "You are now disguised as a " + target_race + ".");
     
-    tell_room(environment(caller),
-              "" + caller->query_cap_name() + " shimmers with golden light!",
-              ({ caller }));
-    tell_room(environment(caller),
-              "When the light fades, they have transformed into a " + 
-              target_race + "!",
-              ({ caller }));
+    // Tell room with identity-aware names
+    object room = environment(caller);
+    if (room) {
+        object *people = all_inventory(room);
+        foreach (object person : people) {
+            if (living(person) && person != caller) {
+                string shifter_name = caller->query_introduction_name(person);
+                tell_object(person, shifter_name + " shimmers with golden light!\n");
+                tell_object(person, "When the light fades, they have transformed into a " + 
+                           target_race + "!\n");
+            }
+        }
+    }
     
     return 1;
 }
@@ -132,12 +138,18 @@ mixed revert_form(object caller, string true_race) {
     tell_object(caller,
                 "You have returned to your natural state.");
     
-    tell_room(environment(caller),
-              "" + caller->query_cap_name() + " blazes with crimson light!",
-              ({ caller }));
-    tell_room(environment(caller),
-              "The illusion shatters, revealing a Great Horned Dragon!",
-              ({ caller }));
+    // Tell room with identity-aware names
+    object room = environment(caller);
+    if (room) {
+        object *people = all_inventory(room);
+        foreach (object person : people) {
+            if (living(person) && person != caller) {
+                string shifter_name = caller->query_introduction_name(person);
+                tell_object(person, shifter_name + " blazes with crimson light!\n");
+                tell_object(person, "The illusion shatters, revealing a Great Horned Dragon!\n");
+            }
+        }
+    }
     
     return 1;
 }

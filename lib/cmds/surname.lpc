@@ -90,10 +90,10 @@ int main(string arg) {
     user->set_surname(new_surname);
     
     // Announce to user
-    tell_object(user, "\n%^BOLD%^%^GREEN%^========================================%^RESET%^\n");
-    tell_object(user, sprintf("%^BOLD%^%^GREEN%^   %s %s%^RESET%^\n", 
+    tell_object(user, "\n========================================\n");
+    tell_object(user, sprintf("   %s %s\n", 
                 user->query_name(), new_surname));
-    tell_object(user, "%^BOLD%^%^GREEN%^========================================%^RESET%^\n\n");
+    tell_object(user, "========================================\n\n");
     tell_object(user, "Your surname has been set!\n");
     tell_object(user, sprintf("You are now known as: %s\n", user->query_full_name()));
     tell_object(user, "\nThis surname will be remembered throughout the lands.\n");
@@ -111,7 +111,7 @@ int main(string arg) {
         object *people = all_inventory(room);
         foreach (object person in people) {
             if (living(person) && person != user) {
-                tell_object(person, sprintf("\n%^BOLD%^%s has taken the surname '%s'!%^RESET%^\n",
+                tell_object(person, sprintf("\n%s has taken the surname '%s'!\n",
                     capitalize(user->query_name()), new_surname));
             }
         }

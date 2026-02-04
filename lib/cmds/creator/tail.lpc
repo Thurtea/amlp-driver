@@ -1,0 +1,139 @@
+/*
+ * /lib/cmds/creator/tail.lpc - Display last lines of file
+ * Phase 2: Essential Creator Filesystem Commands
+ * 
+ * Usage:
+ *   tail <file>           Show last 10 lines
+ *   tail -n <count> <file> Show last N lines
+ *   tail -f <file>        Follow mode (show last 10 and monitor - limited implementation)
+ */
+
+int main(string args) {
+    object player = previous_object();
+    string filepath, resolved, content;
+    string *parts, *lines;
+    int num_lines = 10; // Default: show last 10 lines
+    int follow_mode = 0;
+    int i, start_line;
+    
+    if (!args || args == "") {
+        tell_object(player, "Syntax: tail [-n <lines>] [-f] <file>\n");
+        tell_object(player, "Show last N lines of a file (default: 10)\n");
+        return 1;
+    }
+    
+    // Parse arguments
+    parts = explode(args, " ") - ({ "" });
+    if (sizeof(parts) < 1) {
+        tell_object(player, "Error: Missing file path\n");
+        return 1;
+    }
+    
+    // Parse flags
+    i = 0;
+    while (i < sizeof(parts) && parts[i][0] == '-') {
+        if (parts[i] == "-n") {
+            if (i + 1 >= sizeof(parts)) {
+                tell_object(player, "Error: -n requires line count\n");
+                return 1;
+            }
+            num_lines = to_int(parts[i + 1]);
+            if (num_lines < 1) {
+                tell_object(player, "Error: Line count must be positive\n");
+                return 1;
+            }
+            i += 2;
+        } else if (parts[i] == "-f") {
+            follow_mode = 1;
+            i++;
+        } else {
+            tell_object(player, "Error: Unknown option: " + parts[i] + "\n");
+            return 1;
+        }
+    }
+    
+    if (i >= sizeof(parts)) {
+        tell_object(player, "Error: Missing file path\n");
+        return 1;
+    }
+    
+    filepath = parts[i];
+    
+    // Resolve path
+    resolved = player->resolve_path(filepath);
+    
+    // Auto-add .lpc extension if needed and file doesn't exist
+    if (file_size(resolved) == -1) {
+        if (strlen(resolved) < 4 || resolved[strlen(resolved)-4..] != ".lpc") {
+            string with_lpc = resolved + ".lpc";
+            if (file_size(with_lpc) > 0) {
+                resolved = with_lpc;
+            }
+        }
+    }
+    
+    // Check if file exists
+    int fsize = file_size(resolved);
+    if (fsize == -1) {
+        tell_object(player, "Error: File not found: " + filepath + "\n");
+        return 1;
+    } else if (fsize == -2) {
+        tell_object(player, "Error: " + resolved + " is a directory\n");
+        return 1;
+    } else if (fsize == 0) {
+        tell_object(player, "File is empty: " + resolved + "\n");
+        return 1;
+    }
+    
+    // Read file
+    content = read_file(resolved);
+    if (!content) {
+        tell_object(player, "Error: Cannot read file: " + resolved + "\n");
+        return 1;
+    }
+    
+    lines = explode(content, "\n");
+    
+    // Display header
+    tell_object(player, sprintf("==> %s <==\n", resolved));
+    
+    // Calculate starting line for tail display
+    if (sizeof(lines) <= num_lines) {
+        start_line = 0;
+    } else {
+        start_line = sizeof(lines) - num_lines;
+    }
+    
+    // Show last N lines
+    for (i = start_line; i < sizeof(lines); i++) {
+        tell_object(player, lines[i] + "\n");
+    }
+    
+    // Follow mode note
+    if (follow_mode) {
+        tell_object(player, "\n[Follow mode (-f) not fully implemented in MUD environment]\n");
+        tell_object(player, "[Use 'tail " + filepath + "' again to see updates]\n");
+    }
+    
+    return 1;
+}
+
+void help() {
+    write("Syntax: tail [-n <lines>] [-f] <file>\n");
+    write("Display the last lines of a file.\n");
+    write("\n");
+    write("Options:\n");
+    write("  -n <lines>  Number of lines to show (default: 10)\n");
+    write("  -f          Follow mode (note: limited implementation)\n");
+    write("\n");
+    write("Examples:\n");
+    write("  tail object.lpc              Show last 10 lines\n");
+    write("  tail -n 5 /lib/std/room.lpc  Show last 5 lines\n");
+    write("  tail -n 20 master.lpc        Show last 20 lines\n");
+    write("  tail -f /log/debug.log       Show last 10 and monitor\n");
+    write("\n");
+    write("Note: Automatically adds .lpc extension if file not found.\n");
+    write("Note: Follow mode (-f) shows a snapshot; re-run command for updates.\n");
+    write("\n");
+    write("See also: head, cat, grep\n");
+}

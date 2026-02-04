@@ -1,5 +1,5 @@
 /*
- * /lib/cmds/wizard/load.lpc - Load an object into memory
+ * /lib/cmds/creator/load.lpc - Load an object into memory
  * Phase 4: Object Management
  * 
  * Usage:

@@ -1,5 +1,5 @@
 /*
- * /lib/cmds/wizard/clone.lpc - Clone an object into inventory
+ * /lib/cmds/creator/clone.lpc - Clone an object into inventory
  * Phase 4: Object Management
  * 
  * Usage:

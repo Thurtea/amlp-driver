@@ -99,8 +99,9 @@ int main(string arg) {
         object *people = all_inventory(room);
         foreach (object person in people) {
             if (living(person) && person != user) {
+                string actor_name = user->query_introduction_name(person);
                 tell_object(person, sprintf("%s wields %s.\n",
-                    capitalize(user->query_name()), item_name));
+                    actor_name, item_name));
             }
         }
     }

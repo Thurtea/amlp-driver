@@ -1,4 +1,4 @@
-// /lib/cmds/wizard/eval.lpc
+// /lib/cmds/creator/eval.lpc
 // Execute LPC code directly - for wizards and admins only
 
 int cmd_eval(string arg) {

@@ -56,17 +56,17 @@ int main(string arg) {
                         string condition_str;
                         
                         if (condition >= 90) {
-                            condition_str = "%^GREEN%^[Perfect]%^RESET%^";
+                            condition_str = "[Perfect]";
                         } else if (condition >= 70) {
-                            condition_str = "%^GREEN%^[Good]%^RESET%^";
+                            condition_str = "[Good]";
                         } else if (condition >= 50) {
-                            condition_str = "%^YELLOW%^[Worn]%^RESET%^";
+                            condition_str = "[Worn]";
                         } else if (condition >= 25) {
-                            condition_str = "%^YELLOW%^[Damaged]%^RESET%^";
+                            condition_str = "[Damaged]";
                         } else if (condition > 0) {
-                            condition_str = "%^RED%^[Critical]%^RESET%^";
+                            condition_str = "[Critical]";
                         } else {
-                            condition_str = "%^RED%^[BROKEN]%^RESET%^";
+                            condition_str = "[BROKEN]";
                         }
                         
                         output += " " + condition_str;

@@ -1,5 +1,5 @@
 /*
- * /lib/cmds/wizard/update.lpc - Reload/recompile an object
+ * /lib/cmds/creator/update.lpc - Reload/recompile an object
  * Phase 4: Object Management
  * 
  * Usage:

@@ -1,0 +1,117 @@
+/*
+ * /lib/cmds/creator/head.lpc - Display first lines of file
+ * Phase 2: Essential Creator Filesystem Commands
+ * 
+ * Usage:
+ *   head <file>           Show first 10 lines
+ *   head -n <count> <file> Show first N lines
+ */
+
+int main(string args) {
+    object player = previous_object();
+    string filepath, resolved, content;
+    string *parts, *lines;
+    int num_lines = 10; // Default: show first 10 lines
+    int i;
+    
+    if (!args || args == "") {
+        tell_object(player, "Syntax: head [-n <lines>] <file>\n");
+        tell_object(player, "Show first N lines of a file (default: 10)\n");
+        return 1;
+    }
+    
+    // Parse arguments
+    parts = explode(args, " ") - ({ "" });
+    if (sizeof(parts) < 1) {
+        tell_object(player, "Error: Missing file path\n");
+        return 1;
+    }
+    
+    // Check for -n flag
+    i = 0;
+    if (parts[0] == "-n") {
+        if (sizeof(parts) < 3) {
+            tell_object(player, "Error: -n requires line count and file path\n");
+            tell_object(player, "Syntax: head -n <lines> <file>\n");
+            return 1;
+        }
+        
+        num_lines = to_int(parts[1]);
+        if (num_lines < 1) {
+            tell_object(player, "Error: Line count must be positive\n");
+            return 1;
+        }
+        
+        filepath = parts[2];
+    } else {
+        filepath = parts[0];
+    }
+    
+    // Resolve path
+    resolved = player->resolve_path(filepath);
+    
+    // Auto-add .lpc extension if needed and file doesn't exist
+    if (file_size(resolved) == -1) {
+        if (strlen(resolved) < 4 || resolved[strlen(resolved)-4..] != ".lpc") {
+            string with_lpc = resolved + ".lpc";
+            if (file_size(with_lpc) > 0) {
+                resolved = with_lpc;
+            }
+        }
+    }
+    
+    // Check if file exists
+    int fsize = file_size(resolved);
+    if (fsize == -1) {
+        tell_object(player, "Error: File not found: " + filepath + "\n");
+        return 1;
+    } else if (fsize == -2) {
+        tell_object(player, "Error: " + resolved + " is a directory\n");
+        return 1;
+    } else if (fsize == 0) {
+        tell_object(player, "File is empty: " + resolved + "\n");
+        return 1;
+    }
+    
+    // Read file
+    content = read_file(resolved);
+    if (!content) {
+        tell_object(player, "Error: Cannot read file: " + resolved + "\n");
+        return 1;
+    }
+    
+    lines = explode(content, "\n");
+    
+    // Display header
+    tell_object(player, sprintf("==> %s <==\n", resolved));
+    
+    // Show first N lines
+    int lines_to_show = num_lines < sizeof(lines) ? num_lines : sizeof(lines);
+    for (i = 0; i < lines_to_show; i++) {
+        tell_object(player, lines[i] + "\n");
+    }
+    
+    // Show summary if file has more lines
+    if (sizeof(lines) > num_lines) {
+        tell_object(player, sprintf("\n... (%d more lines)\n", sizeof(lines) - num_lines));
+    }
+    
+    return 1;
+}
+
+void help() {
+    write("Syntax: head [-n <lines>] <file>\n");
+    write("Display the first lines of a file.\n");
+    write("\n");
+    write("Options:\n");
+    write("  -n <lines>  Number of lines to show (default: 10)\n");
+    write("\n");
+    write("Examples:\n");
+    write("  head object.lpc              Show first 10 lines\n");
+    write("  head -n 5 /lib/std/room.lpc  Show first 5 lines\n");
+    write("  head -n 20 master.lpc        Show first 20 lines\n");
+    write("\n");
+    write("Note: Automatically adds .lpc extension if file not found.\n");
+    write("\n");
+    write("See also: tail, cat, grep\n");
+}

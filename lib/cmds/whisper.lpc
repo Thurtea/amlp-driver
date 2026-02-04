@@ -40,8 +40,9 @@ int main(string arg) {
     }
     
     // Send the whisper
+    string whisperer_name = user->query_introduction_name(target);
     tell_object(target, sprintf("%s whispers to you: %s\n", 
-        capitalize(user->query_name()), message));
+        whisperer_name, message));
     tell_object(user, sprintf("You whisper to %s: %s\n", 
         capitalize(target->query_name()), message));
     
@@ -49,9 +50,10 @@ int main(string arg) {
     object *inv = all_inventory(room);
     for (int i = 0; i < sizeof(inv); i++) {
         if (inv[i] != user && inv[i] != target && living(inv[i])) {
+            string whisperer_seen = user->query_introduction_name(inv[i]);
+            string target_seen = target->query_introduction_name(inv[i]);
             tell_object(inv[i], sprintf("%s whispers something to %s.\n",
-                capitalize(user->query_name()), 
-                capitalize(target->query_name())));
+                whisperer_seen, target_seen));
         }
     }
     

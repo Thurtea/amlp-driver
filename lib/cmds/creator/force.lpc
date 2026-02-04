@@ -1,4 +1,4 @@
-// /lib/cmds/wizard/force.lpc
+// /lib/cmds/creator/force.lpc
 // Force another player to execute a command
 
 int cmd_force(string arg) {

@@ -1,5 +1,5 @@
 /*
- * /lib/cmds/wizard/destruct.lpc - Destroy cloned objects
+ * /lib/cmds/creator/destruct.lpc - Destroy cloned objects
  * Phase 4: Object Management
  * 
  * Usage:

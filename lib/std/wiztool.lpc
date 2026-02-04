@@ -24,8 +24,8 @@ int attach(object player) {
     }
 
     owner = player;
-    catch(tell_object(owner, "\n%^BOLD%^Wiztool attached.%^RESET%^") );
-    catch(tell_object(owner, "Type '%^BOLD%^wiz help%^RESET%^' for wizard commands.\n") );
+    catch(tell_object(owner, "\nWiztool attached.") );
+    catch(tell_object(owner, "Type 'wiz help' for wizard commands.\n") );
 
     write_file("/log/server.log", sprintf("[DEBUG wiztool] attach() succeeded for player=%s\n",
         (owner && function_exists("query_name", owner) ? owner->query_name() : "<unknown>")));
@@ -60,6 +60,10 @@ int process_command(string verb, string args) {
         case "more":    cmd_more(args); return 1;
         case "mkdir":   cmd_mkdir(args); return 1;
         case "rm":      cmd_rm(args); return 1;
+        case "grep":    cmd_grep(args); return 1;
+        case "find":    cmd_find(args); return 1;
+        case "head":    cmd_head(args); return 1;
+        case "tail":    cmd_tail(args); return 1;
         
         // Object commands
         case "clone":   cmd_clone(args); return 1;
@@ -281,6 +285,40 @@ void cmd_rm(string file) {
     } else {
         tell_object(owner, "Failed to remove: " + path);
     }
+}
+
+void cmd_grep(string args) {
+    if (!args || args == "") {
+        tell_object(owner, "Usage: grep [options] <pattern> <path>");
+        tell_object(owner, "Options: -i (case-insensitive), -n (line numbers), -r (recursive)");
+        return;
+    }
+    return call_other("/lib/cmds/creator/grep", "main", args);
+}
+
+void cmd_find(string args) {
+    if (!args || args == "") {
+        tell_object(owner, "Usage: find <directory> [options]");
+        tell_object(owner, "Options: -name <pattern>, -type f|d");
+        return;
+    }
+    return call_other("/lib/cmds/creator/find", "main", args);
+}
+
+void cmd_head(string args) {
+    if (!args || args == "") {
+        tell_object(owner, "Usage: head [-n <lines>] <file>");
+        return;
+    }
+    return call_other("/lib/cmds/creator/head", "main", args);
+}
+
+void cmd_tail(string args) {
+    if (!args || args == "") {
+        tell_object(owner, "Usage: tail [-n <lines>] [-f] <file>");
+        return;
+    }
+    return call_other("/lib/cmds/creator/tail", "main", args);
 }
 
 // === OBJECT COMMANDS ===
@@ -512,9 +550,9 @@ void cmd_wiz(string args) {
 }
 
 void show_help() {
-    tell_object(owner, "\n%^BOLD%^=== Wiztool Commands ===%^RESET%^\n");
+    tell_object(owner, "\n=== Wiztool Commands ===\n");
     
-    tell_object(owner, "%^BOLD%^Filesystem:%^RESET%^");
+    tell_object(owner, "Filesystem:");
     tell_object(owner, "  cd <dir>         - Change directory");
     tell_object(owner, "  ls [dir]         - List directory contents");
     tell_object(owner, "  pwd              - Show current directory");
@@ -522,21 +560,25 @@ void show_help() {
     tell_object(owner, "  more <file>      - Display file with pagination");
     tell_object(owner, "  mkdir <dir>      - Create directory");
     tell_object(owner, "  rm <file>        - Remove file");
+    tell_object(owner, "  grep <pat> <path> - Search files for pattern");
+    tell_object(owner, "  find <dir> -name  - Find files by name");
+    tell_object(owner, "  head [-n N] <file> - Show first N lines");
+    tell_object(owner, "  tail [-n N] <file> - Show last N lines");
     
-    tell_object(owner, "\n%^BOLD%^Objects:%^RESET%^");
+    tell_object(owner, "\nObjects:");
     tell_object(owner, "  clone <file>     - Clone an object");
     tell_object(owner, "  dest <object>    - Destruct an object");
     tell_object(owner, "  update <file>    - Reload an object");
     tell_object(owner, "  load <file>      - Load an object");
     tell_object(owner, "  objects          - List all loaded objects");
     
-    tell_object(owner, "\n%^BOLD%^Development:%^RESET%^");
+    tell_object(owner, "\nDevelopment:");
     tell_object(owner, "  eval <code>      - Evaluate LPC expression");
     tell_object(owner, "  call <obj> <fn>  - Call function on object");
     tell_object(owner, "  trace <level>    - Set trace level");
     tell_object(owner, "  errors           - Show recent errors");
     
-    tell_object(owner, "\n%^BOLD%^Navigation:%^RESET%^");
+    tell_object(owner, "\nNavigation:");
     tell_object(owner, "  goto <room>      - Teleport to room");
     
     tell_object(owner, "");

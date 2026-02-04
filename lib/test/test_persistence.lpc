@@ -1,0 +1,136 @@
+// test_persistence.lpc - Test identity system persistence
+// Phase 1 testing script
+
+#include <globals.h>
+
+void main(object user, string arg) {
+    write("\n========================================\n");
+    write("IDENTITY SYSTEM - PHASE 1 TEST\n");
+    write("Persistence Layer Testing\n");
+    write("========================================\n\n");
+    
+    // Test introduction and persistence
+    test_introduction_basic(user);
+    test_persistence_storage(user);
+    test_sync_on_login(user);
+    
+    write("\n========================================\n");
+    write("Phase 1 Testing Complete\n");
+    write("========================================\n\n");
+}
+
+void test_introduction_basic(object user) {
+    write("TEST 1: Basic Introduction\n");
+    write("----------------------------\n");
+    
+    // Find or simulate test players
+    object alice = find_player("alice");
+    object bob = find_player("bob");
+    
+    if (!alice || !bob) {
+        write("  ⚠ WARNING: Need two test players 'alice' and 'bob' online\n");
+        write("  Manual test required:\n");
+        write("    1. Login as 'alice' and 'bob'\n");
+        write("    2. alice> introduce bob\n");
+        write("    3. bob> introduce alice\n");
+        write("    4. Verify mutual introduction\n\n");
+        return;
+    }
+    
+    // Clear existing introductions
+    alice->set("introduced_to", ([ ]));
+    alice->set("remembered_names", ([ ]));
+    bob->set("introduced_to", ([ ]));
+    bob->set("remembered_names", ([ ]));
+    
+    // Test mutual introduction
+    alice->introduce_to(bob);
+    
+    if (alice->query_introduced(bob)) {
+        write("  ✓ Alice knows Bob after introduction\n");
+    } else {
+        write("  ✗ FAIL: Alice doesn't know Bob after introduction\n");
+    }
+    
+    if (bob->query_introduced(alice)) {
+        write("  ✓ Bob knows Alice (mutual introduction works)\n");
+    } else {
+        write("  ✗ FAIL: Bob doesn't know Alice (mutual introduction failed)\n");
+    }
+    
+    write("\n");
+}
+
+void test_persistence_storage(object user) {
+    write("TEST 2: Persistent Storage\n");
+    write("----------------------------\n");
+    
+    object alice = find_player("alice");
+    object bob = find_player("bob");
+    
+    if (!alice || !bob) {
+        write("  ⚠ Test skipped (need alice and bob online)\n\n");
+        return;
+    }
+    
+    // Check remembered_names mapping
+    mapping alice_remembered = alice->query_remembered_names();
+    
+    if (alice_remembered) {
+        write("  ✓ remembered_names mapping exists\n");
+        
+        if (alice_remembered["bob"]) {
+            write("  ✓ Bob is in Alice's remembered_names\n");
+            write("    Timestamp: " + ctime(alice_remembered["bob"]) + "\n");
+        } else {
+            write("  ✗ FAIL: Bob not in Alice's remembered_names\n");
+        }
+    } else {
+        write("  ✗ FAIL: remembered_names mapping doesn't exist\n");
+    }
+    
+    write("\n");
+}
+
+void test_sync_on_login(object user) {
+    write("TEST 3: Sync on Login\n");
+    write("----------------------------\n");
+    
+    object alice = find_player("alice");
+    object bob = find_player("bob");
+    
+    if (!alice || !bob) {
+        write("  ⚠ Test skipped (need alice and bob online)\n\n");
+        return;
+    }
+    
+    // Clear session memory but keep persistent
+    alice->set("introduced_to", ([ ]));
+    
+    // Test sync
+    alice->sync_introductions();
+    
+    if (alice->query_introduced(bob)) {
+        write("  ✓ Introduction restored after sync\n");
+        write("  ✓ sync_introductions() works correctly\n");
+    } else {
+        write("  ✗ FAIL: Introduction not restored after sync\n");
+    }
+    
+    write("\n");
+}
+
+string help() {
+    return @HELP
+Test Persistence - Phase 1 Identity System Testing
+
+Tests the persistence layer for the introduction system:
+  - Basic mutual introductions
+  - Persistent storage in remembered_names
+  - Login synchronization
+
+Usage: test_persistence
+
+Requires: Two test players 'alice' and 'bob' online for full testing
+HELP;
+}

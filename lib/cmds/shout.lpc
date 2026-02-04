@@ -5,6 +5,12 @@
 #include <globals.h>
 
 int main(string arg) {
+    // DISABLED: Long-distance communication requires radio equipment + radio skill,
+    // or psionic abilities (telepathy). Generic shouting is not available.
+    tell_object(previous_object(), "Long-distance communication requires special equipment or abilities.\n");
+    return 1;
+    
+    /* Original implementation disabled - will be replaced by radio system
     object user, room;
     object *nearby_rooms, *inv;
     string *exits;
@@ -23,12 +29,13 @@ int main(string arg) {
         return 1;
     }
     
-    // Shout in current room
+    // Shout in current room with identity-aware names
     inv = all_inventory(room);
     for (i = 0; i < sizeof(inv); i++) {
         if (inv[i] != user && living(inv[i])) {
+            string shouter_name = user->query_introduction_name(inv[i]);
             tell_object(inv[i], sprintf("%s shouts: %s\n",
-                capitalize(user->query_name()), arg));
+                shouter_name, arg));
         }
     }
     tell_object(user, sprintf("You shout: %s\n", arg));

@@ -93,12 +93,13 @@ int main(string arg) {
     string item_name = item->query_short() || item->query_name() || "something";
     tell_object(user, sprintf("You pick up %s.\n", item_name));
     
-    // Tell room
+    // Tell room with identity-aware names
     object *people = all_inventory(room);
     foreach (object person in people) {
         if (living(person) && person != user) {
+            string actor_name = user->query_introduction_name(person);
             tell_object(person, sprintf("%s picks up %s.\n",
-                capitalize(user->query_name()), item_name));
+                actor_name, item_name));
         }
     }
     

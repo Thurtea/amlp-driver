@@ -1,5 +1,5 @@
 /*
- * /lib/cmds/wizard/pwd.lpc - Show current working directory
+ * /lib/cmds/creator/pwd.lpc - Show current working directory
  * 
  * Usage:
  *   pwd

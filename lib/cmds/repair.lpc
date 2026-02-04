@@ -77,7 +77,7 @@ int main(string arg) {
         int roll = random(100) + 1;
         
         if (roll > skill_value) {
-            tell_object(user, "%^YELLOW%^You attempt to repair the armor but fail to make any progress.%^RESET%^\n");
+            tell_object(user, "You attempt to repair the armor but fail to make any progress.\n");
             tell_object(user, "The mega-damage materials are too complex for you to work with right now.\n");
             return 1;
         }
@@ -86,14 +86,14 @@ int main(string arg) {
         repair_amount = random(6) + 1;
         item->repair_armor(repair_amount);
         
-        tell_object(user, sprintf("%^GREEN%^You successfully repair %d M.D.C. on the armor!%^RESET%^\n", 
+        tell_object(user, sprintf("You successfully repair %d M.D.C. on the armor!\n", 
                     repair_amount));
         
         if (item->query_armor_damage() > 0) {
             int remaining_dmg = item->query_armor_damage();
             tell_object(user, sprintf("The armor still needs %d more M.D.C. repaired.\n", remaining_dmg));
         } else {
-            tell_object(user, "%^BOLD%^%^GREEN%^The armor is fully repaired!%^RESET%^\n");
+            tell_object(user, "The armor is fully repaired!\n");
         }
         
     } else {
@@ -118,7 +118,7 @@ int main(string arg) {
         
         if (!skill_value || skill_value <= 0) {
             // Anyone can attempt basic SDC armor repair, but poorly
-            tell_object(user, "%^YELLOW%^You attempt a crude repair without proper training...%^RESET%^\n");
+            tell_object(user, "You attempt a crude repair without proper training...\n");
             
             int roll = random(100) + 1;
             
@@ -144,14 +144,14 @@ int main(string arg) {
         
         item->repair_armor(repair_amount);
         
-        tell_object(user, sprintf("%^GREEN%^You repair %d S.D.C. on the armor.%^RESET%^\n", 
+        tell_object(user, sprintf("You repair %d S.D.C. on the armor.\n", 
                     repair_amount));
         
         if (item->query_armor_damage() > 0) {
             int remaining_dmg = item->query_armor_damage();
             tell_object(user, sprintf("The armor still needs %d more S.D.C. repaired.\n", remaining_dmg));
         } else {
-            tell_object(user, "%^BOLD%^%^GREEN%^The armor is fully repaired!%^RESET%^\n");
+            tell_object(user, "The armor is fully repaired!\n");
         }
     }
     

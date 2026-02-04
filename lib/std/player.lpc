@@ -117,11 +117,11 @@ void add_experience(int exp) {
         // Phase 5, Step 3: Award surname at level 10
         if (level == 10 && (!surname || surname == "")) {
             tell_object(this_object(),
-                "\n%^BOLD%^%^YELLOW%^========================================%^RESET%^\n");
+                "\n========================================\n");
             tell_object(this_object(),
-                "%^BOLD%^%^YELLOW%^   YOU HAVE EARNED A SURNAME!%^RESET%^\n");
+                "   YOU HAVE EARNED A SURNAME!\n");
             tell_object(this_object(),
-                "%^BOLD%^%^YELLOW%^========================================%^RESET%^\n\n");
+                "========================================\n\n");
             tell_object(this_object(),
                 "You have reached level 10 and earned the right to a surname!\n\n");
             tell_object(this_object(),
@@ -815,6 +815,9 @@ mapping save_data() {
         "languages": query_languages(),
         "primary_language": query_primary_language(),
         
+        // Introduction system
+        "remembered_names": query_remembered_names(),
+        
         // Skills
         "skills": query_all_skills(),
         "primary_skills": query_primary_skills(),
@@ -870,6 +873,16 @@ void restore_data(mapping data) {
     if (data["languages"]) set_languages(data["languages"]);
     if (data["primary_language"]) set_primary_language(data["primary_language"]);
     
+    // Introduction system - restore remembered_names
+    if (data["remembered_names"]) {
+        mapping remembered = data["remembered_names"];
+        if (remembered && sizeof(remembered) > 0) {
+            foreach(string pname, int tstamp in remembered) {
+                add_remembered_name(pname);
+            }
+        }
+    }
+    
     // Skills
     if (data["skills"]) set_skills(data["skills"]);
     if (data["primary_skills"]) set_primary_skills(data["primary_skills"]);
@@ -890,6 +903,11 @@ void restore_data(mapping data) {
     set_name(name);
     set_real_name(name);
     set_short(name + " the " + title);
+    
+    // Sync introductions from persistent storage
+    if (function_exists("sync_introductions", this_object())) {
+        sync_introductions();
+    }
 }
 
 //=============================================================================

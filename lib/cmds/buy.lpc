@@ -104,7 +104,14 @@ int cmd_buy(string arg) {
     write("You purchase " + item_name + ".\n");
     write(room->query_shopkeeper() + " says: \"Thank you for your business!\"\n");
     
-    tell_room(room, player->query_cap_name() + " purchases " + item_name + ".", ({ player }));
+    // Tell room with identity-aware names
+    object *people = all_inventory(room);
+    foreach (object person : people) {
+        if (living(person) && person != player) {
+            string buyer_name = player->query_introduction_name(person);
+            tell_object(person, buyer_name + " purchases " + item_name + ".\n");
+        }
+    }
     
     return 1;
 }

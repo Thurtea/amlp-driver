@@ -65,7 +65,14 @@ int cmd_sell(string arg) {
     
     write(room->query_shopkeeper() + " says: \"Thank you! Always happy to do business.\"\n");
     
-    tell_room(room, player->query_cap_name() + " sells " + item_name + " to " + room->query_shopkeeper() + ".", ({ player }));
+    // Tell room with identity-aware names
+    object *people = all_inventory(room);
+    foreach (object person : people) {
+        if (living(person) && person != player) {
+            string seller_name = player->query_introduction_name(person);
+            tell_object(person, seller_name + " sells " + item_name + " to " + room->query_shopkeeper() + ".\n");
+        }
+    }
     
     // Remove item from player, add to shop stock
     item_obj->remove();

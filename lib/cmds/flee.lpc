@@ -65,18 +65,25 @@ int main(string args) {
     
     if (escape_roll >= difficulty) {
         // Success!
-        write("\n%^GREEN%^You successfully flee to the " + escape_dir + "!%^RESET%^\n\n");
+        write("\nYou successfully flee to the " + escape_dir + "!\n\n");
         
         if (target) {
+            string fleeing_name = player->query_introduction_name(target);
             tell_object(target,
-                        "%^YELLOW%^" + player->query_cap_name() + 
-                        " flees to the " + escape_dir + "!%^RESET%^\n");
+                        fleeing_name + 
+                        " flees to the " + escape_dir + "!\n");
         }
         
-        tell_room(env,
-                  "%^YELLOW%^" + player->query_cap_name() + 
-                  " flees to the " + escape_dir + "!%^RESET%^\n",
-                  ({ player, target }));
+        // Tell room with identity-aware names
+        object *people = all_inventory(env);
+        foreach (object person in people) {
+            if (living(person) && person != player && person != target) {
+                string fleeing_name = player->query_introduction_name(person);
+                tell_object(person,
+                            fleeing_name + 
+                            " flees to the " + escape_dir + "!\n");
+            }
+        }
         
         // Find and end the combat
         int combat_id = combat_daemon->find_combat_for(player);
@@ -92,20 +99,26 @@ int main(string args) {
         
     } else {
         // Failed to escape - take a free hit!
-        write("\n%^RED%^You fail to escape!%^RESET%^ (Rolled " + 
+        write("\nYou fail to escape! (Rolled " + 
               escape_roll + " vs " + difficulty + ")\n");
-        write("%^RED%^" + target->query_cap_name() + 
-              " gets a free attack as you turn to flee!%^RESET%^\n\n");
+        write(target->query_cap_name() + 
+              " gets a free attack as you turn to flee!\n\n");
         
         if (target) {
+            string fleeing_name = player->query_introduction_name(target);
             tell_object(target,
-                        "%^GREEN%^" + player->query_cap_name() + 
-                        " tries to flee but you get a free attack!%^RESET%^\n");
+                        fleeing_name + 
+                        " tries to flee but you get a free attack!\n");
         }
         
-        tell_room(env,
-                  player->query_cap_name() + " tries to flee but fails!\n",
-                  ({ player, target }));
+        // Tell room with identity-aware names
+        object *people = all_inventory(env);
+        foreach (object person in people) {
+            if (living(person) && person != player && person != target) {
+                string fleeing_name = player->query_introduction_name(person);
+                tell_object(person, fleeing_name + " tries to flee but fails!\n");
+            }
+        }
         
         // Target gets free attack via combat daemon
         int combat_id = combat_daemon->find_combat_for(player);

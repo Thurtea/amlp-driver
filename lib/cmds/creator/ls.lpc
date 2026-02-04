@@ -1,5 +1,5 @@
 /*
- * /lib/cmds/ls.lpc - List directory contents in horizontal layout
+ * /lib/cmds/creator/ls.lpc - List directory contents in horizontal layout
  * Phase 3: Wizard Building Tools
  * 
  * Usage:

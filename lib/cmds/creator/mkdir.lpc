@@ -1,0 +1,138 @@
+/*
+ * /lib/cmds/creator/mkdir.lpc - Create directories
+ * Phase 2: Essential Creator Filesystem Commands
+ * 
+ * Usage:
+ *   mkdir <directory>         Create a directory
+ *   mkdir -p <path>           Create parent directories as needed
+ */
+
+int main(string args) {
+    object player = previous_object();
+    string path, resolved;
+    string *parts;
+    int create_parents = 0;
+    int i;
+    
+    if (!args || args == "") {
+        tell_object(player, "Syntax: mkdir [-p] <directory>\n");
+        tell_object(player, "Options:\n");
+        tell_object(player, "  -p  Create parent directories as needed\n");
+        return 1;
+    }
+    
+    // Parse arguments
+    parts = explode(args, " ") - ({ "" });
+    if (sizeof(parts) < 1) {
+        tell_object(player, "Error: Missing directory path\n");
+        return 1;
+    }
+    
+    // Check for -p flag
+    i = 0;
+    if (parts[0] == "-p") {
+        create_parents = 1;
+        i = 1;
+        if (sizeof(parts) < 2) {
+            tell_object(player, "Error: Missing directory path\n");
+            return 1;
+        }
+    }
+    
+    path = parts[i];
+    
+    // Resolve path
+    resolved = player->resolve_path(path);
+    
+    // Check if already exists
+    int fsize = file_size(resolved);
+    if (fsize == -2) {
+        tell_object(player, "Error: Directory already exists: " + resolved + "\n");
+        return 1;
+    } else if (fsize != -1) {
+        tell_object(player, "Error: File already exists with that name: " + resolved + "\n");
+        return 1;
+    }
+    
+    // Create the directory
+    if (create_parents) {
+        if (!mkdir_recursive(player, resolved)) {
+            return 1;
+        }
+    } else {
+        // Check parent exists
+        int last_slash = strsrch(resolved, "/", -1);
+        if (last_slash > 0) {
+            string parent = resolved[0..last_slash-1];
+            if (file_size(parent) != -2) {
+                tell_object(player, "Error: Parent directory does not exist: " + parent + "\n");
+                tell_object(player, "Use -p to create parent directories\n");
+                return 1;
+            }
+        }
+        
+        if (!mkdir(resolved)) {
+            tell_object(player, "Error: Failed to create directory: " + resolved + "\n");
+            tell_object(player, "Check permissions and path validity\n");
+            return 1;
+        }
+    }
+    
+    tell_object(player, "Created directory: " + resolved + "\n");
+    return 1;
+}
+
+// Create directory and all parent directories
+int mkdir_recursive(object player, string path) {
+    string *parts, current_path;
+    int i;
+    
+    // Split path into components
+    if (path[0] == '/') {
+        parts = explode(path[1..], "/") - ({ "" });
+        current_path = "";
+    } else {
+        parts = explode(path, "/") - ({ "" });
+        current_path = player->query_cwd();
+    }
+    
+    // Create each directory level
+    for (i = 0; i < sizeof(parts); i++) {
+        current_path += "/" + parts[i];
+        
+        int fsize = file_size(current_path);
+        if (fsize == -1) {
+            // Doesn't exist - create it
+            if (!mkdir(current_path)) {
+                tell_object(player, "Error: Failed to create directory: " + current_path + "\n");
+                return 0;
+            }
+            tell_object(player, "Created: " + current_path + "\n");
+        } else if (fsize != -2) {
+            // Exists but is not a directory
+            tell_object(player, "Error: File exists (not a directory): " + current_path + "\n");
+            return 0;
+        }
+        // else: directory already exists, continue
+    }
+    
+    return 1;
+}
+
+void help() {
+    write("Syntax: mkdir [-p] <directory>\n");
+    write("Create new directories.\n");
+    write("\n");
+    write("Options:\n");
+    write("  -p  Create parent directories as needed (like mkdir -p in Unix)\n");
+    write("\n");
+    write("Examples:\n");
+    write("  mkdir mydir                     Create directory in current location\n");
+    write("  mkdir /domains/myarea           Create directory at absolute path\n");
+    write("  mkdir -p /domains/test/rooms    Create all parent directories\n");
+    write("  mkdir rooms/indoor              Create relative to current directory\n");
+    write("\n");
+    write("Note: Requires appropriate file system permissions.\n");
+    write("\n");
+    write("See also: cd, pwd, ls\n");
+}

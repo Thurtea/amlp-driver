@@ -120,12 +120,12 @@ int main(string arg) {
         int max_dmg = target->query_armor_max_damage();
         
         if (max_dmg > 0) {
-            output += "\n%^BOLD%^=== ARMOR DETAILS ===%^RESET%^\n";
+            output += "\n=== ARMOR DETAILS ===\n";
             
             // Armor type
             int is_mdc = target->query_property("is_mdc_armor");
             if (is_mdc) {
-                output += "Type: %^CYAN%^M.D.C. Armor%^RESET%^ (Mega-Damage Capacity)\n";
+                output += "Type: M.D.C. Armor (Mega-Damage Capacity)\n";
             } else {
                 output += "Type: S.D.C. Armor (Structural Damage Capacity)\n";
             }
@@ -152,19 +152,19 @@ int main(string arg) {
                 output += sprintf("S.D.C.: %d / %d ", remaining, max_dmg);
             }
             
-            // Condition status with color
+            // Condition status
             if (condition >= 90) {
-                output += "%^GREEN%^(Perfect)%^RESET%^\n";
+                output += "(Perfect)\n";
             } else if (condition >= 70) {
-                output += "%^GREEN%^(Good)%^RESET%^\n";
+                output += "(Good)\n";
             } else if (condition >= 50) {
-                output += "%^YELLOW%^(Worn)%^RESET%^\n";
+                output += "(Worn)\n";
             } else if (condition >= 25) {
-                output += "%^YELLOW%^(Damaged)%^RESET%^\n";
+                output += "(Damaged)\n";
             } else if (condition > 0) {
-                output += "%^RED%^(Critical - needs immediate repair!)%^RESET%^\n";
+                output += "(Critical - needs immediate repair!)\n";
             } else {
-                output += "%^RED%^(BROKEN - provides NO protection!)%^RESET%^\n";
+                output += "(BROKEN - provides NO protection!)\n";
             }
             
             // Armor slot

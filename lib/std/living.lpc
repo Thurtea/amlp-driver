@@ -20,7 +20,8 @@ int health_type;      // 0 = SDC creature (uses HP+SDC), 1 = MDC creature (uses 
 int creature_size;    // 0=Tiny, 1=Small, 2=Medium, 3=Large, 4=Huge
 
 // Introduction system - track who knows this character's name
-mapping introduced_to;  // Maps object -> 1 when introduced
+mapping introduced_to;  // Maps object -> 1 when introduced (session-based)
+mapping remembered_names; // Maps "player_name" -> timestamp (persistent)
 
 // Position system - custom RP position string
 string position_desc;   // Custom position for room descriptions (e.g., "is sitting by the fire.")
@@ -80,6 +81,7 @@ void create() {
     real_name = "";
     race_name = "";
     introduced_to = ([ ]);  // Initialize introduction tracking
+    remembered_names = ([ ]); // Initialize persistent introduction storage
     position_desc = "is standing around.";  // Default position
     languages = ([ ]);
     primary_language = "";
@@ -240,7 +242,7 @@ int take_damage(int amount, int damage_type) {
                 
                 if (body_armor->is_armor_broken()) {
                     // Phase 3, Step 1c: Armor just broke!
-                    tell_object(this_object(), "%^RED%^Your armor shatters under the impact!%^RESET%^\n");
+                    tell_object(this_object(), "Your armor shatters under the impact!\n");
                 }
                 
                 return 0;  // Armor absorbed all damage
@@ -265,7 +267,7 @@ int take_damage(int amount, int damage_type) {
                     body_armor->damage_armor(armor_damage_taken);
                     
                     if (body_armor->is_armor_broken()) {
-                        tell_object(this_object(), "%^YELLOW%^Your armor falls apart!%^RESET%^\n");
+                        tell_object(this_object(), "Your armor falls apart!\n");
                     }
                 }
             }
@@ -276,7 +278,7 @@ int take_damage(int amount, int damage_type) {
             // MDC damage vs SDC armor - armor provides no protection
             // Damage passes through, armor is destroyed
             body_armor->damage_armor(99999);  // Instantly destroy SDC armor
-            tell_object(this_object(), "%^RED%^Your armor is completely destroyed by the mega-damage!%^RESET%^\n");
+            tell_object(this_object(), "Your armor is completely destroyed by the mega-damage!\n");
             // Damage continues to creature below
         }
     }
@@ -563,14 +565,34 @@ void introduce_to(object ob) {
 void set_introduced(object ob) {
     if (!ob) return;
     if (!introduced_to) introduced_to = ([ ]);
+    
+    // Session memory
     introduced_to[ob] = 1;
+    
+    // Persistent memory - store by name
+    string name = ob->query_real_name();
+    if (!name || name == "") name = ob->query_name();
+    if (name && name != "") {
+        if (!remembered_names) remembered_names = ([ ]);
+        remembered_names[name] = time();
+    }
 }
 
 // Check if we've introduced ourselves to someone
 int query_introduced(object ob) {
     if (!ob) return 0;
-    if (!introduced_to) return 0;
-    return introduced_to[ob] ? 1 : 0;
+    
+    // Check session memory first (fastest)
+    if (introduced_to && introduced_to[ob]) return 1;
+    
+    // Check persistent memory
+    if (remembered_names) {
+        string name = ob->query_real_name();
+        if (!name || name == "") name = ob->query_name();
+        if (name && remembered_names[name]) return 1;
+    }
+    
+    return 0;
 }
 
 // Get the name that an observer sees for this character
@@ -606,6 +628,180 @@ string query_introduction_name(object observer) {
     }
     
     return article + " " + race;
+}
+
+/**
+ * query_remembered_names - Return persistent introduction mapping
+ */
+mapping query_remembered_names() {
+    if (!remembered_names) remembered_names = ([ ]);
+    return remembered_names;
+}
+
+/**
+ * add_remembered_name - Persistently remember someone
+ * @param name The real name of the person to remember
+ */
+void add_remembered_name(string name) {
+    if (!name || name == "") return;
+    if (!remembered_names) remembered_names = ([ ]);
+    remembered_names[name] = time();
+}
+
+/**
+ * remove_remembered_name - Forget someone permanently
+ * @param name The real name to forget
+ */
+void remove_remembered_name(string name) {
+    if (!name || !remembered_names) return;
+    map_delete(remembered_names, name);
+}
+
+/**
+ * sync_introductions - Sync session and persistent introductions
+ * Call this on login to rebuild introduced_to from remembered_names
+ */
+void sync_introductions() {
+    if (!remembered_names || !sizeof(remembered_names)) return;
+    if (!introduced_to) introduced_to = ([ ]);
+    
+    // For each remembered name, find the live object if online
+    foreach(string name, int timestamp in remembered_names) {
+        object ob = find_player(name);
+        if (ob && living(ob)) {
+            introduced_to[ob] = 1;
+        }
+    }
+}
+
+/**
+ * broadcast_action - Send observer-specific messages to room
+ * @param actor_msg Message shown to the actor (can be 0 to skip)
+ * @param others_template Template for others, use $N for actor name
+ * @param exclude Array of objects to exclude from broadcast
+ */
+void broadcast_action(string actor_msg, string others_template, object *exclude) {
+    object env = environment();
+    if (!env) return;
+    
+    // Initialize exclude array
+    if (!exclude) exclude = ({ });
+    
+    // Message to actor
+    if (actor_msg && actor_msg != "") {
+        tell_object(this_object(), actor_msg);
+    }
+    
+    // Messages to others in room
+    object *inv = all_inventory(env);
+    foreach(object ob in inv) {
+        // Skip non-living, excluded, and actor
+        if (!living(ob)) continue;
+        if (member_array(ob, exclude) != -1) continue;
+        if (ob == this_object()) continue;
+        
+        // Get actor name as seen by this observer
+        string actor_name = query_introduction_name(ob);
+        
+        // Replace $N with observer-specific name
+        string msg = replace_string(others_template, "$N", actor_name);
+        tell_object(ob, msg);
+    }
+}
+
+/**
+ * broadcast_action_pair - Broadcast action involving actor and target
+ * @param actor_msg Message to actor
+ * @param target_msg_template Message to target, use $N for actor name
+ * @param others_template Message to others, use $N for actor, $T for target
+ * @param target The target object
+ */
+void broadcast_action_pair(string actor_msg, string target_msg_template, 
+                           string others_template, object target) {
+    object env = environment();
+    if (!env) return;
+    
+    // Message to actor
+    if (actor_msg && actor_msg != "") {
+        tell_object(this_object(), actor_msg);
+    }
+    
+    // Message to target
+    if (target && target_msg_template && target_msg_template != "") {
+        string actor_name = query_introduction_name(target);
+        string msg = replace_string(target_msg_template, "$N", actor_name);
+        tell_object(target, msg);
+    }
+    
+    // Messages to others
+    object *inv = all_inventory(env);
+    foreach(object ob in inv) {
+        if (!living(ob)) continue;
+        if (ob == this_object() || ob == target) continue;
+        
+        // Get names as seen by this observer
+        string actor_name = query_introduction_name(ob);
+        string target_name = target ? target->query_introduction_name(ob) : "someone";
+        
+        // Replace $N and $T
+        string msg = replace_string(others_template, "$N", actor_name);
+        msg = replace_string(msg, "$T", target_name);
+        tell_object(ob, msg);
+    }
+}
+
+/**
+ * announce_arrival - Broadcast arrival message to room
+ * @param direction Direction player arrived from (e.g., "south", "north")
+ */
+void announce_arrival(string direction) {
+    object env = environment();
+    if (!env) return;
+    
+    object *inv = all_inventory(env);
+    foreach(object ob in inv) {
+        if (!living(ob) || ob == this_object()) continue;
+        
+        // Get name as seen by this observer
+        string arrival_name = query_introduction_name(ob);
+        
+        // Build message
+        string msg;
+        if (direction && direction != "") {
+            msg = arrival_name + " arrives from the " + direction + ".\\n";
+        } else {
+            msg = arrival_name + " arrives.\\n";
+        }
+        
+        tell_object(ob, msg);
+    }
+}
+
+/**
+ * announce_departure - Broadcast departure message to room
+ * @param direction Direction player is going (e.g., "north", "south")
+ */
+void announce_departure(string direction) {
+    object env = environment();
+    if (!env) return;
+    
+    object *inv = all_inventory(env);
+    foreach(object ob in inv) {
+        if (!living(ob) || ob == this_object()) continue;
+        
+        // Get name as seen by this observer
+        string depart_name = query_introduction_name(ob);
+        
+        // Build message
+        string msg;
+        if (direction && direction != "") {
+            msg = depart_name + " leaves " + direction + ".\\n";
+        } else {
+            msg = depart_name + " leaves.\\n";
+        }
+        
+        tell_object(ob, msg);
+    }
 }
 
 //=============================================================================

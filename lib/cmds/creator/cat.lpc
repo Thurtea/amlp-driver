@@ -1,5 +1,5 @@
 /*
- * /lib/cmds/wizard/cat.lpc - Display file contents
+ * /lib/cmds/creator/cat.lpc - Display file contents
  * Phase 5: File Editing Tools
  * 
  * Usage:

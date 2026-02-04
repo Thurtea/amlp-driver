@@ -1,5 +1,22 @@
 // Movement command
 
+// Helper to get opposite direction for arrival messages
+string get_opposite_direction(string dir) {
+    switch(dir) {
+        case "north": return "south";
+        case "south": return "north";
+        case "east": return "west";
+        case "west": return "east";
+        case "northeast": return "southwest";
+        case "northwest": return "southeast";
+        case "southeast": return "northwest";
+        case "southwest": return "northeast";
+        case "up": return "below";
+        case "down": return "above";
+        default: return "";
+    }
+}
+
 int execute(string args, object player) {
     object room, dest;
     string dest_path;
@@ -27,8 +44,19 @@ int execute(string args, object player) {
         return 1;
     }
     
+    // Announce departure from current room
+    if (function_exists("announce_departure", player)) {
+        player->announce_departure(args);
+    }
+    
     tell_object(player, "You go " + args + ".\n");
     player->move(dest);
+    
+    // Announce arrival in new room
+    string from_dir = get_opposite_direction(args);
+    if (function_exists("announce_arrival", player)) {
+        player->announce_arrival(from_dir);
+    }
     
     // Reset position when moving rooms
     if (function_exists("reset_position", player)) {

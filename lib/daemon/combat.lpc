@@ -71,9 +71,9 @@ int start_combat(object attacker, object defender) {
     
     // Broadcast combat start
     broadcast_to_combat(combat_id, 
-        "\n%^BOLD%^%^YELLOW%^>>> COMBAT INITIATED! <<<\n" +
+        "\n>>> COMBAT INITIATED! <<<\n" +
         attacker->query_cap_name() + " vs " + defender->query_cap_name() +
-        "%^RESET%^\n\n");
+        "\n\n");
     
     // Start combat heartbeat if not already running
     start_heartbeat();
@@ -89,13 +89,13 @@ void end_combat(int combat_id, object winner, object loser) {
     object *combatants = combat["combatants"];
     
     // Broadcast combat end
-    string end_msg = "\n%^BOLD%^%^YELLOW%^>>> COMBAT ENDED <<<\n";
+    string end_msg = "\n>>> COMBAT ENDED <<<\n";
     if (winner && loser) {
         end_msg += winner->query_cap_name() + " defeats " + loser->query_cap_name() + "!";
     } else {
         end_msg += "Combat has ended.";
     }
-    end_msg += "%^RESET%^\n\n";
+    end_msg += "\n\n";
     
     broadcast_to_combat(combat_id, end_msg);
     
@@ -232,7 +232,7 @@ void process_combat_round(int combat_id) {
     
     // Announce new round
     broadcast_to_combat(combat_id,
-        "\n%^BOLD%^%^CYAN%^--- Round " + round + " ---\n%^RESET%^");
+        "\n--- Round " + round + " ---\n");
     
     // Each combatant gets to make their attacks
     foreach (object combatant : active_combatants) {
@@ -261,8 +261,8 @@ void process_combat_round(int combat_id) {
             // Player - just remind them
             if (combatant) {
                 tell_object(combatant, 
-                    "%^BOLD%^Your turn! You have " + 
-                    combatant->query_attacks_remaining() + " attacks available.%^RESET%^\n");
+                    "Your turn! You have " + 
+                    combatant->query_attacks_remaining() + " attacks available.\n");
             }
         }
     }
@@ -382,11 +382,14 @@ void perform_single_attack(int combat_id, object attacker, object defender) {
     int damage = attacker->calculate_damage();
     int damage_type = attacker->query_damage_type();
     
-    string attack_msg = "%^BOLD%^" + attacker->query_cap_name() + " " + 
-                        verb + " " + defender->query_cap_name() + 
-                        " for %^RED%^" + damage + " damage%^RESET%^%^BOLD%^!%^RESET%^\n";
+    string def_name_for_att = defender->query_introduction_name(attacker);
+    string att_name_for_def = attacker->query_introduction_name(defender);
     
-    broadcast_to_combat(combat_id, attack_msg);
+    broadcast_combat_identity(combat_id, attacker, defender,
+        "You " + verb + " " + def_name_for_att + " for %^RED%^" + damage + " damage!\n",
+        "" + att_name_for_def + " " + verb + " you for %^RED%^" + damage + " damage!\n",
+        "$ATTACKER " + verb + " $DEFENDER for %^RED%^" + damage + " damage!\n"
+    );
     
     // Apply damage
     int killed = defender->take_damage(damage, damage_type);
@@ -405,13 +408,17 @@ void perform_critical_hit(int combat_id, object attacker, object defender, strin
     string *critical_msgs = CRITICAL_MSGS;
     string critical_msg = critical_msgs[random(sizeof(critical_msgs))];
     
-    string attack_msg = "%^BOLD%^%^YELLOW%^" + critical_msg + "%^RESET%^ " +
-                        "%^BOLD%^" + attacker->query_cap_name() + " " +
-                        verb + " " + defender->query_cap_name() + 
-                        " %^BOLD%^%^RED%^DEVASTATINGLY%^RESET%^ " +
-                        "%^BOLD%^for %^RED%^" + damage + " damage%^RESET%^%^BOLD%^!%^RESET%^\n";
+    string def_name_for_att = defender->query_introduction_name(attacker);
+    string att_name_for_def = attacker->query_introduction_name(defender);
     
-    broadcast_to_combat(combat_id, attack_msg);
+    broadcast_combat_identity(combat_id, attacker, defender,
+        "" + critical_msg + " You " + verb + " " + def_name_for_att + 
+        " %^RED%^DEVASTATINGLY for %^RED%^" + damage + " damage!\n",
+        "" + critical_msg + " " + att_name_for_def + " " + verb + " you " +
+        "%^RED%^DEVASTATINGLY for %^RED%^" + damage + " damage!\n",
+        "" + critical_msg + " $ATTACKER " + verb + " $DEFENDER " +
+        "%^RED%^DEVASTATINGLY for %^RED%^" + damage + " damage!\n"
+    );
     
     // Apply damage
     int killed = defender->take_damage(damage, damage_type);
@@ -427,10 +434,33 @@ void perform_fumble(int combat_id, object attacker, string verb) {
     string *fumble_msgs = FUMBLE_MSGS;
     string fumble_msg = fumble_msgs[random(sizeof(fumble_msgs))];
     
-    string msg = "%^BOLD%^%^RED%^" + attacker->query_cap_name() + 
-                 " " + fumble_msg + " while trying to attack!%^RESET%^\n";
+    if (!active_combats[combat_id]) return;
+    object *combatants = active_combats[combat_id]["combatants"];
+    object env;
     
-    broadcast_to_combat(combat_id, msg);
+    // Message to attacker
+    tell_object(attacker, "%^RED%^You " + fumble_msg + " while trying to attack!\n");
+    
+    // Message to others
+    foreach (object combatant : combatants) {
+        if (!combatant || combatant == attacker) continue;
+        if (!env) env = environment(combatant);
+        
+        string att_name = attacker->query_introduction_name(combatant);
+        tell_object(combatant, "%^RED%^" + att_name + " " + fumble_msg + " while trying to attack!\n");
+    }
+    
+    // Observers
+    if (env) {
+        object *inv = all_inventory(env);
+        foreach (object ob : inv) {
+            if (!living(ob)) continue;
+            if (member_array(ob, combatants) != -1) continue;
+            
+            string att_name = attacker->query_introduction_name(ob);
+            tell_object(ob, "%^RED%^" + att_name + " " + fumble_msg + " while trying to attack!\n");
+        }
+    }
 }
 
 // =============================================================================
@@ -565,17 +595,86 @@ void broadcast_to_combat(int combat_id, string message) {
     }
 }
 
+// Broadcast identity-aware combat message involving two actors
+// Uses observer-specific names for attacker and defender
+void broadcast_combat_identity(int combat_id, object attacker, object defender, 
+                                string attacker_msg, string defender_msg, 
+                                string observer_msg) {
+    if (!active_combats[combat_id]) return;
+    
+    object *combatants = active_combats[combat_id]["combatants"];
+    object env;
+    
+    // Message to attacker
+    if (attacker && attacker_msg != "") {
+        tell_object(attacker, attacker_msg);
+    }
+    
+    // Message to defender
+    if (defender && defender_msg != "") {
+        tell_object(defender, defender_msg);
+    }
+    
+    // Messages to other combatants and observers
+    foreach (object combatant : combatants) {
+        if (!combatant) continue;
+        if (combatant == attacker || combatant == defender) continue;
+        
+        if (!env) env = environment(combatant);
+        
+        // Build observer-specific message
+        string msg = observer_msg;
+        if (attacker && function_exists("query_introduction_name", attacker)) {
+            string att_name = attacker->query_introduction_name(combatant);
+            msg = replace_string(msg, "$ATTACKER", att_name);
+        }
+        if (defender && function_exists("query_introduction_name", defender)) {
+            string def_name = defender->query_introduction_name(combatant);
+            msg = replace_string(msg, "$DEFENDER", def_name);
+        }
+        
+        tell_object(combatant, msg);
+    }
+    
+    // Observers in room (not in combat)
+    if (env) {
+        object *inv = all_inventory(env);
+        foreach (object ob : inv) {
+            if (!living(ob)) continue;
+            if (member_array(ob, combatants) != -1) continue;
+            
+            // Build observer-specific message
+            string msg = observer_msg;
+            if (attacker && function_exists("query_introduction_name", attacker)) {
+                string att_name = attacker->query_introduction_name(ob);
+                msg = replace_string(msg, "$ATTACKER", att_name);
+            }
+            if (defender && function_exists("query_introduction_name", defender)) {
+                string def_name = defender->query_introduction_name(ob);
+                msg = replace_string(msg, "$DEFENDER", def_name);
+            }
+            
+            tell_object(ob, msg);
+        }
+    }
+}
+
 // Broadcast attack parried message
 void broadcast_attack_parried(int combat_id, object attacker, object defender, string verb) {
     string *parry_verbs = PARRY_VERBS;
     string parry_verb = parry_verbs[random(sizeof(parry_verbs))];
     
-    string msg = "%^BOLD%^" + attacker->query_cap_name() + " " + verb + " " +
-                 defender->query_cap_name() + ", but " + 
-                 defender->query_subjective() + " %^GREEN%^" + parry_verb +
-                 "%^RESET%^%^BOLD%^!%^RESET%^\n";
+    string def_name_for_att = defender->query_introduction_name(attacker);
+    string att_name_for_def = attacker->query_introduction_name(defender);
     
-    broadcast_to_combat(combat_id, msg);
+    broadcast_combat_identity(combat_id, attacker, defender,
+        // Attacker sees:
+        "You " + verb + " " + def_name_for_att + ", but they %^GREEN%^" + parry_verb + "!\n",
+        // Defender sees:
+        "" + att_name_for_def + " " + verb + " you, but you %^GREEN%^" + parry_verb + "!\n",
+        // Others see:
+        "$ATTACKER " + verb + " $DEFENDER, but they %^GREEN%^" + parry_verb + "!\n"
+    );
 }
 
 // Broadcast attack dodged message
@@ -583,12 +682,17 @@ void broadcast_attack_dodged(int combat_id, object attacker, object defender, st
     string *dodge_verbs = DODGE_VERBS;
     string dodge_verb = dodge_verbs[random(sizeof(dodge_verbs))];
     
-    string msg = "%^BOLD%^" + attacker->query_cap_name() + " " + verb + " " +
-                 defender->query_cap_name() + ", but " +
-                 defender->query_subjective() + " %^CYAN%^" + dodge_verb +
-                 "%^RESET%^%^BOLD%^!%^RESET%^\n";
+    string def_name_for_att = defender->query_introduction_name(attacker);
+    string att_name_for_def = attacker->query_introduction_name(defender);
     
-    broadcast_to_combat(combat_id, msg);
+    broadcast_combat_identity(combat_id, attacker, defender,
+        // Attacker sees:
+        "You " + verb + " " + def_name_for_att + ", but they " + dodge_verb + "!\n",
+        // Defender sees:
+        "" + att_name_for_def + " " + verb + " you, but you " + dodge_verb + "!\n",
+        // Others see:
+        "$ATTACKER " + verb + " $DEFENDER, but they " + dodge_verb + "!\n"
+    );
 }
 
 // Broadcast attack miss message
@@ -597,10 +701,14 @@ void broadcast_attack_miss(int combat_id, object attacker, object defender,
     string *miss_msgs = MISS_MSGS;
     string miss_msg = miss_msgs[random(sizeof(miss_msgs))];
     
-    string msg = attacker->query_cap_name() + " " + verb + " " +
-                 defender->query_cap_name() + " " + miss_msg + "!\n";
+    string def_name_for_att = defender->query_introduction_name(attacker);
+    string att_name_for_def = attacker->query_introduction_name(defender);
     
-    broadcast_to_combat(combat_id, msg);
+    broadcast_combat_identity(combat_id, attacker, defender,
+        "You " + verb + " " + def_name_for_att + " " + miss_msg + "!\n",
+        att_name_for_def + " " + verb + " you " + miss_msg + "!\n",
+        "$ATTACKER " + verb + " $DEFENDER " + miss_msg + "!\n"
+    );
 }
 
 // =============================================================================
@@ -611,11 +719,40 @@ void broadcast_attack_miss(int combat_id, object attacker, object defender,
 void handle_death(int combat_id, object killer, object victim) {
     if (!victim) return;
     
-    string death_msg = "\n%^BOLD%^%^RED%^>>> " + 
-                      victim->query_cap_name() + 
-                      " has been defeated! <<<\n%^RESET%^\n";
+    if (!active_combats[combat_id]) return;
+    object *combatants = active_combats[combat_id]["combatants"];
+    object env;
     
-    broadcast_to_combat(combat_id, death_msg);
+    // Message to killer
+    if (killer) {
+        string vic_name = victim->query_introduction_name(killer);
+        tell_object(killer, "\n%^RED%^>>> You have defeated " + vic_name + "! <<<\n\n");
+    }
+    
+    // Message to victim
+    string killer_name = killer ? killer->query_introduction_name(victim) : "someone";
+    tell_object(victim, "\n%^RED%^>>> " + killer_name + " has defeated you! <<<\n\n");
+    
+    // Message to others
+    foreach (object combatant : combatants) {
+        if (!combatant || combatant == killer || combatant == victim) continue;
+        if (!env) env = environment(combatant);
+        
+        string vic_name = victim->query_introduction_name(combatant);
+        tell_object(combatant, "\n%^RED%^>>> " + vic_name + " has been defeated! <<<\n\n");
+    }
+    
+    // Observers
+    if (env) {
+        object *inv = all_inventory(env);
+        foreach (object ob : inv) {
+            if (!living(ob)) continue;
+            if (member_array(ob, combatants) != -1) continue;
+            
+            string vic_name = victim->query_introduction_name(ob);
+            tell_object(ob, "\n%^RED%^>>> " + vic_name + " has been defeated! <<<\n\n");
+        }
+    }
     
     // Call victim's die() method
     if (function_exists("die", victim)) {
@@ -668,7 +805,7 @@ string query_combat_status(object ob) {
         return "Not in combat.\n";
     }
     
-    string status = "%^BOLD%^=== COMBAT STATUS ===%^RESET%^\n";
+    string status = "=== COMBAT STATUS ===\n";
     status += "Round: " + combat["round"] + "\n";
     status += "Combatants: " + sizeof(combat["combatants"]) + "\n";
     
