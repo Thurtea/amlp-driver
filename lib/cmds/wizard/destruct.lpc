@@ -1,0 +1,55 @@
+/*
+ * /lib/cmds/wizard/destruct.lpc - Destroy cloned objects
+ * Phase 4: Object Management
+ * 
+ * Usage:
+ *   destruct <object_name>   - Destroy object in inventory by name
+ *   destruct <object_path>   - Destroy object by file path
+ */
+
+int main(string args) {
+    object player = previous_object();
+    object ob;
+    string resolved;
+    
+    if (!args || args == "") {
+        tell_object(player, "Syntax: destruct <object_name|object_path>\n");
+        return 1;
+    }
+    
+    // Try as object in inventory first
+    ob = present(args, player);
+    
+    // If not found, try as file path
+    if (!ob) {
+        resolved = player->resolve_path(args);
+        if (strlen(resolved) < 4 || resolved[strlen(resolved)-4..] != ".lpc") {
+            resolved += ".lpc";
+        }
+        ob = find_object(resolved);
+    }
+    
+    if (!ob) {
+        tell_object(player, "Not found: " + args + "\n");
+        return 1;
+    }
+    
+    // Verify it's cloned (not a daemon or singleton)
+    if (!ob->query_property("cloned") && file_name(ob)[0] == '/') {
+        if (file_size(file_name(ob)) != -1) {
+            tell_object(player, "Error: Cannot destruct non-cloned objects\n");
+            return 1;
+        }
+    }
+    
+    tell_object(player, "Destructing: " + ob->query_short() + "\n");
+    destruct(ob);
+    return 1;
+}
+
+void help() {
+    write("Syntax: destruct <object_name|object_path>\n");
+    write("Destroy cloned objects.\n");
+    write("First tries to find object in your inventory by name,\n");
+    write("then looks up by file path.\n");
+}

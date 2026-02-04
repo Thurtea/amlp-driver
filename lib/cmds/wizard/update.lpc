@@ -1,0 +1,52 @@
+/*
+ * /lib/cmds/wizard/update.lpc - Reload/recompile an object
+ * Phase 4: Object Management
+ * 
+ * Usage:
+ *   update <object_path>
+ */
+
+int main(string args) {
+    object player = previous_object();
+    string path, resolved;
+    object ob;
+    
+    if (!args || args == "") {
+        tell_object(player, "Syntax: update <object_path>\n");
+        return 1;
+    }
+    
+    resolved = player->resolve_path(args);
+    
+    if (strlen(resolved) < 4 || resolved[strlen(resolved)-4..] != ".lpc") {
+        resolved += ".lpc";
+    }
+    
+    // Find existing object
+    ob = find_object(resolved);
+    if (ob) {
+        tell_object(player, "Destructing old version...\n");
+        destruct(ob);
+    }
+    
+    // Reload
+    catch {
+        ob = load_object(resolved);
+    } : {
+        tell_object(player, "Error: Failed to reload " + resolved + "\n");
+        return 1;
+    }
+    
+    if (!ob) {
+        tell_object(player, "Error: Reload failed\n");
+        return 1;
+    }
+    
+    tell_object(player, "Updated: " + resolved + "\n");
+    return 1;
+}
+
+void help() {
+    write("Syntax: update <object_path>\n");
+    write("Reload/recompile an object.\n");
+}

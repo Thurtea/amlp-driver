@@ -118,6 +118,10 @@ void init_commands() {
     commands["eval"] = "/cmds/wizard/eval";
     commands["cat"] = "/cmds/wizard/cat";
     commands["ed"] = "/cmds/wizard/ed";
+    commands["clone"] = "/cmds/wizard/clone";
+    commands["load"] = "/cmds/wizard/load";
+    commands["update"] = "/cmds/wizard/update";
+    commands["destruct"] = "/cmds/wizard/destruct";
 }
 
 // Main command execution function

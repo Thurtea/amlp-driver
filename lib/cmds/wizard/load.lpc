@@ -1,0 +1,45 @@
+/*
+ * /lib/cmds/wizard/load.lpc - Load an object into memory
+ * Phase 4: Object Management
+ * 
+ * Usage:
+ *   load <object_path>
+ */
+
+int main(string args) {
+    object player = previous_object();
+    string path, resolved;
+    object ob;
+    
+    if (!args || args == "") {
+        tell_object(player, "Syntax: load <object_path>\n");
+        return 1;
+    }
+    
+    resolved = player->resolve_path(args);
+    
+    if (strlen(resolved) < 4 || resolved[strlen(resolved)-4..] != ".lpc") {
+        resolved += ".lpc";
+    }
+    
+    catch {
+        ob = load_object(resolved);
+    } : {
+        tell_object(player, "Error: Failed to load " + resolved + "\n");
+        return 1;
+    }
+    
+    if (!ob) {
+        tell_object(player, "Error: Load failed\n");
+        return 1;
+    }
+    
+    tell_object(player, "Loaded: " + resolved + "\n");
+    tell_object(player, "Object: " + file_name(ob) + "\n");
+    return 1;
+}
+
+void help() {
+    write("Syntax: load <object_path>\n");
+    write("Load an object into memory without cloning.\n");
+}

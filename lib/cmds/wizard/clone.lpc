@@ -1,0 +1,59 @@
+/*
+ * /lib/cmds/wizard/clone.lpc - Clone an object into inventory
+ * Phase 4: Object Management
+ * 
+ * Usage:
+ *   clone <object_path>
+ */
+
+int main(string args) {
+    object player = previous_object();
+    string path, resolved;
+    object ob;
+    
+    if (!args || args == "") {
+        tell_object(player, "Syntax: clone <object_path>\n");
+        return 1;
+    }
+    
+    // Resolve path
+    resolved = player->resolve_path(args);
+    
+    // Add .lpc if not present
+    if (strlen(resolved) < 4 || resolved[strlen(resolved)-4..] != ".lpc") {
+        resolved += ".lpc";
+    }
+    
+    // Try to clone
+    catch {
+        ob = clone_object(resolved);
+    } : {
+        tell_object(player, "Error: Failed to clone " + resolved + "\n");
+        tell_object(player, "Check compilation errors with: eval load_object(\"" + resolved + "\")\n");
+        return 1;
+    }
+    
+    if (!ob) {
+        tell_object(player, "Error: Clone failed for " + resolved + "\n");
+        return 1;
+    }
+    
+    // Move to wizard's inventory
+    if (ob->move(player) != 0) {
+        tell_object(player, "Error: Could not move object to inventory\n");
+        destruct(ob);
+        return 1;
+    }
+    
+    tell_object(player, "Cloned: " + ob->query_short() + "\n");
+    tell_object(player, "Object: " + file_name(ob) + "\n");
+    return 1;
+}
+
+void help() {
+    write("Syntax: clone <object_path>\n");
+    write("Clone an object and move it to your inventory.\n");
+    write("Examples:\n");
+    write("  clone /objects/weapons/vibro_blade\n");
+    write("  clone vibro_blade  (if in /objects/weapons/)\n");
+}
