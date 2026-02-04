@@ -43,6 +43,9 @@ private string custom_prompt;  // Custom prompt format
 // Atlantean tattoo magic
 private mapping tattoos;  // Maps tattoo name -> tattoo data
 
+// Wizard building tools
+private string working_directory;  // Current working directory for cd/pwd
+
 // Initialization
 void create() {
     // Initialize parent class fields directly to avoid scope resolution bug
@@ -70,6 +73,7 @@ void create() {
     skills = ([ ]);    // Initialize skills mapping
     custom_prompt = "> ";  // Default prompt
     tattoos = ([ ]);   // Initialize tattoos mapping
+    working_directory = "/domains/start";  // Default directory for wizards
     
     // Set real name for introduction system
     set_real_name("");
@@ -971,6 +975,72 @@ string *query_tattoos() {
 int query_tattoo_count() {
     if (!tattoos) return 0;
     return sizeof(keys(tattoos));
+}
+
+//=============================================================================
+// Wizard Building Tools - Working Directory System
+//=============================================================================
+
+// Set wizard's current working directory
+void set_cwd(string path) {
+    if (!path || path == "") {
+        working_directory = "/domains/start";
+        return;
+    }
+    
+    // Normalize path (remove trailing slash unless root)
+    if (strlen(path) > 1 && path[strlen(path)-1] == '/') {
+        path = path[0..strlen(path)-2];
+    }
+    
+    working_directory = path;
+}
+
+// Query wizard's current working directory
+string query_cwd() {
+    if (!working_directory || working_directory == "") {
+        working_directory = "/domains/start";
+    }
+    return working_directory;
+}
+
+// Resolve relative paths to absolute paths
+string resolve_path(string path) {
+    string cwd;
+    
+    if (!path || path == "") {
+        return query_cwd();
+    }
+    
+    // Path is already absolute
+    if (path[0..0] == "/") {
+        return path;
+    }
+    
+    // Handle special case of single dot (current directory)
+    if (path == ".") {
+        return query_cwd();
+    }
+    
+    // Handle parent directory (..)
+    if (path == "..") {
+        cwd = query_cwd();
+        if (cwd == "/") {
+            return "/";
+        }
+        int last_slash = strrstr(cwd, "/");
+        if (last_slash == 0) {
+            return "/";
+        }
+        return cwd[0..last_slash-1];
+    }
+    
+    // Relative to current directory
+    cwd = query_cwd();
+    if (cwd == "/") {
+        return "/" + path;
+    }
+    return cwd + "/" + path;
 }
 
 // Cleanup on removal
