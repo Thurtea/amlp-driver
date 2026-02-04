@@ -23,8 +23,6 @@ void create() {
     active_combats = ([ ]);
     next_combat_id = 1;
     heartbeat_handle = 0;
-    
-   write("Combat Daemon initialized.\n");
 }
 
 // =============================================================================

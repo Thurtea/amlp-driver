@@ -5,14 +5,14 @@
  *   kill <target>
  */
 
-int cmd(string args) {
+int main(string args) {
     object attack_cmd;
     
     // Load and call the attack command
     attack_cmd = load_object("/cmds/attack");
     
-    if (attack_cmd && function_exists("cmd", attack_cmd)) {
-        return attack_cmd->cmd(args);
+    if (attack_cmd && function_exists("main", attack_cmd)) {
+        return attack_cmd->main(args);
     }
     
     write("Error: Attack command not available.\n");

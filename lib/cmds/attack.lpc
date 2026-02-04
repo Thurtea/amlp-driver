@@ -6,7 +6,7 @@
  *   attack <target>
  */
 
-int cmd(string args) {
+int main(string args) {
     object attacker, target, env, combat_daemon;
     
     attacker = this_player();

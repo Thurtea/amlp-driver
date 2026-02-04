@@ -6,7 +6,7 @@
  *   flee [direction]
  */
 
-int cmd(string args) {
+int main(string args) {
     object player, target, env, combat_daemon;
     mapping exits;
     string *directions;
