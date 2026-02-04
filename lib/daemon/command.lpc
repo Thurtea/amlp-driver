@@ -65,6 +65,7 @@ void init_commands() {
     commands["score"] = "/cmds/score";
     commands["who"] = "/cmds/who";
     commands["help"] = "/cmds/help";
+    commands["ls"] = "/cmds/ls";
     
     // Actions
     commands["take"] = "/cmds/take";

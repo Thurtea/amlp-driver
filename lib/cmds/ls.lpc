@@ -1,0 +1,144 @@
+/*
+ * /lib/cmds/ls.lpc - List directory contents in horizontal layout
+ * Phase 3: Wizard Building Tools
+ * 
+ * Usage:
+ *   ls              List current working directory
+ *   ls <path>       List specified directory
+ */
+
+#include <globals.h>
+
+int main(string arg) {
+    object player = previous_object();
+    string path, resolved;
+    string *files, *dirs;
+    int i, columns, col_width;
+    
+    // Determine path
+    if (!arg || arg == "") {
+        resolved = player->query_cwd();
+    } else {
+        resolved = player->resolve_path(arg);
+    }
+    
+    // Verify directory exists
+    if (file_size(resolved) != -2) {
+        tell_object(player, "Error: Directory not found: " + resolved + "\n");
+        return 1;
+    }
+    
+    // Get directory contents
+    files = get_dir(resolved + "/*");
+    if (!files) files = ({ });
+    
+    // Separate directories and files
+    dirs = ({ });
+    string *sorted_files = ({ });
+    
+    for (i = 0; i < sizeof(files); i++) {
+        string full_path = resolved + "/" + files[i];
+        if (file_size(full_path) == -2) {
+            // It's a directory
+            dirs += ({ files[i] });
+        } else if (file_size(full_path) > 0) {
+            // It's a file
+            sorted_files += ({ files[i] });
+        }
+    }
+    
+    // Sort alphabetically
+    dirs = sort_array(dirs, 1);
+    sorted_files = sort_array(sorted_files, 1);
+    
+    // Output header with box drawing
+    tell_object(player, "┌" + repeat_string("─", 66) + "┐\n");
+    tell_object(player, sprintf("│ %-64s │\n", "Directory: " + resolved));
+    tell_object(player, "├" + repeat_string("─", 66) + "┤\n");
+    
+    // List directories
+    if (sizeof(dirs) > 0) {
+        tell_object(player, sprintf("│ Directories (%d)%s │\n", 
+            sizeof(dirs), repeat_string(" ", 54 - sprintf("Directories (%d)", sizeof(dirs))->strlen())));
+        list_items_horizontal(player, dirs, 1);
+    }
+    
+    // List files
+    if (sizeof(sorted_files) > 0) {
+        if (sizeof(dirs) > 0) {
+            tell_object(player, "├" + repeat_string("─", 66) + "┤\n");
+        }
+        tell_object(player, sprintf("│ Files (%d)%s │\n", 
+            sizeof(sorted_files), repeat_string(" ", 58 - sprintf("Files (%d)", sizeof(sorted_files))->strlen())));
+        list_items_horizontal(player, sorted_files, 0);
+    }
+    
+    // Output footer
+    tell_object(player, "└" + repeat_string("─", 66) + "┘\n");
+    
+    // Summary
+    int total_dirs = sizeof(dirs);
+    int total_files = sizeof(sorted_files);
+    tell_object(player, sprintf("%d directory(ies), %d file(s)\n", total_dirs, total_files));
+    
+    return 1;
+}
+
+// Helper function to list items in horizontal multi-column format
+void list_items_horizontal(object player, string *items, int is_dirs) {
+    int i, col = 0;
+    string line;
+    int col_width = 20;  // Width for each column
+    int cols_per_row = 3; // 3 items per row
+    
+    for (i = 0; i < sizeof(items); i++) {
+        string item = items[i];
+        
+        // Add directory markers
+        if (is_dirs) {
+            item = "[" + item + "/]";
+        }
+        
+        // Pad to column width
+        string padded = sprintf("%-" + col_width + "s", item);
+        
+        // Add to line
+        if (col == 0) {
+            line = "│ " + padded;
+        } else {
+            line += "  " + padded;
+        }
+        
+        col++;
+        
+        // Check if we should wrap to next line
+        if (col >= cols_per_row || i == sizeof(items) - 1) {
+            // Pad remaining columns
+            while (col < cols_per_row) {
+                line += "  " + repeat_string(" ", col_width);
+                col++;
+            }
+            tell_object(player, line + " │\n");
+            col = 0;
+            line = "";
+        }
+    }
+    
+    // If we have partial line, output it
+    if (col > 0) {
+        while (col < cols_per_row) {
+            line += "  " + repeat_string(" ", col_width);
+            col++;
+        }
+        tell_object(player, line + " │\n");
+    }
+}
+
+void help() {
+    write("Syntax: ls [path]\n");
+    write("List directory contents with horizontal layout.\n");
+    write("Examples:\n");
+    write("  ls              List current directory\n");
+    write("  ls /domains     List absolute path\n");
+    write("  ls rooms        List relative path\n");
+}
