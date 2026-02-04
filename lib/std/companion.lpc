@@ -1,0 +1,207 @@
+// /lib/std/companion.lpc
+// Base companion/pet object with voice command system
+// Phase 2 - Pet system for hawk, familiars, etc.
+
+inherit "/std/living";
+
+private string owner_name;           // Name of the owner
+private object owner_ob;             // Owner object reference
+private string companion_skill;      // Skill used to command (e.g., "falconry")
+private int base_obedience;          // Base chance to obey (0-100)
+private string *valid_commands;      // List of valid voice commands
+private mapping command_functions;   // Command -> function mapping
+
+void create() {
+    ::create();
+    
+    owner_name = 0;
+    owner_ob = 0;
+    companion_skill = "animal_handling";
+    base_obedience = 70;
+    valid_commands = ({ "follow", "stay", "come" });
+    command_functions = ([
+        "follow": "do_follow",
+        "stay": "do_stay",
+        "come": "do_come"
+    ]);
+    
+    set_property("is_companion", 1);
+    set_property("no_attack", 0);  // Can be attacked
+}
+
+void init() {
+    ::init();
+    add_action("listen_for_command", "say");
+}
+
+// Set the owner of this companion
+void set_owner(object ob) {
+    owner_ob = ob;
+    if (ob) {
+        owner_name = ob->query_name();
+    }
+}
+
+string query_owner_name() {
+    return owner_name;
+}
+
+object query_owner() {
+    return owner_ob;
+}
+
+void set_companion_skill(string skill) {
+    companion_skill = skill;
+}
+
+string query_companion_skill() {
+    return companion_skill;
+}
+
+void set_base_obedience(int val) {
+    base_obedience = val;
+}
+
+void add_voice_command(string cmd, string func) {
+    if (!valid_commands) valid_commands = ({});
+    if (!command_functions) command_functions = ([]);
+    
+    valid_commands += ({ cmd });
+    command_functions[cmd] = func;
+}
+
+// Listen for owner's voice commands
+int listen_for_command(string str) {
+    object speaker;
+    string pet_name, command, *words;
+    int skill_roll, difficulty, success;
+    
+    speaker = this_player();
+    
+    if (!str || !owner_ob || speaker != owner_ob) {
+        return 0;  // Not our owner or no speech
+    }
+    
+    // Parse voice command: "hawk follow", "spike stay", etc.
+    words = explode(lower_case(str), " ");
+    
+    if (sizeof(words) < 2) {
+        return 0;  // Need at least 2 words
+    }
+    
+    pet_name = words[0];
+    command = words[1];
+    
+    // Check if they're addressing us
+    string *our_ids = query_id();
+    if (!our_ids || member_array(pet_name, our_ids) == -1) {
+        return 0;  // Not talking to us
+    }
+    
+    // Check if valid command
+    if (!valid_commands || member_array(command, valid_commands) == -1) {
+        // Invalid command - pet confused
+        emote_confused();
+        return 1;
+    }
+    
+    // Skill check for obedience
+    if (companion_skill && function_exists("query_skill_percentage", owner_ob)) {
+        skill_roll = owner_ob->query_skill_percentage(companion_skill);
+    } else {
+        skill_roll = base_obedience;
+    }
+    
+    // Roll percentile
+    difficulty = random(100) + 1;
+    success = (difficulty <= skill_roll);
+    
+    if (!success) {
+        // Failed - pet doesn't obey
+        emote_disobey();
+        return 1;
+    }
+    
+    // Success - execute command
+    string func_name = command_functions[command];
+    if (func_name && function_exists(func_name, this_object())) {
+        call_other(this_object(), func_name, words);
+    }
+    
+    return 1;
+}
+
+// Default responses - override these in specific companions
+void emote_confused() {
+    tell_room(environment(this_object()),
+              query_cap_name() + " looks confused.");
+}
+
+void emote_disobey() {
+    tell_room(environment(this_object()),
+              query_cap_name() + " ignores the command.");
+}
+
+void emote_obey() {
+    tell_room(environment(this_object()),
+              query_cap_name() + " responds obediently.");
+}
+
+// Basic companion commands
+void do_follow(string *words) {
+    if (!owner_ob) return;
+    
+    set_property("following", owner_ob);
+    emote_obey();
+    
+    tell_object(owner_ob,
+                query_cap_name() + " will now follow you.");
+}
+
+void do_stay(string *words) {
+    remove_property("following");
+    emote_obey();
+    
+    if (owner_ob) {
+        tell_object(owner_ob,
+                    query_cap_name() + " stays put.");
+    }
+}
+
+void do_come(string *words) {
+    if (!owner_ob || environment(this_object()) == environment(owner_ob)) {
+        return;
+    }
+    
+    // Move to owner's location
+    tell_room(environment(this_object()),
+              query_cap_name() + " leaves.");
+    
+    move(environment(owner_ob));
+    
+    tell_room(environment(this_object()),
+              query_cap_name() + " arrives.");
+    
+    emote_obey();
+}
+
+// Follow owner if they move
+void heart_beat() {
+    object following;
+    
+    ::heart_beat();
+    
+    following = query_property("following");
+    
+    if (following && living(following) && 
+        environment(following) != environment(this_object())) {
+        // Owner moved, follow them
+        tell_room(environment(this_object()),
+                  query_cap_name() + " follows " + following->query_cap_name() + ".");
+        
+        move(environment(following));
+        
+        tell_room(environment(this_object()),
+                  query_cap_name() + " arrives, following " + following->query_cap_name() + ".");
+    }
+}

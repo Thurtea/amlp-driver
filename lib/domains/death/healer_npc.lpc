@@ -1,0 +1,74 @@
+// /lib/domains/death/healer_npc.lpc
+// Healer NPC in recovery room
+
+inherit "/std/living";
+
+void create() {
+    ::create();
+    
+    set_name("healer");
+    set_id(({"healer", "hooded healer", "figure"}));
+    set_short("a hooded healer");
+    set_long(
+        "This mysterious figure wears a hooded robe that obscures their face. They move " 
+        "silently about the chamber, tending to the deceased and preparing them for their " 
+        "return to the world of the living. Their hands glow with soft healing energy.\n"
+    );
+    
+    set_gender("neuter");
+    set_race("unknown");
+    set_level(10);
+    
+    set_max_hp(100);
+    set_hp(100);
+    set_max_sdc(100);
+    set_sdc(100);
+    
+    set_property("no_attack", 1);  // Cannot be attacked
+}
+
+void init() {
+    ::init();
+    add_action("talk_to_healer", "talk");
+}
+
+int talk_to_healer(string str) {
+    object player;
+    string *responses;
+    
+    player = this_player();
+    
+    if (!str || (str != "healer" && str != "to healer")) {
+        return 0;
+    }
+    
+    responses = ({
+        "The healer nods silently and continues their work.",
+        "The healer gestures toward the body chute without speaking.",
+        "The healer's hands glow briefly as they assess your wounds.",
+        "A whisper emanates from the hood: 'Your time has not yet come.'",
+        "The healer places a hand on your shoulder reassuringly before returning to their duties."
+    });
+    
+    write(responses[random(sizeof(responses))] + "\n");
+    
+    return 1;
+}
+
+void heart_beat() {
+    ::heart_beat();
+    
+    // Random ambient actions
+    if (random(20) == 0) {
+        string *emotes = ({
+            "A hooded healer mixes healing herbs in a mortar.",
+            "One of the healers examines a chart of mystical symbols.",
+            "Soft chanting can be heard from the corner of the chamber.",
+            "A healer's hands glow with warm healing energy.",
+            "The healers move silently, attending to their eternal duties."
+        });
+        
+        tell_room(environment(this_object()),
+            emotes[random(sizeof(emotes))]);
+    }
+}

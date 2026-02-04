@@ -1,0 +1,100 @@
+// /lib/domains/start/lake_shore.lpc
+// Lake Shore - Starting test area with swimming challenge
+// Phase 2 Testing - Swimming skill, swim as a fish spell, techno-wizard hilt
+
+inherit "/std/room";
+
+void create() {
+    ::create();
+    
+    set_short("Shore of Crystal Lake");
+    set_long(
+        "You stand on the shore of a pristine crystal lake. The water is "
+        "clear and inviting, stretching about fifty feet to the far shore. "
+        "You can see the lake bed through the crystalline waters, and something "
+        "metallic glints on the opposite shore.\n\n"
+        "The lake looks deep enough to require swimming to cross. To the north "
+        "is a path leading back to the village.\n"
+    );
+    
+    set_exits(([
+        "north": "/domains/start/village_center",
+        "swim": "/domains/start/lake_far_shore"  // Special swim exit
+    ]));
+    
+    set_property("indoors", 0);
+    set_property("light", 2);
+}
+
+// Override go command to handle swimming
+void init() {
+    ::init();
+    add_action("swim_lake", "swim");
+}
+
+int swim_lake(string str) {
+    object player;
+    int swimming_skill, roll, difficulty;
+    
+    player = this_player();
+    
+    // Check if trying to swim the lake
+    if (!str || (str != "lake" && str != "across" && str != "")) {
+        return 0;  // Let normal swim command handle it
+    }
+    
+    write("\nYou wade into the crystal clear water and begin swimming across the lake...\n");
+    
+    // Check for "swim as a fish" spell effect
+    if (player->query_property("swim_as_a_fish")) {
+        write("The magical enchantment propels you through the water effortlessly!\n");
+        write("You glide across the lake with supernatural ease.\n\n");
+        player->move_player("swim");
+        return 1;
+    }
+    
+    // Get swimming skill
+    swimming_skill = player->query_skill_percentage("swimming");
+    
+    if (!swimming_skill || swimming_skill < 1) {
+        // No swimming skill - base on PE stat
+        int pe = player->query_stat("PE");
+        swimming_skill = pe * 5;  // PE * 5 = base swimming chance
+    }
+    
+    // Roll against swimming skill
+    roll = random(100) + 1;
+    difficulty = 40;  // 40% base difficulty
+    
+    write("Swimming skill check: " + roll + " vs " + (swimming_skill - difficulty) + "\n");
+    
+    if (roll <= (swimming_skill - difficulty)) {
+        // Success!
+        write("You swim across the lake successfully!\n");
+        tell_room(environment(player), 
+                  player->query_cap_name() + " swims across the lake.",
+                  ({ player }));
+        
+        player->move_player("swim");
+        return 1;
+    } else {
+        // Failure - take some fatigue damage
+        write("You struggle in the water and barely make it across!\n");
+        write("The exertion leaves you exhausted.\n");
+        
+        // Apply minor SDC damage from exhaustion
+        player->take_damage(random(5) + 1, 0);
+        
+        tell_room(environment(player),
+                  player->query_cap_name() + " struggles across the lake, exhausted.",
+                  ({ player }));
+        
+        player->move_player("swim");
+        return 1;
+    }
+}
+
+string query_lake_description() {
+    return "The lake is about fifty feet across and looks to be 10-15 feet deep. "
+           "The water is crystal clear.";
+}

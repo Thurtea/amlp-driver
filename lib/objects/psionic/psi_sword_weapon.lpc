@@ -1,0 +1,117 @@
+// /lib/objects/psionic/psi_sword_weapon.lpc
+// Psi-Sword Weapon Object - Manifested psionic blade
+// Phase 2 - Psionic weapons system
+
+inherit "/std/object";
+
+void create() {
+    ::create();
+    
+    set_name("psi-sword");
+    set_id(({"sword", "psi-sword", "psi sword", "psisword", "blade", "psionic sword"}));
+    set_short("a psi-sword");
+    set_long(
+        "This is a sword composed entirely of psionic energy. The blade shimmers "
+        "with magenta and blue light, pulsing with psycho-kinetic "
+        "power. The 'blade' is solid enough to parry physical attacks and can cut "
+        "through nearly anything. It makes a faint humming sound.\n\n"
+        "The psi-sword inflicts 3d6 Mega-Damage per strike!\n"
+    );
+    
+    set_weight(0); // Weightless, it's pure energy
+    set_value(0);  // Cannot be sold, it's personal psionic energy
+    
+    set_property("magic", 0);
+    set_property("psionic", 1);
+    set_property("no_drop", 0);  // Can be dropped (which dismisses it)
+    set_property("weapon_type", "sword");
+    
+    // Combat properties
+    set_property("damage_dice", 3);
+    set_property("damage_sides", 6);
+    set_property("damage_bonus", 0);
+    set_property("is_mega_damage", 1);  // M.D. weapon!
+    set_property("strike_bonus", 0);
+    set_property("parry_bonus", 2);  // Psi-swords are excellent for parrying
+    set_property("combat_archetype", "armed_melee");
+    set_property("weapon_subtype", "blade");
+}
+
+void init() {
+    ::init();
+    add_action("dismiss_sword", "dismiss");
+    add_action("dismiss_sword", "dispel");
+}
+
+// Allow owner to dismiss the blade
+int dismiss_sword(string str) {
+    object owner, player;
+    
+    player = this_player();
+    
+    if (!str || (str != "sword" && str != "psi-sword" && str != "psisword")) {
+        return 0;
+    }
+    
+    if (environment(this_object()) != player) {
+        write("You don't have that psi-sword.");
+        return 1;
+    }
+    
+    owner = query_property("owner");
+    
+    if (owner && owner != player) {
+        write("That is not your psi-sword!");
+        return 1;
+    }
+    
+    // Dismiss it
+    tell_object(player,
+                "You will the psi-sword to dissipate.");
+    tell_object(player,
+                "The blade flickers and fades from existence.");
+    
+    tell_room(environment(player),
+              "The psi-sword in " + player->query_cap_name() + "'s hand vanishes.",
+              ({ player }));
+    
+    // Clean up
+    if (owner) {
+        owner->remove_property("has_psi_sword");
+        owner->remove_property("psi_sword_object");
+    }
+    
+    remove();
+    return 1;
+}
+
+// Override get to track when it's dropped
+void set_owner(object ob) {
+    set_property("owner", ob);
+}
+
+// If dropped, it dissipates
+int drop(string str) {
+    object player, owner;
+    
+    player = this_player();
+    
+    if (!str || member_array(str, query_id()) == -1) {
+        return 0;
+    }
+    
+    tell_object(player,
+                "As you release your concentration, the psi-sword dissipates.");
+    tell_room(environment(player),
+              "The psi-sword in " + player->query_cap_name() + "'s hand flickers out.",
+              ({ player }));
+    
+    owner = query_property("owner");
+    if (owner) {
+        owner->remove_property("has_psi_sword");
+        owner->remove_property("psi_sword_object");
+    }
+    
+    remove();
+    return 1;
+}

@@ -7,9 +7,10 @@ A modern LPC MUD driver written from scratch in C, featuring a complete LPC impl
 AMLP Driver is a high-performance MUD (Multi-User Dungeon) driver that interprets LPC (Lars Pensjö C) code. It provides a complete object-oriented environment with garbage collection, dynamic arrays, mappings, and a rich set of built-in functions for game development.
 
 **Key Features:**
+
 - Complete LPC compiler and bytecode VM
 - Garbage-collected object system
-- Native support for `.lpc` file extension
+- Native support for .lpc file extension
 - Real-time compilation and object loading
 - Telnet and websocket connectivity
 - Comprehensive character creation system
@@ -47,9 +48,10 @@ amlp-driver/
 
 ## LPC File Extension
 
-This driver uses the `.lpc` extension for all LPC library files, clearly distinguishing them from C driver code. For proper syntax highlighting in VS Code, use the [AMLP LPC Extension](../lpc-extension).
+This driver uses the `.lpc` extension for all LPC library files, clearly distinguishing them from C driver code. For proper syntax highlighting in VS Code, use the AMLP LPC Extension.
 
 **Installation:**
+
 ```bash
 # Copy the extension to VS Code
 cp -r lpc-extension ~/.vscode/extensions/
@@ -72,6 +74,7 @@ cp -r lpc-extension ~/.vscode/extensions/
 ### Configuration
 
 Edit `config/runtime.conf` to customize:
+
 - Port numbers (default: 3000 for telnet, 3001 for websocket)
 - Mudlib location
 - Master object path
@@ -80,11 +83,13 @@ Edit `config/runtime.conf` to customize:
 ### Connecting
 
 **Telnet:**
+
 ```bash
 telnet localhost 3000
 ```
 
 **Mudlet/TinTin++:**
+
 - Host: localhost
 - Port: 3000
 
@@ -95,11 +100,13 @@ First player to connect receives admin privileges automatically.
 ### Building from Source
 
 **Requirements:**
+
 - GCC 4.9+ or Clang
 - GNU Make
 - POSIX-compliant system (Linux, macOS, WSL)
 
 **Build:**
+
 ```bash
 make clean           # Clean previous builds
 make driver          # Build driver only
@@ -122,17 +129,18 @@ void create() {
 }
 ```
 
-See [docs/WIZTOOL.md](docs/WIZTOOL.md) for in-game building tools.
+See `docs/WIZTOOL.md` for in-game building tools.
 
 ## Documentation
 
-- [Administrator Guide](docs/ADMIN_GUIDE.md) - Server setup and management
-- [Wiztool Guide](docs/WIZTOOL.md) - In-game building commands
-- [Development Guide](docs/DEVELOPMENT.md) - Technical implementation details
+- **Administrator Guide** - Server setup and management
+- **Wiztool Guide** - In-game building commands
+- **Development Guide** - Technical implementation details
 
 ## Architecture
 
 The driver implements a complete LPC environment:
+
 - **Lexer** - Tokenizes LPC source code
 - **Parser** - Builds abstract syntax trees
 - **Compiler** - Generates bytecode
@@ -144,6 +152,7 @@ The driver implements a complete LPC environment:
 ## Contributing
 
 Contributions are welcome! This project demonstrates:
+
 - Compiler construction techniques
 - Virtual machine design
 - Garbage collection implementation

@@ -1,0 +1,298 @@
+// /lib/domains/start/objects/technowizard_hilt.lpc
+// Techno-Wizard Flaming Sword Hilt
+// Phase 2 Testing - PPE charging system
+
+inherit "/std/object";
+
+int charged;           // Is the blade currently charged?
+int ppe_stored;        // PPE stored in the hilt
+int max_ppe_storage;   // Maximum PPE the hilt can hold
+int ppe_loss_rate;     // PPE lost per minute when charged
+int blade_duration;    // How long blade stays active (minutes)
+
+void create() {
+    ::create();
+    
+    set_name("hilt");
+    set_id(({"hilt", "metal hilt", "sword hilt", "technowizard hilt"}));
+    set_short("a metallic sword hilt");
+    set_long(
+        "This is an ornate metallic sword hilt, about a foot long, made of "
+        "a strange silvery alloy covered in glowing runes and techno-magical "
+        "circuitry. The hilt is cold to the touch and thrums with latent "
+        "magical energy. There is no blade attached - just the hilt itself.\n\n"
+        "Etched into the pommel are the words: 'Charge with P.P.E.'\n\n"
+        "The hilt " + (charged ? "blazes with a flaming energy blade!" : 
+                                 "is currently inactive.") + "\n"
+    );
+    
+    set_weight(2);
+    set_value(5000);
+    
+    charged = 0;
+    ppe_stored = 0;
+    max_ppe_storage = 20;   // Holds 20 PPE max
+    ppe_loss_rate = 1;       // Loses 1 PPE per minute when active
+    blade_duration = 0;
+    
+    set_property("magic", 1);
+    set_property("technowizard", 1);
+    set_property("weapon_type", "sword");
+}
+
+void init() {
+    ::init();
+    add_action("charge_hilt", "charge");
+    add_action("activate_blade", "activate");
+    add_action("deactivate_blade", "deactivate");
+}
+
+// Charge the hilt with PPE
+int charge_hilt(string str) {
+    object player;
+    int ppe_amount, player_ppe;
+    string *words;
+    
+    player = this_player();
+    
+    // Parse: "charge hilt with <amount> ppe" or "charge hilt with ppe"
+    if (!str || !present("hilt", player)) {
+        return 0;
+    }
+    
+    words = explode(lower_case(str), " ");
+    
+    // Must include "hilt" and "ppe"
+    if (member_array("hilt", words) == -1 || member_array("ppe", words) == -1) {
+        return 0;
+    }
+    
+    // Check if player has PPE
+    if (!function_exists("query_ppe", player)) {
+        write("You don't have any P.P.E. to channel!\n");
+        return 1;
+    }
+    
+    player_ppe = player->query_ppe();
+    
+    if (player_ppe < 1) {
+        write("You don't have enough P.P.E. to charge the hilt!\n");
+        return 1;
+    }
+    
+    // Check for amount in command
+    ppe_amount = 0;
+    foreach (string word : words) {
+        if (sscanf(word, "%d", ppe_amount) == 1) {
+            break;
+        }
+    }
+    
+    // Default to 10 PPE if no amount specified
+    if (ppe_amount < 1) {
+        ppe_amount = 10;
+    }
+    
+    // Cap at player's available PPE
+    if (ppe_amount > player_ppe) {
+        ppe_amount = player_ppe;
+    }
+    
+    // Cap at hilt's storage capacity
+    int space_available = max_ppe_storage - ppe_stored;
+    if (ppe_amount > space_available) {
+        ppe_amount = space_available;
+    }
+    
+    if (ppe_amount < 1) {
+        write("The hilt is already fully charged!\n");
+        return 1;
+    }
+    
+    // Charge the hilt
+    player->add_ppe(-ppe_amount);
+    ppe_stored += ppe_amount;
+    
+    write("You channel " + ppe_amount + " P.P.E. into the hilt!\n");
+    write("The runes on the hilt glow brightly as they absorb your magical energy.\n");
+    write("Hilt P.P.E.: " + ppe_stored + "/" + max_ppe_storage + "\n");
+    
+    tell_room(environment(player),
+              player->query_cap_name() + "'s hands glow with magical energy as " +
+              player->query_subjective() + " channels P.P.E. into the hilt.",
+              ({ player }));
+    
+    // Auto-activate if enough PPE
+    if (ppe_stored >= 10 && !charged) {
+        write("\nThe hilt has enough energy to activate!\n");
+        write("Type 'activate hilt' to ignite the flaming blade.\n");
+    }
+    
+    return 1;
+}
+
+// Activate the flaming blade
+int activate_blade(string str) {
+    object player;
+    
+    player = this_player();
+    
+    if (!str || str != "hilt") {
+        return 0;
+    }
+    
+    if (!present("hilt", player)) {
+        write("You don't have the hilt!\n");
+        return 1;
+    }
+    
+    if (charged) {
+        write("The blade is already active!\n");
+        return 1;
+    }
+    
+    if (ppe_stored < 10) {
+        write("The hilt doesn't have enough P.P.E. to activate! (Need 10, have " + 
+              ppe_stored + ")\n");
+        write("Use 'charge hilt with ppe' to add more energy.\n");
+        return 1;
+    }
+    
+    // Activate!
+    charged = 1;
+    blade_duration = ppe_stored;  // 1 minute per PPE
+    
+    set_short("a flaming techno-wizard sword");
+    set_long(
+        "This techno-wizard weapon consists of an ornate metallic hilt from which "
+        "blazes a three-foot blade of pure flame and magical energy! "
+        "The blade crackles and hisses, casting flickering red light. Runes along "
+        "the hilt pulse with power.\n\n"
+        "The blade will last approximately " + blade_duration + " minutes before "
+        "the P.P.E. is depleted.\n"
+    );
+    
+    // Set weapon properties
+    set_property("damage_dice", 3);
+    set_property("damage_sides", 6);
+    set_property("damage_bonus", 6);
+    set_property("is_mega_damage", 1);  // MD weapon!
+    set_property("strike_bonus", 2);
+    set_property("combat_archetype", "armed_melee");
+    set_property("weapon_type", "blade");
+    
+    write("\nWHOOOOSH!\n");
+    write("A blazing blade of flame erupts from the hilt!\n");
+    write("You now wield a flaming techno-wizard sword! (3d6+6 M.D.)\n");
+    
+    tell_room(environment(player),
+              "A blade of pure flame erupts from " + player->query_cap_name() +
+              "'s hilt with a thunderous WHOOSH!",
+              ({ player }));
+    
+    // Start PPE drain
+    call_out("drain_ppe", 60);  // Drain every minute
+    
+    return 1;
+}
+
+// Deactivate the blade
+int deactivate_blade(string str) {
+    object player;
+    
+    player = this_player();
+    
+    if (!str || str != "hilt") {
+        return 0;
+    }
+    
+    if (!charged) {
+        write("The blade isn't active!\n");
+        return 1;
+    }
+    
+    charged = 0;
+    
+    set_short("a metallic sword hilt");
+    set_long(
+        "This is an ornate metallic sword hilt, about a foot long, made of "
+        "a strange silvery alloy covered in glowing runes and techno-magical "
+        "circuitry. The hilt is cold to the touch and thrums with latent "
+        "magical energy. There is no blade attached - just the hilt itself.\n\n"
+        "Etched into the pommel are the words: 'Charge with P.P.E.'\n\n"
+        "The hilt is currently inactive.\n"
+        "P.P.E. remaining: " + ppe_stored + "/" + max_ppe_storage + "\n"
+    );
+    
+    // Remove weapon properties
+    set_property("damage_dice", 0);
+    set_property("damage_sides", 0);
+    set_property("damage_bonus", 0);
+    set_property("is_mega_damage", 0);
+    set_property("strike_bonus", 0);
+    
+    write("The flaming blade dissipates with a soft hiss.\n");
+    tell_room(environment(player),
+              "The flaming blade on " + player->query_cap_name() + "'s sword dissipates.",
+              ({ player }));
+    
+    return 1;
+}
+
+// Drain PPE over time
+void drain_ppe() {
+    if (!charged) return;
+    
+    ppe_stored -= ppe_loss_rate;
+    blade_duration--;
+    
+    if (ppe_stored <= 0) {
+        // Blade depleted!
+        object carrier = environment(this_object());
+        
+        if (carrier && living(carrier)) {
+            tell_object(carrier,
+                        "The flaming blade flickers and dies as the P.P.E. is depleted!\n");
+            tell_room(environment(carrier),
+                      "The flaming blade on " + carrier->query_cap_name() + "'s sword flickers out.",
+                      ({ carrier }));
+        }
+        
+        charged = 0;
+        ppe_stored = 0;
+        
+        set_short("a metallic sword hilt");
+        set_long(
+            "This is an ornate metallic sword hilt, about a foot long, made of "
+            "a strange silvery alloy covered in glowing runes and techno-magical "
+            "circuitry. The hilt is cold to the touch and thrums with latent "
+            "magical energy. There is no blade attached - just the hilt itself.\n\n"
+            "Etched into the pommel are the words: 'Charge with P.P.E.'\n\n"
+            "The hilt is currently inactive and depleted of P.P.E.\n"
+        );
+        
+        // Remove weapon properties
+        set_property("damage_dice", 0);
+        set_property("damage_sides", 0);
+        set_property("damage_bonus", 0);
+        set_property("is_mega_damage", 0);
+        set_property("strike_bonus", 0);
+        
+        return;
+    }
+    
+    // Continue draining
+    call_out("drain_ppe", 60);
+}
+
+int query_charged() {
+    return charged;
+}
+
+int query_ppe_stored() {
+    return ppe_stored;
+}
+
+int query_max_ppe() {
+    return max_ppe_storage;
+}

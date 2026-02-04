@@ -1,0 +1,25 @@
+// /lib/domains/start/village_center.lpc
+// Village Center - Hub for testing areas
+
+inherit "/std/room";
+
+void create() {
+    ::create();
+    
+    set_short("Village Center");
+    set_long(
+        "You stand in the center of a small village. A well-worn path leads "
+        "south to a beautiful lake, north to the wizard's castle, and east to "
+        "the market square. West leads to the training grounds.\n"
+    );
+    
+    set_exits(([
+        "north": "/domains/castle/entry",
+        "south": "/domains/start/lake_shore",
+        "east": "/domains/start/market",
+        "west": "/domains/start/training_grounds"
+    ]));
+    
+    set_property("indoors", 0);
+    set_property("light", 2);
+}

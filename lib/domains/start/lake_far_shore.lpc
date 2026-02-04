@@ -1,0 +1,96 @@
+// /lib/domains/start/lake_far_shore.lpc
+// Far Shore of Crystal Lake - Location of the techno-wizard hilt
+// Phase 2 Testing - PPE charging system
+
+inherit "/std/room";
+
+void create() {
+    ::create();
+    
+    set_short("Far Shore of Crystal Lake");
+    set_long(
+        "You have reached the far shore of Crystal Lake. The water laps gently "
+        "at the sandy beach behind you. A dense forest rises ahead to the east, "
+        "and you can see the shore you came from across the water to the south.\n\n"
+        "On the ground, half-buried in the sand, you notice something metallic "
+        "glinting in the sunlight.\n"
+    );
+    
+    set_exits(([
+        "swim": "/domains/start/lake_shore",  // Swim back
+        "east": "/domains/start/forest_edge"
+    ]));
+    
+    set_property("indoors", 0);
+    set_property("light", 2);
+}
+
+void init() {
+    ::init();
+    add_action("swim_lake", "swim");
+}
+
+int swim_lake(string str) {
+    object player;
+    int swimming_skill, roll, difficulty;
+    
+    player = this_player();
+    
+    // Check if trying to swim back
+    if (!str || (str != "lake" && str != "across" && str != "back" && str != "")) {
+        return 0;
+    }
+    
+    write("\nYou dive into the water and begin swimming back across the lake...\n");
+    
+    // Check for "swim as a fish" spell effect
+    if (player->query_property("swim_as_a_fish")) {
+        write("The magical enchantment propels you through the water effortlessly!\n");
+        write("You glide back across the lake with supernatural ease.\n\n");
+        player->move_player("swim");
+        return 1;
+    }
+    
+    // Get swimming skill
+    swimming_skill = player->query_skill_percentage("swimming");
+    
+    if (!swimming_skill || swimming_skill < 1) {
+        int pe = player->query_stat("PE");
+        swimming_skill = pe * 5;
+    }
+    
+    roll = random(100) + 1;
+    difficulty = 40;
+    
+    write("Swimming skill check: " + roll + " vs " + (swimming_skill - difficulty) + "\n");
+    
+    if (roll <= (swimming_skill - difficulty)) {
+        write("You swim back across the lake successfully!\n");
+        tell_room(environment(player),
+                  player->query_cap_name() + " swims across the lake.",
+                  ({ player }));
+        player->move_player("swim");
+        return 1;
+    } else {
+        write("You struggle in the water but make it back!\n");
+        player->take_damage(random(5) + 1, 0);
+        tell_room(environment(player),
+                  player->query_cap_name() + " struggles across the lake.",
+                  ({ player }));
+        player->move_player("swim");
+        return 1;
+    }
+}
+
+void reset() {
+    ::reset();
+    
+    // Spawn techno-wizard hilt if not present
+    if (!present("hilt")) {
+        object hilt;
+        hilt = load_object("/domains/start/objects/technowizard_hilt");
+        if (hilt) {
+            hilt->move(this_object());
+        }
+    }
+}

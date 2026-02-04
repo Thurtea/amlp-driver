@@ -1,0 +1,83 @@
+// /lib/races/great_horned_dragon.lpc
+// Great Horned Dragon - Powerful RCC with metamorph ability
+// Phase 2 - Dragon shapeshifting ability
+
+inherit "/std/race";
+
+void create() {
+    ::create();
+    
+    set_name("great_horned_dragon");
+    set_short("Great Horned Dragon");
+    set_long(
+        "Great Horned Dragons are ancient and powerful beings, among the most "
+        "intelligent and formidable of all dragon species. They possess massive "
+        "horns, razor-sharp claws, and can breathe fire. Their most unique ability "
+        "is metamorphosis - the power to take the form of any humanoid race.\n"
+    );
+    
+    // Great Horned Dragons are VERY powerful
+    set_stat_bonus("IQ", 8);   // Highly intelligent
+    set_stat_bonus("ME", 6);
+    set_stat_bonus("MA", 4);
+    set_stat_bonus("PS", 12);  // Incredibly strong
+    set_stat_bonus("PP", 6);
+    set_stat_bonus("PE", 10);
+    set_stat_bonus("PB", 8);
+    set_stat_bonus("SPD", 8);
+    
+    // M.D.C. creature!
+    set_base_mdc(200);  // 200 base MDC
+    set_mdc_bonus_per_level(20);  // +20 MDC per level
+    
+    // Natural weapons
+    set_attacks_per_round(3);  // 3 attacks per round!
+    set_parries_per_round(4);
+    set_auto_parry(1);
+    set_auto_dodge(1);
+    set_combat_archetype("dragon");
+    set_mdc_natural_attacks(1);  // Natural attacks do M.D.!
+    
+    add_natural_weapon("bite", 2, 8, 4);      // 2d8+4 MD
+    add_natural_weapon("claw", 2, 6, 2);      // 2d6+2 MD
+    add_natural_weapon("tail", 1, 10, 3);     // 1d10+3 MD
+    add_natural_weapon("horn_gore", 3, 6, 4); // 3d6+4 MD
+    
+    // Flight
+    set_property("can_fly", 1);
+    set_property("flight_speed", 200);  // 200 mph flying
+    
+    // Supernatural
+    set_property("is_supernatural", 1);
+    set_property("see_invisible", 1);
+    set_property("nightvision", 1);
+    
+    // Metamorph ability
+    set_property("has_metamorph", 1);
+    set_property("metamorph_races", ({ 
+        "human", "elf", "dwarf", "dog_boy", "psi_stalker", 
+        "dragon_hatchling", "juicer", "crazy"
+    }));
+    
+    // Magic and psionics
+    set_base_ppe(100);  // Natural magic
+    set_base_isp(50);   // Natural psionics
+    
+    set_size("huge");
+    set_weight_range(4000, 6000);  // Several tons!
+    set_height_range(180, 240);    // 15-20 feet tall
+}
+
+// Great Horned Dragons start with special abilities
+void setup_player(object player) {
+    ::setup_player(player);
+    
+    // Grant metamorph command
+    if (player && living(player)) {
+        player->set_property("has_metamorph", 1);
+        player->set_property("true_race", "great_horned_dragon");
+        
+        // Dragons can breathe fire (future implementation)
+        player->set_property("can_breathe_fire", 1);
+    }
+}

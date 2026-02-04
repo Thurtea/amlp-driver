@@ -1,12 +1,13 @@
 /*
  * /lib/cmds/flee.lpc - Attempt to escape from combat
+ * Phase 2: Updated for Real-Time Combat System
  * 
  * Usage:
  *   flee [direction]
  */
 
 int cmd(string args) {
-    object player, target, env;
+    object player, target, env, combat_daemon;
     mapping exits;
     string *directions;
     string escape_dir;
@@ -14,8 +15,15 @@ int cmd(string args) {
     player = this_player();
     env = environment(player);
     
+    // Load combat daemon
+    combat_daemon = load_object("/daemon/combat");
+    if (!combat_daemon) {
+        write("Error: Combat system unavailable.\n");
+        return 1;
+    }
+    
     // Check if in combat
-    if (!player->in_combat()) {
+    if (!combat_daemon->is_in_combat(player)) {
         write("You're not in combat!\n");
         return 1;
     }
@@ -59,23 +67,25 @@ int cmd(string args) {
         // Success!
         write("\n%^GREEN%^You successfully flee to the " + escape_dir + "!%^RESET%^\n\n");
         
-        tell_object(target,
-                    "%^YELLOW%^" + player->query_cap_name() + 
-                    " flees to the " + escape_dir + "!%^RESET%^\n");
+        if (target) {
+            tell_object(target,
+                        "%^YELLOW%^" + player->query_cap_name() + 
+                        " flees to the " + escape_dir + "!%^RESET%^\n");
+        }
         
         tell_room(env,
                   "%^YELLOW%^" + player->query_cap_name() + 
                   " flees to the " + escape_dir + "!%^RESET%^\n",
                   ({ player, target }));
         
-        // End combat
-        player->set_combat_target(0);
-        if (target && function_exists("set_combat_target", target)) {
-            // Target might chase or switch targets, but for now just end combat
-            if (target->query_combat_target() == player) {
-                target->set_combat_target(0);
-            }
+        // Find and end the combat
+        int combat_id = combat_daemon->find_combat_for(player);
+        if (combat_id) {
+            combat_daemon->end_combat(combat_id, target, player);
         }
+        
+        // Clear combat target
+        player->set_combat_target(0);
         
         // Move player
         player->move_player(escape_dir);
@@ -87,17 +97,20 @@ int cmd(string args) {
         write("%^RED%^" + target->query_cap_name() + 
               " gets a free attack as you turn to flee!%^RESET%^\n\n");
         
-        tell_object(target,
-                    "%^GREEN%^" + player->query_cap_name() + 
-                    " tries to flee but you get a free attack!%^RESET%^\n");
+        if (target) {
+            tell_object(target,
+                        "%^GREEN%^" + player->query_cap_name() + 
+                        " tries to flee but you get a free attack!%^RESET%^\n");
+        }
         
         tell_room(env,
                   player->query_cap_name() + " tries to flee but fails!\n",
                   ({ player, target }));
         
-        // Target gets free attack
-        if (function_exists("perform_attack", target)) {
-            target->perform_attack(player);
+        // Target gets free attack via combat daemon
+        int combat_id = combat_daemon->find_combat_for(player);
+        if (combat_id && target && function_exists("perform_single_attack", combat_daemon)) {
+            combat_daemon->perform_single_attack(combat_id, target, player);
         }
     }
     

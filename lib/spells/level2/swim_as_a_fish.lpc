@@ -1,0 +1,84 @@
+// /lib/spells/level2/swim_as_a_fish.lpc
+// Swim as a Fish - Level 2 Water/Elemental Spell
+// Grants supernatural swimming ability
+
+inherit "/std/spell";
+
+void create() {
+    ::create();
+    
+    set_spell_id("swim_as_a_fish");
+    set_spell_name("Swim as a Fish");
+    set_spell_level(2);
+    set_ppe_cost(6); // Level 2 spell, 6 PPE
+    set_casting_time(2); // 1 melee action (2 seconds)
+    set_duration(60); // 1 minute per level - we'll calculate
+    set_range("self");
+    set_spell_type("elemental");
+    
+    set_short_description("Grants the ability to swim perfectly like a fish.");
+    set_long_description(
+        "This spell transforms the caster into an expert swimmer, able to "
+        "move through water as effortlessly as a fish. The caster can hold "
+        "their breath for the duration, swim at incredible speeds, and needs "
+        "no swimming skill checks while under the spell's effect.\n\n"
+        "Duration: 1 minute per level\n"
+        "Range: Self\n"
+        "P.P.E.: 6\n"
+    );
+}
+
+// Cast the spell
+int cast(object caster, object target, string args) {
+    int duration_minutes, caster_level;
+    
+    // Target is always self for this spell
+    target = caster;
+    
+    // Check if already active
+    if (target->query_property("swim_as_a_fish")) {
+        tell_object(caster, "You are already swimming like a fish!");
+        return 0;
+    }
+    
+    // Get caster level for duration
+    caster_level = caster->query_level();
+    duration_minutes = caster_level; // 1 minute per level
+    
+    // Apply spell effect
+    target->set_property("swim_as_a_fish", 1);
+    target->set_property("swim_speed_bonus", 100); // Double swim speed
+    target->set_property("can_breathe_underwater", 1);
+    
+    // Visual effects
+    tell_object(caster,
+                "Your body tingles as magical energy surrounds you!");
+    tell_object(caster,
+                "You feel webbing form between your fingers and your lungs expand!");
+    tell_object(caster,
+                "You can now swim perfectly and breathe underwater!");
+    
+    tell_room(environment(caster),
+              "" + caster->query_cap_name() + "'s hands shimmer with blue light, "
+              "and thin webbing appears between their fingers!",
+              ({ caster }));
+    
+    // Schedule removal
+    call_out("remove_spell_effect", duration_minutes * 60, target);
+    
+    return 1;
+}
+
+void remove_spell_effect(object target) {
+    if (!target) return;
+    
+    target->remove_property("swim_as_a_fish");
+    target->remove_property("swim_speed_bonus");
+    target->remove_property("can_breathe_underwater");
+    
+    tell_object(target,
+                "The magical swimming ability fades away.");
+    tell_room(environment(target),
+              "The webbing between " + target->query_cap_name() + "'s fingers disappears.",
+              ({ target }));
+}

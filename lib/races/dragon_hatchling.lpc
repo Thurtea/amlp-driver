@@ -42,6 +42,19 @@ void create() {
         "additional abilities and skills."
     );
 
+    // Phase 2: Combat System Configuration
+    set_attacks_per_round(1);           // Dragons get 2 attacks total (1 base + 1 racial)
+    set_parries_per_round(3);           // 3 parries per round (can use tail/claw)
+    set_auto_parry(1);                  // Automatic parry with claws/tail
+    set_auto_dodge(1);                  // Automatic dodge
+    set_combat_archetype("dragon");     // Uses dragon attack verbs
+    set_mdc_natural_attacks(0);         // Hatchlings do SDC damage (not MDC yet)
+    
+    // Natural weapons
+    add_natural_weapon("bite", 1, 8, 2);    // 1d8+2 bite damage
+    add_natural_weapon("claw", 1, 6, 1);    // 1d6+1 claw damage
+    add_natural_weapon("tail", 1, 4, 0);    // 1d4 tail whip
+
     // Occupation (OCC) guidance: allow most martial and magic occs but prefer scout/dragonkin
     set_allowed_occs(({ }));
     set_forbidden_occs(({ }));

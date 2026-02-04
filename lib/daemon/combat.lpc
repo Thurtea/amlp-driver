@@ -1,0 +1,692 @@
+// /lib/daemon/combat.lpc
+// Combat Daemon - Manages Real-Time Verb-Based Combat
+// Phase 2 - February 4, 2026
+
+#include <combat.h>
+
+inherit "/std/daemon";
+
+// =============================================================================
+// GLOBAL COMBAT STATE
+// =============================================================================
+
+private mapping active_combats;     // ([ combat_id: combat_data ])
+private int next_combat_id;         // Unique ID counter for combats
+private int heartbeat_handle;       // Callout handle for combat rounds
+
+// =============================================================================
+// INITIALIZATION
+// =============================================================================
+
+void create() {
+    ::create();
+    active_combats = ([ ]);
+    next_combat_id = 1;
+    heartbeat_handle = 0;
+    
+   write("Combat Daemon initialized.\n");
+}
+
+// =============================================================================
+// COMBAT MANAGEMENT
+// =============================================================================
+
+// Start a new combat between two combatants
+int start_combat(object attacker, object defender) {
+    if (!attacker || !defender) return 0;
+    if (!living(attacker) || !living(defender)) return 0;
+    
+    // Check if either is already in combat
+    int existing_combat = find_combat_for(attacker);
+    if (existing_combat) {
+        // Already in combat - could expand to support joining existing combat
+        return existing_combat;
+    }
+    
+    existing_combat = find_combat_for(defender);
+    if (existing_combat) {
+        // Defender already in combat - add attacker to that combat
+        return add_to_combat(existing_combat, attacker);
+    }
+    
+    // Create new combat
+    int combat_id = next_combat_id++;
+    
+    active_combats[combat_id] = ([
+        "id": combat_id,
+        "combatants": ({ attacker, defender }),
+        "round": 1,
+        "started": time(),
+        "attacks_used": ([ ]),  // Track attacks used by each combatant
+        "parries_used": ([ ])   // Track parries used by each combatant
+    ]);
+    
+    // Set combat targets
+    attacker->set_combat_target(defender);
+    defender->set_combat_target(attacker);
+    
+    // Initialize attack and parry tracking
+    active_combats[combat_id]["attacks_used"][attacker] = 0;
+    active_combats[combat_id]["attacks_used"][defender] = 0;
+    active_combats[combat_id]["parries_used"][attacker] = 0;
+    active_combats[combat_id]["parries_used"][defender] = 0;
+    
+    // Broadcast combat start
+    broadcast_to_combat(combat_id, 
+        "\n%^BOLD%^%^YELLOW%^>>> COMBAT INITIATED! <<<\n" +
+        attacker->query_cap_name() + " vs " + defender->query_cap_name() +
+        "%^RESET%^\n\n");
+    
+    // Start combat heartbeat if not already running
+    start_heartbeat();
+    
+    return combat_id;
+}
+
+// End a combat
+void end_combat(int combat_id, object winner, object loser) {
+    if (!active_combats[combat_id]) return;
+    
+    mapping combat = active_combats[combat_id];
+    object *combatants = combat["combatants"];
+    
+    // Broadcast combat end
+    string end_msg = "\n%^BOLD%^%^YELLOW%^>>> COMBAT ENDED <<<\n";
+    if (winner && loser) {
+        end_msg += winner->query_cap_name() + " defeats " + loser->query_cap_name() + "!";
+    } else {
+        end_msg += "Combat has ended.";
+    }
+    end_msg += "%^RESET%^\n\n";
+    
+    broadcast_to_combat(combat_id, end_msg);
+    
+    // Clear combat targets for all combatants
+    foreach (object combatant : combatants) {
+        if (combatant && objectp(combatant)) {
+            combatant->set_combat_target(0);
+        }
+    }
+    
+    // Remove combat from active list
+    map_delete(active_combats, combat_id);
+    
+    // Stop heartbeat if no more combats
+    if (sizeof(active_combats) == 0) {
+        stop_heartbeat();
+    }
+}
+
+// Find which combat a given object is in
+int find_combat_for(object ob) {
+    if (!ob) return 0;
+    
+    int *combat_ids = keys(active_combats);
+    foreach (int id : combat_ids) {
+        object *combatants = active_combats[id]["combatants"];
+        if (member_array(ob, combatants) != -1) {
+            return id;
+        }
+    }
+    
+    return 0;
+}
+
+// Add a combatant to an existing combat
+int add_to_combat(int combat_id, object newcomer) {
+    if (!active_combats[combat_id]) return 0;
+    if (!newcomer || !living(newcomer)) return 0;
+    
+    mapping combat = active_combats[combat_id];
+    object *combatants = combat["combatants"];
+    
+    // Don't add if already in combat
+    if (member_array(newcomer, combatants) != -1) {
+        return combat_id;
+    }
+    
+    // Add to combatants array
+    combatants += ({ newcomer });
+    combat["combatants"] = combatants;
+    
+    // Initialize tracking
+    combat["attacks_used"][newcomer] = 0;
+    combat["parries_used"][newcomer] = 0;
+    
+    // Announce joining
+    broadcast_to_combat(combat_id,
+        newcomer->query_cap_name() + " joins the combat!\n");
+    
+    return combat_id;
+}
+
+// =============================================================================
+// COMBAT HEARTBEAT (Real-Time Rounds)
+// =============================================================================
+
+// Start the combat heartbeat
+void start_heartbeat() {
+    if (heartbeat_handle) return;  // Already running
+    
+    heartbeat_handle = call_out("combat_heartbeat", COMBAT_ROUND_DELAY);
+}
+
+// Stop the combat heartbeat
+void stop_heartbeat() {
+    if (heartbeat_handle) {
+        remove_call_out(heartbeat_handle);
+        heartbeat_handle = 0;
+    }
+}
+
+// Combat heartbeat - called every COMBAT_ROUND_DELAY seconds
+void combat_heartbeat() {
+    heartbeat_handle = 0;
+    
+    if (sizeof(active_combats) == 0) {
+        return;  // No active combats
+    }
+    
+    // Process each active combat
+    int *combat_ids = keys(active_combats);
+    foreach (int combat_id : combat_ids) {
+        process_combat_round(combat_id);
+    }
+    
+    // Schedule next heartbeat
+    if (sizeof(active_combats) > 0) {
+        start_heartbeat();
+    }
+}
+
+// Process one round of combat
+void process_combat_round(int combat_id) {
+    if (!active_combats[combat_id]) return;
+    
+    mapping combat = active_combats[combat_id];
+    object *combatants = combat["combatants"];
+    int round = combat["round"];
+    
+    // Filter out dead/destructed/gone combatants
+    object *active_combatants = ({ });
+    foreach (object combatant : combatants) {
+        if (combatant && objectp(combatant) && living(combatant) && 
+            combatant->is_alive() && environment(combatant)) {
+            active_combatants += ({ combatant });
+        }
+    }
+    
+    // Check if combat should end
+    if (sizeof(active_combatants) < 2) {
+        object winner = sizeof(active_combatants) == 1 ? active_combatants[0] : 0;
+        end_combat(combat_id, winner, 0);
+        return;
+    }
+    
+    // Update active combatants list
+    combat["combatants"] = active_combatants;
+    
+    // Reset attacks and parries for new round
+    foreach (object combatant : active_combatants) {
+        combat["attacks_used"][combatant] = 0;
+        combat["parries_used"][combatant] = 0;
+    }
+    
+    // Announce new round
+    broadcast_to_combat(combat_id,
+        "\n%^BOLD%^%^CYAN%^--- Round " + round + " ---\n%^RESET%^");
+    
+    // Each combatant gets to make their attacks
+    foreach (object combatant : active_combatants) {
+        if (!combatant || !combatant->is_alive()) continue;
+        
+        // Check if combatant is still in same room as their target
+        object target = combatant->query_combat_target();
+        if (!target || !target->is_alive() || 
+            environment(combatant) != environment(target)) {
+            // Target lost/dead/fled - pick new target or end combat for this combatant
+            object new_target = find_new_target(combatant, active_combatants);
+            if (new_target) {
+                combatant->set_combat_target(new_target);
+                target = new_target;
+            } else {
+                combatant->set_combat_target(0);
+                continue;
+            }
+        }
+        
+        // Perform attacks (NPCs auto-attack, players must use attack command)
+        if (!interactive(combatant)) {
+            // NPC auto-attacks
+            perform_round_attacks(combat_id, combatant);
+        } else {
+            // Player - just remind them
+            if (combatant) {
+                tell_object(combatant, 
+                    "%^BOLD%^Your turn! You have " + 
+                    combatant->query_attacks_remaining() + " attacks available.%^RESET%^\n");
+            }
+        }
+    }
+    
+    // Increment round counter
+    combat["round"] = round + 1;
+}
+
+// Perform all attacks for this combatant this round
+void perform_round_attacks(int combat_id, object attacker) {
+    if (!attacker) return;
+    if (!active_combats[combat_id]) return;
+    
+    mapping combat = active_combats[combat_id];
+    int attacks_per_round = attacker->query_attacks_per_round();
+    
+    for (int i = 0; i < attacks_per_round; i++) {
+        if (!attacker || !attacker->is_alive()) break;
+        
+        object target = attacker->query_combat_target();
+        if (!target || !target->is_alive()) break;
+        
+        // Perform one attack
+        perform_single_attack(combat_id, attacker, target);
+        
+        // Mark attack used
+        combat["attacks_used"][attacker]++;
+        
+        // Small delay between attacks for dramatic effect
+        if (i < attacks_per_round - 1) {
+            call_out("continue_attacks", 1, combat_id, attacker, attacks_per_round - i - 1);
+            break;  // Continue in callout
+        }
+    }
+}
+
+// Continue attacks after delay (for multiple attacks)
+void continue_attacks(int combat_id, object attacker, int remaining) {
+    if (!attacker || remaining <= 0) return;
+    if (!active_combats[combat_id]) return;
+    
+    if (attacker->is_alive()) {
+        object target = attacker->query_combat_target();
+        if (target && target->is_alive()) {
+            perform_single_attack(combat_id, attacker, target);
+            
+            mapping combat = active_combats[combat_id];
+            if (combat) {
+                combat["attacks_used"][attacker]++;
+            }
+        }
+    }
+}
+
+// Find a new target for a combatant
+object find_new_target(object combatant, object *available) {
+    if (!combatant || !available) return 0;
+    
+    // Find first valid target that isn't self
+    foreach (object potential : available) {
+        if (potential != combatant && potential->is_alive()) {
+            return potential;
+        }
+    }
+    
+    return 0;
+}
+
+// =============================================================================
+// ATTACK EXECUTION
+// =============================================================================
+
+// Perform a single attack
+void perform_single_attack(int combat_id, object attacker, object defender) {
+    if (!attacker || !defender) return;
+    if (!attacker->is_alive() || !defender->is_alive()) return;
+    
+    // Get attack verb based on archetype
+    string archetype = attacker->query_combat_archetype();
+    string verb = select_attack_verb(archetype, attacker->query_wielded());
+    
+    // Roll to hit
+    int attack_roll = random(20) + 1;
+    int strike_bonus = attacker->query_strike_bonus();
+    int total_strike = attack_roll + strike_bonus;
+    
+    // Check for critical hit
+    if (attack_roll == 20) {
+        perform_critical_hit(combat_id, attacker, defender, verb);
+        return;
+    }
+    
+    // Check for fumble
+    if (attack_roll == 1) {
+        perform_fumble(combat_id, attacker, verb);
+        return;
+    }
+    
+    // Check if defender auto-defends
+    int defense_result = auto_defend(combat_id, defender, total_strike);
+    
+    if (defense_result == DEF_PARRIED) {
+        broadcast_attack_parried(combat_id, attacker, defender, verb);
+        return;
+    } else if (defense_result == DEF_DODGED) {
+        broadcast_attack_dodged(combat_id, attacker, defender, verb);
+        return;
+    }
+    
+    // Check if attack hits (target number 8)
+    if (total_strike < BASE_STRIKE_TARGET) {
+        broadcast_attack_miss(combat_id, attacker, defender, verb, attack_roll, strike_bonus);
+        return;
+    }
+    
+    // Hit! Calculate and apply damage
+    int damage = attacker->calculate_damage();
+    int damage_type = attacker->query_damage_type();
+    
+    string attack_msg = "%^BOLD%^" + attacker->query_cap_name() + " " + 
+                        verb + " " + defender->query_cap_name() + 
+                        " for %^RED%^" + damage + " damage%^RESET%^%^BOLD%^!%^RESET%^\n";
+    
+    broadcast_to_combat(combat_id, attack_msg);
+    
+    // Apply damage
+    int killed = defender->take_damage(damage, damage_type);
+    
+    // Check if defender died
+    if (killed || !defender->is_alive()) {
+        handle_death(combat_id, attacker, defender);
+    }
+}
+
+// Perform a critical hit
+void perform_critical_hit(int combat_id, object attacker, object defender, string verb) {
+    int damage = attacker->calculate_damage() * CRITICAL_HIT_MULTIPLIER;
+    int damage_type = attacker->query_damage_type();
+    
+    string *critical_msgs = CRITICAL_MSGS;
+    string critical_msg = critical_msgs[random(sizeof(critical_msgs))];
+    
+    string attack_msg = "%^BOLD%^%^YELLOW%^" + critical_msg + "%^RESET%^ " +
+                        "%^BOLD%^" + attacker->query_cap_name() + " " +
+                        verb + " " + defender->query_cap_name() + 
+                        " %^BOLD%^%^RED%^DEVASTATINGLY%^RESET%^ " +
+                        "%^BOLD%^for %^RED%^" + damage + " damage%^RESET%^%^BOLD%^!%^RESET%^\n";
+    
+    broadcast_to_combat(combat_id, attack_msg);
+    
+    // Apply damage
+    int killed = defender->take_damage(damage, damage_type);
+    
+    // Check if defender died
+    if (killed || !defender->is_alive()) {
+        handle_death(combat_id, attacker, defender);
+    }
+}
+
+// Perform a fumble
+void perform_fumble(int combat_id, object attacker, string verb) {
+    string *fumble_msgs = FUMBLE_MSGS;
+    string fumble_msg = fumble_msgs[random(sizeof(fumble_msgs))];
+    
+    string msg = "%^BOLD%^%^RED%^" + attacker->query_cap_name() + 
+                 " " + fumble_msg + " while trying to attack!%^RESET%^\n";
+    
+    broadcast_to_combat(combat_id, msg);
+}
+
+// =============================================================================
+// AUTO-DEFENSE SYSTEM
+// =============================================================================
+
+// Attempt auto-defense (parry, then dodge)
+int auto_defend(int combat_id, object defender, int attack_total) {
+    if (!defender) return DEF_FAILED;
+    if (!active_combats[combat_id]) return DEF_FAILED;
+    
+    mapping combat = active_combats[combat_id];
+    
+    // Try auto-parry first
+    if (defender->query_auto_parry()) {
+        int parries_used = combat["parries_used"][defender];
+        int max_parries = defender->query_parries_per_round();
+        
+        if (parries_used < max_parries) {
+            // Attempt parry
+            int parry_roll = random(20) + 1;
+            int parry_bonus = defender->query_parry_bonus();
+            int total_parry = parry_roll + parry_bonus;
+            
+            combat["parries_used"][defender]++;
+            
+            if (total_parry >= attack_total) {
+                return DEF_PARRIED;
+            }
+        }
+    }
+    
+    // Try auto-dodge if parry failed or unavailable
+    if (defender->query_auto_dodge()) {
+        int dodge_roll = random(20) + 1;
+        int dodge_bonus = defender->query_dodge_bonus();
+        int total_dodge = dodge_roll + dodge_bonus;
+        
+        if (total_dodge >= attack_total) {
+            return DEF_DODGED;
+        }
+    }
+    
+    return DEF_FAILED;
+}
+
+// =============================================================================
+// ATTACK VERB SELECTION
+// =============================================================================
+
+// Select appropriate attack verb based on archetype
+string select_attack_verb(string archetype, object weapon) {
+    string *verbs;
+    
+    // If wielding a weapon, use weapon's archetype
+    if (weapon && function_exists("query_combat_archetype", weapon)) {
+        archetype = weapon->query_combat_archetype();
+    }
+    
+    // Select verb array based on archetype
+    switch (archetype) {
+        case ARCHETYPE_DRAGON:
+            verbs = DRAGON_VERBS;
+            break;
+        case ARCHETYPE_ARMED_MELEE:
+            // Check weapon type
+            if (weapon) {
+                string weapon_type = weapon->query_weapon_type();
+                if (weapon_type == "blade") {
+                    verbs = BLADE_VERBS;
+                } else if (weapon_type == "blunt") {
+                    verbs = BLUNT_VERBS;
+                } else if (weapon_type == "polearm") {
+                    verbs = POLEARM_VERBS;
+                } else {
+                    verbs = BLADE_VERBS;  // Default
+                }
+            } else {
+                verbs = BLADE_VERBS;
+            }
+            break;
+        case ARCHETYPE_ARMED_RANGED:
+            if (weapon && weapon->query_is_energy_weapon()) {
+                verbs = ENERGY_VERBS;
+            } else {
+                verbs = PROJECTILE_VERBS;
+            }
+            break;
+        case ARCHETYPE_CYBORG:
+            verbs = CYBORG_VERBS;
+            break;
+        case ARCHETYPE_SUPERNATURAL:
+            verbs = SUPERNATURAL_VERBS;
+            break;
+        case ARCHETYPE_ANIMAL:
+            verbs = ANIMAL_VERBS;
+            break;
+        case ARCHETYPE_MONSTER:
+            verbs = MONSTER_VERBS;
+            break;
+        case ARCHETYPE_HUMANOID_UNARMED:
+        default:
+            verbs = UNARMED_VERBS;
+            break;
+    }
+    
+    // Select random verb from array
+    return verbs[random(sizeof(verbs))];
+}
+
+// =============================================================================
+// COMBAT MESSAGES
+// =============================================================================
+
+// Broadcast message to all combatants in a combat
+void broadcast_to_combat(int combat_id, string message) {
+    if (!active_combats[combat_id]) return;
+    
+    object *combatants = active_combats[combat_id]["combatants"];
+    object env;
+    
+    foreach (object combatant : combatants) {
+        if (combatant && objectp(combatant)) {
+            tell_object(combatant, message);
+            if (!env) env = environment(combatant);
+        }
+    }
+    
+    // Also broadcast to room (for observers)
+    if (env) {
+        tell_room(env, message, combatants);
+    }
+}
+
+// Broadcast attack parried message
+void broadcast_attack_parried(int combat_id, object attacker, object defender, string verb) {
+    string *parry_verbs = PARRY_VERBS;
+    string parry_verb = parry_verbs[random(sizeof(parry_verbs))];
+    
+    string msg = "%^BOLD%^" + attacker->query_cap_name() + " " + verb + " " +
+                 defender->query_cap_name() + ", but " + 
+                 defender->query_subjective() + " %^GREEN%^" + parry_verb +
+                 "%^RESET%^%^BOLD%^!%^RESET%^\n";
+    
+    broadcast_to_combat(combat_id, msg);
+}
+
+// Broadcast attack dodged message
+void broadcast_attack_dodged(int combat_id, object attacker, object defender, string verb) {
+    string *dodge_verbs = DODGE_VERBS;
+    string dodge_verb = dodge_verbs[random(sizeof(dodge_verbs))];
+    
+    string msg = "%^BOLD%^" + attacker->query_cap_name() + " " + verb + " " +
+                 defender->query_cap_name() + ", but " +
+                 defender->query_subjective() + " %^CYAN%^" + dodge_verb +
+                 "%^RESET%^%^BOLD%^!%^RESET%^\n";
+    
+    broadcast_to_combat(combat_id, msg);
+}
+
+// Broadcast attack miss message
+void broadcast_attack_miss(int combat_id, object attacker, object defender, 
+                          string verb, int roll, int bonus) {
+    string *miss_msgs = MISS_MSGS;
+    string miss_msg = miss_msgs[random(sizeof(miss_msgs))];
+    
+    string msg = attacker->query_cap_name() + " " + verb + " " +
+                 defender->query_cap_name() + " " + miss_msg + "!\n";
+    
+    broadcast_to_combat(combat_id, msg);
+}
+
+// =============================================================================
+// DEATH HANDLING
+// =============================================================================
+
+// Handle a combatant's death
+void handle_death(int combat_id, object killer, object victim) {
+    if (!victim) return;
+    
+    string death_msg = "\n%^BOLD%^%^RED%^>>> " + 
+                      victim->query_cap_name() + 
+                      " has been defeated! <<<\n%^RESET%^\n";
+    
+    broadcast_to_combat(combat_id, death_msg);
+    
+    // Call victim's die() method
+    if (function_exists("die", victim)) {
+        victim->die(killer);
+    }
+    
+    // Remove victim from combat
+    if (active_combats[combat_id]) {
+        mapping combat = active_combats[combat_id];
+        object *combatants = combat["combatants"];
+        combatants -= ({ victim });
+        combat["combatants"] = combatants;
+        
+        // If only one combatant left, end combat
+        if (sizeof(combatants) <= 1) {
+            object winner = sizeof(combatants) == 1 ? combatants[0] : 0;
+            end_combat(combat_id, winner, victim);
+        }
+    }
+}
+
+// =============================================================================
+// QUERY FUNCTIONS
+// =============================================================================
+
+// Get all active combats
+mapping query_active_combats() {
+    return active_combats;
+}
+
+// Get combat data for a specific combat
+mapping query_combat(int combat_id) {
+    return active_combats[combat_id];
+}
+
+// Check if object is in combat
+int is_in_combat(object ob) {
+    return find_combat_for(ob) != 0;
+}
+
+// Get combat status for an object
+string query_combat_status(object ob) {
+    int combat_id = find_combat_for(ob);
+    if (!combat_id) {
+        return "Not in combat.\n";
+    }
+    
+    mapping combat = active_combats[combat_id];
+    if (!combat) {
+        return "Not in combat.\n";
+    }
+    
+    string status = "%^BOLD%^=== COMBAT STATUS ===%^RESET%^\n";
+    status += "Round: " + combat["round"] + "\n";
+    status += "Combatants: " + sizeof(combat["combatants"]) + "\n";
+    
+    int attacks_used = combat["attacks_used"][ob];
+    int attacks_total = ob->query_attacks_per_round();
+    status += "Attacks used: " + attacks_used + "/" + attacks_total + "\n";
+    
+    int parries_used = combat["parries_used"][ob];
+    int parries_total = ob->query_parries_per_round();
+    status += "Parries used: " + parries_used + "/" + parries_total + "\n";
+    
+    object target = ob->query_combat_target();
+    if (target) {
+        status += "Target: " + target->query_cap_name() + " (" +
+                  target->query_health_status() + ")\n";
+    }
+    
+    return status;
+}

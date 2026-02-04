@@ -1,0 +1,52 @@
+// /lib/domains/castle/entry.lpc
+// Wizard's Castle Entry Hall
+// Phase 2 - Testing area with Spike and hawk
+
+inherit "/std/room";
+
+void create() {
+    ::create();
+    
+    set_short("Castle Entry Hall");
+    set_long(
+        "You stand in the grand entry hall of the Wizard's Castle. Tall stone "
+        "pillars support a vaulted ceiling, and magical torches flicker with "
+        "eternal flames. To the north is the throne room, and passages lead "
+        "east and west to various castle chambers.\n\n"
+        "A path south leads back to the village.\n\n"
+        "Spike the Dog Boy stands guard here, and you can see a magnificent "
+        "hawk perched on a stand nearby.\n"
+    );
+    
+    set_exits(([
+        "north": "/domains/castle/throne_room",
+        "south": "/domains/start/village_center",
+        "east": "/domains/castle/east_hall",
+        "west": "/domains/castle/west_hall"
+    ]));
+    
+    set_property("indoors", 1);
+    set_property("light", 2);
+}
+
+void reset() {
+    ::reset();
+    
+    // Spawn Spike if not present
+    if (!present("spike")) {
+        object spike;
+        spike = load_object("/domains/castle/spike");
+        if (spike) {
+            spike->move(this_object());
+        }
+    }
+    
+    // Spawn hawk if not present
+    if (!present("hawk")) {
+        object hawk;
+        hawk = load_object("/domains/castle/hawk");
+        if (hawk) {
+            hawk->move(this_object());
+        }
+    }
+}

@@ -1,0 +1,73 @@
+// /lib/spells/level1/armor_of_ithan.lpc
+// Armor of Ithan - Level 1 Protection Spell
+// Creates magical armor (100 SDC)
+
+inherit "/std/spell";
+
+void create() {
+    ::create();
+    
+    set_spell_id("armor_of_ithan");
+    set_spell_name("Armor of Ithan");
+    set_spell_level(1);
+    set_ppe_cost(10);
+    set_casting_time(2);
+    set_duration(300); // 5 minutes per level
+    set_range("self");
+    set_spell_type("protection");
+    
+    set_short_description("Creates magical armor for protection.");
+    set_long_description(
+        "This spell creates a shimmering field of magical energy around the "
+        "caster, providing 100 S.D.C. of protection. The armor absorbs damage "
+        "before the caster's natural S.D.C. or Hit Points are affected.\n\n"
+        "Duration: 5 minutes per level\n"
+        "Range: Self\n"
+        "Protection: 100 S.D.C.\n"
+        "P.P.E.: 10\n"
+    );
+}
+
+int cast(object caster, object target, string args) {
+    int duration_minutes, caster_level;
+    
+    target = caster;
+    
+    if (target->query_property("armor_of_ithan")) {
+        tell_object(caster, "You already have Armor of Ithan active!");
+        return 0;
+    }
+    
+    caster_level = caster->query_level();
+    duration_minutes = caster_level * 5;
+    
+    target->set_property("armor_of_ithan", 1);
+    target->set_property("armor_of_ithan_sdc", 100);
+    
+    tell_object(caster,
+                "A shimmering blue field of energy surrounds you!");
+    tell_object(caster,
+                "You are protected by the Armor of Ithan! (100 S.D.C.)");
+    
+    tell_room(environment(caster),
+              "A shimmering field of magical energy envelops " + 
+              caster->query_cap_name() + "!",
+              ({ caster }));
+    
+    call_out("remove_spell_effect", duration_minutes * 60, target);
+    
+    return 1;
+}
+
+void remove_spell_effect(object target) {
+    if (!target) return;
+    
+    target->remove_property("armor_of_ithan");
+    target->remove_property("armor_of_ithan_sdc");
+    
+    tell_object(target,
+                "The Armor of Ithan fades away.");
+    tell_room(environment(target),
+              "The magical armor around " + target->query_cap_name() + " dissipates.",
+              ({ target }));
+}

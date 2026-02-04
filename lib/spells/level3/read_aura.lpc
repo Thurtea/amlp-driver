@@ -1,0 +1,140 @@
+// /lib/spells/level3/read_aura.lpc
+// Read Aura - Level 3 Divination Spell
+// Reveals the true nature and alignment of a target
+
+inherit "/std/spell";
+
+void create() {
+    ::create();
+    
+    set_spell_id("read_aura");
+    set_spell_name("Read Aura");
+    set_spell_level(3);
+    set_ppe_cost(6); // Level 3 spell
+    set_casting_time(2); // 1 melee action
+    set_duration(0); // Instant
+    set_range(60); // 60 feet
+    set_spell_type("divination");
+    
+    set_short_description("Reveals the true nature, alignment, and magical aura of a target.");
+    set_long_description(
+        "This spell allows the caster to see the magical aura surrounding a living "
+        "being, revealing their true race, alignment, level of power, and any "
+        "magical disguises or transformations. Perfect for detecting shapeshifters, "
+        "illusions, and hidden supernatural beings.\n\n"
+        "Duration: Instant\n"
+        "Range: 60 feet\n"
+        "P.P.E.: 6\n"
+    );
+}
+
+// Cast the spell
+int cast(object caster, object target, string args) {
+    string *aura_info;
+    string true_race, apparent_race, alignment, level_desc;
+    int level, is_disguised;
+    
+    // Need a target
+    if (!target) {
+        tell_object(caster, "Read the aura of whom?");
+        return 0;
+    }
+    
+    if (!living(target)) {
+        tell_object(caster, "That is not a living being.");
+        return 0;
+    }
+    
+    // Can't read your own aura
+    if (target == caster) {
+        tell_object(caster, "You cannot read your own aura!");
+        return 0;
+    }
+    
+    // Visual effects
+    tell_object(caster,
+                "Your eyes glow with golden light as you peer into the supernatural realm...");
+    tell_room(environment(caster),
+              caster->query_cap_name() + "'s eyes briefly glow with golden light.",
+              ({ caster }));
+    
+    // Gather information
+    aura_info = ({});
+    
+    // Get true race
+    true_race = target->query_true_race();
+    if (!true_race) {
+        true_race = target->query_race();
+    }
+    
+    // Check for disguise/metamorph
+    apparent_race = target->query_race();
+    is_disguised = (true_race != apparent_race);
+    
+    if (is_disguised) {
+        aura_info += ({ "DISGUISED: This being appears as a " + 
+                       apparent_race + " but is truly a " + true_race + "!" });
+    } else {
+        aura_info += ({ "Race: " + capitalize(true_race) });
+    }
+    
+    // Get level
+    level = target->query_level();
+    if (level < 3) {
+        level_desc = "novice";
+    } else if (level < 6) {
+        level_desc = "experienced";
+    } else if (level < 10) {
+        level_desc = "veteran";
+    } else if (level < 15) {
+        level_desc = "master";
+    } else {
+        level_desc = "legendary";
+    }
+    
+    aura_info += ({ "Level of Power: " + level_desc + " (Level " + level + ")" });
+    
+    // Get alignment if available
+    alignment = target->query_alignment();
+    if (alignment) {
+        aura_info += ({ "Alignment: " + alignment });
+    }
+    
+    // Check for magical properties
+    if (target->query_property("is_supernatural")) {
+        aura_info += ({ "Aura: Supernatural being" });
+    }
+    
+    if (target->query_property("is_mdc_being")) {
+        aura_info += ({ "Aura: M.D.C. creature" });
+    }
+    
+    // Check for active spells/effects
+    if (target->query_property("invisible")) {
+        aura_info += ({ "Effect: Invisible" });
+    }
+    
+    if (target->query_property("see_invisible")) {
+        aura_info += ({ "Effect: Can see invisible" });
+    }
+    
+    if (target->query_property("swim_as_a_fish")) {
+        aura_info += ({ "Effect: Swimming magically" });
+    }
+    
+    // Display results
+    write("\nYou read the aura of " + target->query_cap_name() + ":");
+    write("================================================");
+    foreach (string info : aura_info) {
+        write(info);
+    }
+    write("================================================\n");
+    
+    // Target notices if high ME/awareness
+    if (target->query_stat("ME") > 15 || random(100) < 20) {
+        tell_object(target,
+                    "You sense someone probing your aura...");
+    }
+    
+    return 1;
+}

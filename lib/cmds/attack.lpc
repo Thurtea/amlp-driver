@@ -1,12 +1,13 @@
 /*
  * /lib/cmds/attack.lpc - Initiate combat with a target
+ * Phase 2: Real-Time Verb-Based Combat System
  * 
  * Usage:
  *   attack <target>
  */
 
 int cmd(string args) {
-    object attacker, target, env;
+    object attacker, target, env, combat_daemon;
     
     attacker = this_player();
     env = environment(attacker);
@@ -44,69 +45,55 @@ int cmd(string args) {
         return 1;
     }
     
+    // Load combat daemon
+    combat_daemon = load_object("/daemon/combat");
+    if (!combat_daemon) {
+        write("Error: Combat system unavailable.\n");
+        return 1;
+    }
+    
     // Check if already in combat
-    if (attacker->in_combat()) {
+    if (combat_daemon->is_in_combat(attacker)) {
         object current_target = attacker->query_combat_target();
         if (current_target == target) {
             write("You're already fighting " + target->query_cap_name() + "!\n");
             return 1;
-        } else {
+        } else if (current_target) {
             write("You're already fighting " + current_target->query_cap_name() + "!\n");
             write("Finish your current fight first, or use 'flee' to escape.\n");
             return 1;
         }
     }
     
-    // Check if target is already in combat with someone else
-    if (target->in_combat()) {
-        object target_fighting = target->query_combat_target();
-        if (target_fighting && target_fighting != attacker) {
-            write(target->query_cap_name() + " is already fighting " + 
-                  target_fighting->query_cap_name() + ".\n");
-            // Allow joining combat anyway
-        }
+    // Start combat via daemon
+    int combat_id = combat_daemon->start_combat(attacker, target);
+    
+    if (!combat_id) {
+        write("Failed to initiate combat.\n");
+        return 1;
     }
     
-    // Start combat!
-    write("\n>>> YOU ATTACK " + upper_case(target->query_cap_name()) + "! <<<\n\n");
-    
-    // Tell target
-    tell_object(target, 
-                "\n>>> " + upper_case(attacker->query_cap_name()) + 
-                " ATTACKS YOU! <<<\n\n");
-    
-    // Tell room
-    tell_room(env, 
-              "\n>>> " + attacker->query_cap_name() + 
-              " ATTACKS " + target->query_cap_name() + "! <<<\n\n",
-              ({ attacker, target }));
-    
-    // Set combat targets
-    attacker->set_combat_target(target);
-    
-    // Target fights back
-    if (function_exists("set_combat_target", target)) {
-        target->set_combat_target(attacker);
+    // Perform immediate first attack
+    if (function_exists("perform_single_attack", combat_daemon)) {
+        combat_daemon->perform_single_attack(combat_id, attacker, target);
     }
-    
-    // Immediate first attack
-    attacker->perform_attack(target);
-    
-    // Show combat status
-    write("\n" + attacker->query_combat_status());
     
     return 1;
 }
 
 string query_help() {
     return
-"ATTACK - Initiate combat with a target\n\n"
+"ATTACK - Initiate real-time combat with a target\n\n"
 "Usage:\n"
 "  attack <target>    Attack a creature or character\n\n"
-"Once combat begins, it continues in rounds. You and your\n"
-"opponent will exchange attacks automatically. Use specific\n"
-"combat commands to control your actions, or 'flee' to escape.\n\n"
-"Combat uses your character's combat skills, weapon bonuses,\n"
-"and statistics to determine hit chance and damage.\n\n"
+"Once combat begins, it continues automatically in 4-second rounds.\n"
+"You will get " + this_player()->query_attacks_per_round() + " attack(s) per round.\n\n"
+"Combat Features:\n"
+"  - Automatic combat rounds every 4 seconds\n"
+"  - Multiple attacks per round (based on your race/level)\n"
+"  - Auto-parry and auto-dodge defenses\n"
+"  - Descriptive attack verbs (not just damage numbers)\n"
+"  - Real-time action resolution\n\n"
+"To escape combat, use the FLEE command.\n\n"
 "Related commands: FLEE, SCORE (shows health)\n";
 }

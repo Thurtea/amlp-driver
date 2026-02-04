@@ -1,0 +1,269 @@
+// /lib/domains/castle/hawk.lpc
+// Hawk companion - tests falconry skill and voice commands
+// Phase 2 - Pet/companion system
+
+inherit "/std/companion";
+
+void create() {
+    ::create();
+    
+    set_name("hawk");
+    set_id(({"hawk", "bird", "raptor", "pet hawk"}));
+    set_short("a magnificent hawk");
+    set_long(
+        "This is a sleek hunting hawk with sharp talons and piercing eyes. "
+        "Its brown and white plumage is well-groomed, and it watches you "
+        "with keen intelligence. The hawk wears a leather jess on its leg, "
+        "marking it as a trained hunting bird.\n"
+    );
+    
+    set_gender("neuter");
+    set_race("animal");
+    set_level(5);
+    
+    // Stats for a hawk
+    set_stat("IQ", 4);  // Animal intelligence
+    set_stat("ME", 10);
+    set_stat("MA", 6);
+    set_stat("PS", 8);
+    set_stat("PP", 18);  // Very agile
+    set_stat("PE", 12);
+    set_stat("PB", 10);
+    set_stat("SPD", 22);  // Fast flyer
+    
+    // Basic health
+    set_max_hp(30);
+    set_hp(30);
+    set_max_sdc(20);
+    set_sdc(20);
+    
+    // Combat
+    set_property("combat_archetype", "animal");
+    set_property("attacks_per_round", 2);
+    
+    // Companion settings
+    set_companion_skill("falconry");
+    set_base_obedience(75);
+    
+    // Add hawk-specific commands
+    add_voice_command("follow", "do_follow");
+    add_voice_command("stay", "do_stay");
+    add_voice_command("come", "do_come");
+    add_voice_command("perch", "do_perch");
+    add_voice_command("fly", "do_fly");
+    add_voice_command("hunt", "do_hunt");
+    add_voice_command("attack", "do_attack");
+    add_voice_command("eat", "do_eat");
+    
+    set_property("is_flying", 0);
+}
+
+// Hawk-specific emotes for failure
+void emote_confused() {
+    tell_room(environment(this_object()),
+              query_cap_name() + " tilts its head and looks confused.");
+}
+
+void emote_disobey() {
+    string *screeches = ({
+        "screeches loudly and ignores the command!",
+        "flaps its wings in agitation!",
+        "lets out a harsh cry of defiance!",
+        "ruffles its feathers irritably!"
+    });
+    
+    tell_room(environment(this_object()),
+              query_cap_name() + " " + screeches[random(sizeof(screeches))]);
+}
+
+void emote_obey() {
+    string *responses = ({
+        "spreads its wings and cries out in acknowledgment.",
+        "lets out a sharp cry of understanding.",
+        "bobs its head obediently.",
+        "flaps its wings once in response."
+    });
+    
+    tell_room(environment(this_object()),
+              query_cap_name() + " " + responses[random(sizeof(responses))]);
+}
+
+// Hawk perches on owner's arm/shoulder
+void do_perch(string *words) {
+    object owner;
+    
+    owner = query_owner();
+    if (!owner) return;
+    
+    set_property("is_perched", 1);
+    set_property("is_flying", 0);
+    remove_property("following");
+    
+    emote_obey();
+    
+    tell_object(owner,
+                "" + query_cap_name() + " swoops down and perches on your arm.");
+    tell_room(environment(owner),
+              query_cap_name() + " swoops down and perches on " + owner->query_cap_name() + "'s arm.",
+              ({ owner }));
+}
+
+// Hawk takes flight
+void do_fly(string *words) {
+    object owner;
+    
+    owner = query_owner();
+    if (!owner) return;
+    
+    set_property("is_flying", 1);
+    set_property("is_perched", 0);
+    
+    emote_obey();
+    
+    tell_object(owner,
+                "" + query_cap_name() + " takes flight, circling overhead!");
+    tell_room(environment(owner),
+              query_cap_name() + " takes to the air with a powerful beat of its wings!",
+              ({ owner }));
+}
+
+// Hawk hunts for food
+void do_hunt(string *words) {
+    object owner;
+    int success;
+    
+    owner = query_owner();
+    if (!owner) return;
+    
+    if (!query_property("is_flying")) {
+        tell_object(owner,
+                    query_cap_name() + " must be flying to hunt!");
+        return;
+    }
+    
+    emote_obey();
+    
+    tell_object(owner,
+                "" + query_cap_name() + " circles high, searching for prey...");
+    tell_room(environment(owner),
+              query_cap_name() + " circles overhead, hunting.",
+              ({ owner }));
+    
+    // Hunting success check
+    success = random(100) + 1;
+    
+    call_out("finish_hunt", 3, owner, success);
+}
+
+void finish_hunt(object owner, int success) {
+    if (!owner || !present(this_object(), environment(owner))) {
+        return;
+    }
+    
+    if (success <= 60) {
+        // Success!
+        tell_object(owner,
+                    "" + query_cap_name() + " dives and catches a rabbit!");
+        tell_room(environment(owner),
+                  query_cap_name() + " suddenly dives and emerges with a rabbit in its talons!",
+                  ({ owner }));
+        
+        // Could spawn a rabbit corpse here
+        
+    } else {
+        // Failure
+        tell_object(owner,
+                    "" + query_cap_name() + " returns empty-taloned.");
+        tell_room(environment(owner),
+                  query_cap_name() + " returns without catching anything.",
+                  ({ owner }));
+    }
+}
+
+// Hawk attacks target
+void do_attack(string *words) {
+    object owner, target;
+    string target_name;
+    
+    owner = query_owner();
+    if (!owner) return;
+    
+    // Parse: "hawk attack <target>"
+    if (sizeof(words) < 3) {
+        tell_object(owner, "Attack what?");
+        return;
+    }
+    
+    target_name = words[2];
+    target = present(target_name, environment(owner));
+    
+    if (!target || !living(target)) {
+        tell_object(owner, "That target isn't here.");
+        return;
+    }
+    
+    if (target == owner) {
+        tell_object(owner, query_cap_name() + " refuses to attack you!");
+        emote_confused();
+        return;
+    }
+    
+    emote_obey();
+    
+    tell_object(owner,
+                "" + query_cap_name() + " screeches and dives at " + 
+                target->query_cap_name() + "!");
+    tell_room(environment(owner),
+              "" + query_cap_name() + " screeches and dives at " +
+              target->query_cap_name() + " with talons extended!",
+              ({ owner, target }));
+    tell_object(target,
+                "A hawk dives at you with razor-sharp talons!");
+    
+    // Initiate combat - load combat daemon
+    object combat_daemon;
+    combat_daemon = load_object("/daemon/combat");
+    if (combat_daemon) {
+        combat_daemon->start_combat(this_object(), target);
+    }
+}
+
+// Hawk eats corpse
+void do_eat(string *words) {
+    object owner, corpse;
+    string target_name;
+    
+    owner = query_owner();
+    if (!owner) return;
+    
+    // Parse: "hawk eat corpse" or "hawk eat <corpse>"
+    if (sizeof(words) < 3) {
+        target_name = "corpse";
+    } else {
+        target_name = words[2];
+    }
+    
+    corpse = present(target_name, environment(owner));
+    
+    if (!corpse) {
+        tell_object(owner, "There's no " + target_name + " here.");
+        return;
+    }
+    
+    if (!corpse->query_property("is_corpse")) {
+        tell_object(owner, "That's not a corpse.");
+        return;
+    }
+    
+    emote_obey();
+    
+    tell_object(owner,
+                "" + query_cap_name() + " tears into the " + 
+                corpse->query_short() + " hungrily.");
+    tell_room(environment(owner),
+              query_cap_name() + " feeds on the " + corpse->query_short() + ".",
+              ({ owner }));
+    
+    // Heal hawk slightly
+    add_hp(random(10) + 5);
+}

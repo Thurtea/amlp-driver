@@ -1,0 +1,156 @@
+// /lib/cmds/metamorph.lpc
+// Metamorph command - Dragon shapeshifting
+// Phase 2 - Great Horned Dragon racial ability
+
+inherit "/std/command";
+
+void create() {
+    ::create();
+    set_command_name("metamorph");
+    set_privilege(0);  // Anyone with the ability can use it
+}
+
+mixed main(object caller, string arg) {
+    object race_ob;
+    string target_race, true_race;
+    string *valid_races;
+    
+    // Check if they have metamorph ability
+    if (!caller->query_property("has_metamorph")) {
+        return "You don't possess the power of metamorphosis!";
+    }
+    
+    // Get true race
+    true_race = caller->query_true_race();
+    if (!true_race) {
+        true_race = caller->query_race();
+        caller->set_property("true_race", true_race);
+    }
+    
+    // Check if they want to revert
+    if (!arg || arg == "revert" || arg == "normal") {
+        return revert_form(caller, true_race);
+    }
+    
+    // Get list of valid races
+    valid_races = caller->query_property("metamorph_races");
+    if (!valid_races || sizeof(valid_races) == 0) {
+        valid_races = ({ "human", "elf", "dwarf", "dog_boy", "psi_stalker" });
+    }
+    
+    // Parse target race
+    target_race = lower_case(arg);
+    
+    // Check if valid race
+    if (member_array(target_race, valid_races) == -1) {
+        return "You cannot metamorph into that race!\n"
+               "Valid races: " + implode(valid_races, ", ");
+    }
+    
+    // Already in that form?
+    if (caller->query_race() == target_race) {
+        return "You are already in that form!";
+    }
+    
+    // Perform metamorphosis
+    race_ob = load_object("/races/" + target_race);
+    if (!race_ob) {
+        return "Error: Could not load race data for " + target_race + ".";
+    }
+    
+    // Store original appearance
+    if (!caller->query_property("original_short")) {
+        caller->set_property("original_short", caller->query_short());
+        caller->set_property("original_long", caller->query_long());
+    }
+    
+    // Change race (appearance only)
+    caller->set_race(target_race);
+    
+    // Update description
+    string new_short = caller->query_cap_name() + " the " + 
+                       race_ob->query_short();
+    string new_long = "You see " + caller->query_name() + ", who appears to be a " +
+                      target_race + ". However, this form seems too perfect, "
+                      "almost constructed rather than natural.\n";
+    
+    caller->set_short(new_short);
+    caller->set_long(new_long);
+    
+    // Visual effects
+    tell_object(caller,
+                "Your body shimmers and shifts!");
+    tell_object(caller,
+                "Your draconic form melts away and reforms into a " +
+                target_race + "!");
+    tell_object(caller,
+                "You are now disguised as a " + target_race + ".");
+    
+    tell_room(environment(caller),
+              "" + caller->query_cap_name() + " shimmers with golden light!",
+              ({ caller }));
+    tell_room(environment(caller),
+              "When the light fades, they have transformed into a " + 
+              target_race + "!",
+              ({ caller }));
+    
+    return 1;
+}
+
+mixed revert_form(object caller, string true_race) {
+    string current_race;
+    
+    current_race = caller->query_race();
+    
+    // Already in true form?
+    if (current_race == true_race) {
+        return "You are already in your true form!";
+    }
+    
+    // Revert to original form
+    caller->set_race(true_race);
+    
+    // Restore original description
+    string orig_short = caller->query_property("original_short");
+    string orig_long = caller->query_property("original_long");
+    
+    if (orig_short) {
+        caller->set_short(orig_short);
+        caller->remove_property("original_short");
+    }
+    
+    if (orig_long) {
+        caller->set_long(orig_long);
+        caller->remove_property("original_long");
+    }
+    
+    // Visual effects
+    tell_object(caller,
+                "Your disguise dissolves!");
+    tell_object(caller,
+                "Your true draconic form reasserts itself!");
+    tell_object(caller,
+                "You have returned to your natural state.");
+    
+    tell_room(environment(caller),
+              "" + caller->query_cap_name() + " blazes with crimson light!",
+              ({ caller }));
+    tell_room(environment(caller),
+              "The illusion shatters, revealing a Great Horned Dragon!",
+              ({ caller }));
+    
+    return 1;
+}
+
+void help() {
+    write(
+        "METAMORPH - Shapeshift into another race\n\n"
+        "Syntax:\n"
+        "  metamorph <race>     - Transform into another race\n"
+        "  metamorph revert     - Return to your true form\n\n"
+        "This ability allows Great Horned Dragons to assume the physical form\n"
+        "of other races. The transformation is nearly perfect, though magical\n"
+        "or psionic detection (read aura) can reveal your true nature.\n\n"
+        "Available forms vary by dragon, but typically include humanoid races.\n"
+    );
+}

@@ -45,6 +45,15 @@ int natural_sdc;            // Bonus SDC from race
 int natural_mdc;            // For MDC creatures (mega-damage capacity base)
 int is_mdc_creature;        // 1 = MDC creature (supernatural/dragon/etc)
 
+// Phase 2: Real-Time Combat System
+int attacks_per_round;      // Extra attacks beyond base (0 = only 1 attack)
+int parries_per_round;      // Parries available (0 = use default 2)
+int has_auto_parry;         // 1 = Automatic parry ability
+int has_auto_dodge;         // 1 = Automatic dodge ability
+string combat_archetype;    // Combat style: "dragon", "humanoid_unarmed", "armed_melee", etc.
+int mdc_natural_attacks;    // 1 = Natural attacks do MDC damage
+mapping natural_weapons;    // ([ "bite": ([ "dice": 2, "sides": 6, "bonus": 0 ]) ])
+
 // Resistances and immunities (percentage or boolean)
 mapping resistances;        // ([ "fire": 50, "cold": 25 ]) = 50% fire resist
 string* immunities;         // ({ "poison", "disease" })
@@ -109,6 +118,15 @@ void create() {
     natural_sdc = 0;
     natural_mdc = 0;
     is_mdc_creature = 0;
+    
+    // Phase 2: Real-Time Combat System init
+    attacks_per_round = 0;      // 0 = only gets base 1 attack
+    parries_per_round = 0;      // 0 = use default 2 parries
+    has_auto_parry = 1;         // Default: everyone has auto-parry
+    has_auto_dodge = 1;         // Default: everyone has auto-dodge
+    combat_archetype = "humanoid_unarmed";  // Default archetype
+    mdc_natural_attacks = 0;    // Default: SDC natural attacks
+    natural_weapons = ([]);     // No natural weapons by default
     
     resistances = ([]);
     immunities = ({});
@@ -796,4 +814,91 @@ string query_size_name() {
         case SIZE_COLOSSAL: return "Colossal";
         default:            return "Unknown";
     }
+}
+
+// =============================================================================
+// PHASE 2: REAL-TIME COMBAT SYSTEM SETTERS & GETTERS
+// =============================================================================
+
+// Set extra attacks per round (0 = only base 1 attack)
+void set_attacks_per_round(int attacks) {
+    attacks_per_round = attacks;
+}
+
+// Set parries per round (0 = use default 2)
+void set_parries_per_round(int parries) {
+    parries_per_round = parries;
+}
+
+// Set auto-parry ability
+void set_auto_parry(int flag) {
+    has_auto_parry = flag;
+}
+
+// Set auto-dodge ability
+void set_auto_dodge(int flag) {
+    has_auto_dodge = flag;
+}
+
+// Set combat archetype
+void set_combat_archetype(string archetype) {
+    combat_archetype = archetype;
+}
+
+// Set whether natural attacks do MDC damage
+void set_mdc_natural_attacks(int flag) {
+    mdc_natural_attacks = flag;
+}
+
+// Add a natural weapon
+void add_natural_weapon(string name, int dice, int sides, int bonus) {
+    if (!natural_weapons) natural_weapons = ([]);
+    natural_weapons[name] = ([
+        "dice": dice,
+        "sides": sides,
+        "bonus": bonus
+    ]);
+}
+
+// Query extra attacks per round
+int query_attacks_per_round() {
+    return attacks_per_round;
+}
+
+// Query parries per round
+int query_parries_per_round() {
+    return parries_per_round;
+}
+
+// Query auto-parry
+int query_auto_parry() {
+    return has_auto_parry;
+}
+
+// Query auto-dodge
+int query_auto_dodge() {
+    return has_auto_dodge;
+}
+
+// Query combat archetype
+string query_combat_archetype() {
+    return combat_archetype ? combat_archetype : "humanoid_unarmed";
+}
+
+// Query MDC natural attacks
+int query_mdc_natural_attacks() {
+    return mdc_natural_attacks;
+}
+
+// Query natural weapons
+mapping query_natural_weapons() {
+    return natural_weapons ? natural_weapons : ([]);
+}
+
+// Query specific natural weapon
+mapping query_natural_weapon(string name) {
+    if (natural_weapons && natural_weapons[name]) {
+        return natural_weapons[name];
+    }
+    return 0;
 }

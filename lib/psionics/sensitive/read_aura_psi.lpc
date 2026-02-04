@@ -1,0 +1,135 @@
+// /lib/psionics/sensitive/read_aura_psi.lpc
+// Read Aura (Psionic) - Sensitive Power
+// Reveals the true nature and alignment of a target
+
+inherit "/std/psionic_power";
+
+void create() {
+    ::create();
+    
+    set_power_id("read_aura_psi");
+    set_power_name("See Aura");
+    set_power_category("sensitive");
+    set_isp_cost(4); // Sensitive power
+    set_activation_time(1); // Quick activation
+    set_duration(0); // Instant
+    set_range(60); // 60 feet
+    
+    set_short_description("Psychically perceives the aura of a target.");
+    set_long_description(
+        "This psionic ability allows the psychic to perceive the energy aura "
+        "surrounding a living being. The aura reveals the target's true nature, "
+        "emotional state, power level, and any deceptions or disguises. This is "
+        "the psionic equivalent of the Read Aura spell.\n\n"
+        "Duration: Instant\n"
+        "Range: 60 feet\n"
+        "I.S.P.: 4\n"
+    );
+}
+
+// Manifest the power
+int manifest(object manifester, object target, string args) {
+    string *aura_info;
+    string true_race, apparent_race, emotional_state;
+    int level, is_disguised, current_hp, max_hp;
+    
+    // Need a target
+    if (!target) {
+        tell_object(manifester, "Read the aura of whom?");
+        return 0;
+    }
+    
+    if (!living(target)) {
+        tell_object(manifester, "That is not a living being.");
+        return 0;
+    }
+    
+    // Visual effects
+    tell_object(manifester,
+                "Your third eye opens as you focus your psionic awareness...");
+    tell_room(environment(manifester),
+              manifester->query_cap_name() + "'s eyes briefly glow with psychic energy.",
+              ({ manifester }));
+    
+    // Gather information
+    aura_info = ({});
+    
+    // Get true race
+    true_race = target->query_true_race();
+    if (!true_race) {
+        true_race = target->query_race();
+    }
+    
+    // Check for disguise/metamorph
+    apparent_race = target->query_race();
+    is_disguised = (true_race != apparent_race);
+    
+    if (is_disguised) {
+        aura_info += ({ "DECEPTION DETECTED: Appears as " + 
+                       apparent_race + ", truly a " + true_race + "!" });
+    } else {
+        aura_info += ({ "True Form: " + capitalize(true_race) });
+    }
+    
+    // Get level and power
+    level = target->query_level();
+    aura_info += ({ "Power Level: " + level });
+    
+    // Get health status (psionics can sense life force)
+    current_hp = target->query_hp();
+    max_hp = target->query_max_hp();
+    
+    if (current_hp >= max_hp * 0.9) {
+        aura_info += ({ "Life Force: Strong and healthy" });
+    } else if (current_hp >= max_hp * 0.5) {
+        aura_info += ({ "Life Force: Somewhat weakened" });
+    } else if (current_hp >= max_hp * 0.25) {
+        aura_info += ({ "Life Force: Severely weakened" });
+    } else {
+        aura_info += ({ "Life Force: Near death" });
+    }
+    
+    // Emotional state (psionic bonus!)
+    if (target->query_property("in_combat")) {
+        emotional_state = "Aggressive, combat-ready";
+    } else if (target->query_property("afraid")) {
+        emotional_state = "Fearful, anxious";
+    } else if (target->query_property("friendly")) {
+        emotional_state = "Calm, friendly";
+    } else {
+        emotional_state = "Neutral, composed";
+    }
+    
+    aura_info += ({ "Emotional State: " + emotional_state });
+    
+    // Check for psionic abilities
+    if (target->query_max_isp() > 0) {
+        aura_info += ({ "Psychic Aura: This being is psionic!" });
+    }
+    
+    // Check for magical abilities
+    if (target->query_max_ppe() > 0) {
+        aura_info += ({ "Magical Aura: This being is magical!" });
+    }
+    
+    // Check for supernatural nature
+    if (target->query_property("is_supernatural")) {
+        aura_info += ({ "Supernatural: Beyond mortal" });
+    }
+    
+    // Display results
+    write("\nYou psychically perceive the aura of " + target->query_cap_name() + ":");
+    write("====================================================");
+    foreach (string info : aura_info) {
+        write(info);
+    }
+    write("====================================================\n");
+    
+    // Target notices if high ME
+    if (target->query_stat("ME") > 14) {
+        tell_object(target,
+                    "You feel a psychic presence examining you...");
+    }
+    
+    return 1;
+}

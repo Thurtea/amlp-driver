@@ -129,6 +129,18 @@ void create() {
     set_homeland("Coalition States (Chi-Town, Iron Heart, or Lone Star)");
     set_languages(({ "american" }));  // CS language primarily
     set_primary_language("american");
+    
+    // Phase 2: Combat System Configuration
+    set_attacks_per_round(1);           // Dog Boys get 2 attacks total (enhanced reflexes)
+    set_parries_per_round(3);           // 3 parries per round (trained military combatants)
+    set_auto_parry(1);                  // Automatic parry
+    set_auto_dodge(1);                  // Automatic dodge (fast reflexes)
+    set_combat_archetype("animal");     // Uses animal attack verbs (bite, claw)
+    set_mdc_natural_attacks(0);         // SDC natural attacks
+    
+    // Natural weapons
+    add_natural_weapon("bite", 2, 4, 0);    // 2d4 bite damage
+    add_natural_weapon("claw", 1, 6, 0);    // 1d6 claw damage
 }
 
 // Dog Boys have superior tracking abilities

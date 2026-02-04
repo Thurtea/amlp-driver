@@ -1,0 +1,92 @@
+// /lib/domains/castle/spike.lpc
+// Spike the Dog Boy - Wizard castle companion NPC
+// Phase 2 - Testing NPC with combat system
+
+inherit "/std/living";
+
+void create() {
+    ::create();
+    
+    set_name("spike");
+    set_id(({"spike", "dog", "dog boy", "canine"}));
+    set_short("Spike the Dog Boy");
+    set_long(
+        "This is Spike, a loyal Dog Boy who serves as the castle guard. He has "
+        "the body of a muscular human but the head of a German Shepherd, with "
+        "alert ears and intelligent brown eyes. He wears a simple tunic and carries "
+        "a sturdy club at his side. His tail wags slightly when he sees friendly "
+        "faces.\n\n"
+        "Spike is here to help test the combat system and protect the castle.\n"
+    );
+    
+    set_gender("male");
+    set_race("dog_boy");
+    set_level(5);
+    
+    // Dog Boy stats
+    set_stat("IQ", 10);
+    set_stat("ME", 12);
+    set_stat("MA", 14);
+    set_stat("PS", 18);
+    set_stat("PP", 16);
+    set_stat("PE", 16);
+    set_stat("PB", 8);
+    set_stat("SPD", 30);  // Dog Boys are fast
+    
+    // Health
+    set_max_hp(45);
+    set_hp(45);
+    set_max_sdc(60);
+    set_sdc(60);
+    
+    // Combat
+    set_property("combat_archetype", "animal");
+    set_property("attacks_per_round", 2);  // Dog Boy racial attacks
+    
+    set_property("friendly", 1);
+    set_property("castle_guard", 1);
+}
+
+void init() {
+    ::init();
+    add_action("talk_to_spike", "talk");
+}
+
+int talk_to_spike(string str) {
+    object player;
+    
+    player = this_player();
+    
+    if (!str || (str != "spike" && str != "to spike")) {
+        return 0;
+    }
+    
+    write(query_cap_name() + " says: Woof! Welcome to the Wizard's Castle!\n");
+    write(query_cap_name() + " says: I'm here to help protect this place and test combat.\n");
+    write(query_cap_name() + " says: If you want to spar, just attack me. I promise not to bite too hard!\n");
+    
+    tell_room(environment(player),
+              query_cap_name() + " wags his tail and barks a greeting at " + 
+              player->query_cap_name() + ".",
+              ({ player }));
+    
+    return 1;
+}
+
+void heart_beat() {
+    ::heart_beat();
+    
+    // Random idle emotes
+    if (random(30) == 0) {
+        string *emotes = ({
+            query_cap_name() + " sniffs the air alertly.",
+            query_cap_name() + " scratches behind his ear.",
+            query_cap_name() + " yawns, showing sharp canine teeth.",
+            query_cap_name() + "'s tail wags as he patrols.",
+            query_cap_name() + " lets out a soft woof."
+        });
+        
+        tell_room(environment(this_object()),
+                  emotes[random(sizeof(emotes))]);
+    }
+}

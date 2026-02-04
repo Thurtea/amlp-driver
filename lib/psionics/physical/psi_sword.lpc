@@ -1,0 +1,125 @@
+// /lib/psionics/physical/psi_sword.lpc
+// Psi-Sword - Physical Psionic Power
+// Creates a blade of pure psionic energy (M.D.C. weapon!)
+
+inherit "/std/psionic_power";
+
+void create() {
+    ::create();
+    
+    set_power_id("psi_sword");
+    set_power_name("Psi-Sword");
+    set_power_category("physical");
+    set_isp_cost(10);  // Initial cost
+    set_activation_time(1);
+    set_duration(60); // 1 minute per activation, can maintain
+    set_range("self");
+    
+    set_short_description("Creates a blade of pure psionic energy.");
+    set_long_description(
+        "The psychic manifests a sword composed entirely of psycho-kinetic energy. "
+        "The blade is solid enough to parry physical attacks and inflicts Mega-Damage. "
+        "The psi-sword can take any blade form the psychic imagines (sword, dagger, "
+        "katana, etc.) but always does the same damage.\n\n"
+        "Duration: 1 minute (costs 2 I.S.P. per minute to maintain)\n"
+        "Range: Self\n"
+        "Damage: 3d6 M.D.!\n"
+        "I.S.P.: 10 to create, 2/minute to maintain\n"
+    );
+}
+
+int manifest(object manifester, object target, string args) {
+    object psi_sword;
+    int duration_seconds;
+    
+    // Check if already has psi-sword active
+    if (manifester->query_property("has_psi_sword")) {
+        tell_object(manifester, "You already have a psi-sword manifested!");
+        return 0;
+    }
+    
+    // Create the psi-sword object
+    psi_sword = clone_object("/objects/psionic/psi_sword_weapon");
+    if (!psi_sword) {
+        tell_object(manifester, "Error creating psi-sword.");
+        return 0;
+    }
+    
+    // Move to manifester
+    psi_sword->move(manifester);
+    psi_sword->set_property("owner", manifester);
+    psi_sword->set_property("psionic_weapon", 1);
+    
+    // Set manifester property
+    manifester->set_property("has_psi_sword", 1);
+    manifester->set_property("psi_sword_object", psi_sword);
+    
+    // Visual effects
+    tell_object(manifester,
+                "You focus your mind and will a blade into existence!");
+    tell_object(manifester,
+                "A sword of pure psionic energy materializes in your hand!");
+    tell_object(manifester,
+                "The blade hums with psycho-kinetic power. (3d6 M.D.)");
+    
+    tell_room(environment(manifester),
+              "A sword of glowing psionic energy materializes in " + 
+              manifester->query_cap_name() + "'s hand!",
+              ({ manifester }));
+    
+    // Schedule maintenance cost
+    duration_seconds = 60;  // 1 minute
+    call_out("maintain_psi_sword", duration_seconds, manifester, psi_sword);
+    
+    return 1;
+}
+
+void maintain_psi_sword(object manifester, object psi_sword) {
+    int current_isp, maintenance_cost;
+    
+    if (!manifester || !psi_sword) {
+        return;
+    }
+    
+    // Check if still exists
+    if (environment(psi_sword) != manifester) {
+        // Sword dropped or moved
+        dispel_psi_sword(manifester, psi_sword);
+        return;
+    }
+    
+    maintenance_cost = 2; // 2 ISP per minute
+    current_isp = manifester->query_isp();
+    
+    if (current_isp < maintenance_cost) {
+        // Out of ISP - sword dissipates
+        tell_object(manifester,
+                    "Your psionic energy wavers...");
+        tell_object(manifester,
+                    "The psi-sword flickers and vanishes!");
+        tell_room(environment(manifester),
+                  "The psi-sword in " + manifester->query_cap_name() + 
+                  "'s hand flickers and disappears.",
+                  ({ manifester }));
+        
+        dispel_psi_sword(manifester, psi_sword);
+        return;
+    }
+    
+    // Consume ISP
+    manifester->add_isp(-maintenance_cost);
+    
+    // Schedule next maintenance
+    call_out("maintain_psi_sword", 60, manifester, psi_sword);
+}
+
+void dispel_psi_sword(object manifester, object psi_sword) {
+    if (manifester) {
+        manifester->remove_property("has_psi_sword");
+        manifester->remove_property("psi_sword_object");
+    }
+    
+    if (psi_sword) {
+        psi_sword->remove();
+    }
+}

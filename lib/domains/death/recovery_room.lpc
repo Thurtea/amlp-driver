@@ -1,0 +1,108 @@
+// /lib/domains/death/recovery_room.lpc
+// Room where players recover after death
+// NPCs patch them up and send them back
+
+inherit "/std/room";
+
+void create() {
+    ::create();
+    
+    set_short("Recovery Chamber");
+    set_long(
+        "You are in a dimly lit chamber that seems to exist outside of normal space and time. " 
+        "The walls shimmer with an ethereal glow, and the air smells faintly of healing herbs and " 
+        "alchemical reagents. Several hooded figures move silently about the room, tending to the " 
+        "injured and dying.\n\n"
+        "A BODY CHUTE in the floor leads back to the world of the living. Your corpse awaits you " 
+        "wherever you fell.\n"
+    );
+    
+    set_exits(([
+        "chute": "/domains/start/village_center"
+    ]));
+    
+    set_property("indoors", 1);
+    set_property("light", 1);
+    set_property("no_combat", 1);  // Safe room
+}
+
+void reset() {
+    ::reset();
+    
+    // Spawn healer NPCs if not present
+    if (!present("healer")) {
+        object healer1, healer2;
+        
+        healer1 = load_object("/domains/death/healer_npc");
+        if (healer1) {
+            healer1->move(this_object());
+        }
+        
+        healer2 = load_object("/domains/death/healer_npc");
+        if (healer2) {
+            healer2->set_
+
+name("medic");
+            healer2->move(this_object());
+        }
+    }
+}
+
+// Called when a player enters after death
+void describe_death_recovery(object player) {
+    string *scars;
+    
+    if (!player) return;
+    
+    tell_object(player,
+        "\n"
+        "=======================================================\n"
+        "              DEATH AND RECOVERY\n"
+        "=======================================================\n"
+        "\n"
+        "You awaken in the Recovery Chamber, your body aching\n"
+        "from your recent death. Hooded healers have patched\n"
+        "you up, but the ordeal has left its mark.\n"
+        "\n");
+    
+    scars = player->query_scars();
+    if (scars && sizeof(scars) > 0) {
+        tell_object(player, "NEW SCAR: " + scars[sizeof(scars)-1] + "\n\n");
+    }
+    
+    tell_object(player,
+        "Your corpse remains where you fell. Use the BODY CHUTE\n"
+        "to return to the world and recover your items.\n"
+        "\n"
+        "Lives: " + player->query_lives() + "/" + player->query_max_lives() + "\n"
+        "=======================================================\n"
+        "\n");
+}
+
+void init() {
+    ::init();
+    add_action("use_chute", "chute");
+    add_action("use_chute", "enter");
+}
+
+int use_chute(string str) {
+    object player;
+    
+    player = this_player();
+    
+    if (!str || (str != "chute" && str != "body chute")) {
+        return 0;
+    }
+    
+    write("You slide down the body chute and return to the world of the living...\n");
+    
+    tell_room(environment(player),
+        player->query_cap_name() + " slides down the body chute.",
+        ({ player }));
+    
+    player->move_player("chute");
+    
+    write("\nYou have returned. Your corpse awaits you where you died.\n\n");
+    
+    return 1;
+}

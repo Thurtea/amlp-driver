@@ -40,6 +40,15 @@ string race_name;
 mapping languages;
 string primary_language;
 
+// Experience and leveling system
+int experience;           // Current experience points
+int exp_to_level;         // XP needed for next level
+
+// Lives system (Rifts style)
+int lives;                // Current lives remaining
+int max_lives;            // Maximum lives (starts 5, caps at 15)
+string *scars;            // Array of scar descriptions from deaths
+
 // Action registry for add_action/enable_commands
 private int commands_enabled;
 private mapping actions;  // Maps verb -> ({ function, flags })
@@ -70,6 +79,15 @@ void create() {
     position_desc = "is standing around.";  // Default position
     languages = ([ ]);
     primary_language = "";
+    
+    // Experience and leveling init
+    experience = 0;
+    exp_to_level = 1000;  // 1000 XP to level 2
+    
+    // Lives system init
+    lives = 5;            // Start with 5 lives
+    max_lives = 5;        // Max lives starts at 5
+    scars = ({});         // No scars initially
     
     // Combat system init
     combat_target = 0;
@@ -505,6 +523,15 @@ string query_race() {
 
 void set_race(string r) {
     race_name = r;
+}
+
+// Get true race (for detecting shapeshifted/disguised creatures)
+string query_true_race() {
+    string true_race = query_property("true_race");
+    if (true_race) {
+        return true_race;
+    }
+    return race_name;  // No disguise, return actual race
 }
 
 //=============================================================================
@@ -1081,4 +1108,419 @@ string query_combat_status() {
     result += "\n";
     
     return result;
+}
+
+//=============================================================================
+// NEW COMBAT SYSTEM - Phase 2
+//=============================================================================
+
+// Query number of attacks per round
+int query_attacks_per_round() {
+    int attacks = 1;  // Base: Everyone gets 1 attack
+    
+    // Add from race (if race object has this function)
+    object race_ob = query_race_ob();
+    if (race_ob && function_exists("query_attacks_per_round", race_ob)) {
+        attacks += race_ob->query_attacks_per_round();
+    }
+    
+    // Add from character level (high level characters get more attacks)
+    if (level >= 5) attacks += 1;   // Level 5+: +1 attack
+    if (level >= 10) attacks += 1;  // Level 10+: +2 attacks total
+    if (level >= 15) attacks += 1;  // Level 15+: +3 attacks total
+    
+    return attacks;
+}
+
+// Query remaining attacks this round
+int query_attacks_remaining() {
+    int total = query_attacks_per_round();
+    int used = attacks_this_round;
+    int remaining = total - used;
+    return remaining > 0 ? remaining : 0;
+}
+
+// Query combat archetype for verb selection
+string query_combat_archetype() {
+    // Check for wielded weapon first
+    object weapon = query_wielded();
+    if (weapon && function_exists("query_combat_archetype", weapon)) {
+        return weapon->query_combat_archetype();
+    }
+    
+    // Check race archetype
+    object race_ob = query_race_ob();
+    if (race_ob && function_exists("query_combat_archetype", race_ob)) {
+        return race_ob->query_combat_archetype();
+    }
+    
+    // Default to humanoid unarmed
+    return "humanoid_unarmed";
+}
+
+// Query if character has auto-parry
+int query_auto_parry() {
+    // Check race for auto-parry
+    object race_ob = query_race_ob();
+    if (race_ob && function_exists("query_auto_parry", race_ob)) {
+        if (race_ob->query_auto_parry()) return 1;
+    }
+    
+    // Characters with Hand to Hand skill get auto-parry
+    // (Will be improved when skill system is fully integrated)
+    return 1;  // For now, everyone has auto-parry
+}
+
+// Query if character has auto-dodge
+int query_auto_dodge() {
+    // Check race for auto-dodge
+    object race_ob = query_race_ob();
+    if (race_ob && function_exists("query_auto_dodge", race_ob)) {
+        if (race_ob->query_auto_dodge()) return 1;
+    }
+    
+    // Everyone has auto-dodge by default
+    return 1;
+}
+
+// Query parries per round
+int query_parries_per_round() {
+    int parries = 2;  // Base parries
+    
+    // Add from race
+    object race_ob = query_race_ob();
+    if (race_ob && function_exists("query_parries_per_round", race_ob)) {
+        int race_parries = race_ob->query_parries_per_round();
+        if (race_parries > 0) parries = race_parries;
+    }
+    
+    // Add bonus from PP (every 3 points above 15)
+    int pp = query_stat("PP");
+    if (pp > 15) {
+        parries += (pp - 15) / 3;
+    }
+    
+    // Add from level
+    if (level >= 8) parries += 1;
+    if (level >= 12) parries += 1;
+    
+    return parries;
+}
+
+// Query parry bonus
+int query_parry_bonus() {
+    int bonus = 0;
+    
+    // PP bonus (every 3 points above 10)
+    int pp = query_stat("PP");
+    if (pp > 10) {
+        bonus += (pp - 10) / 3;
+    }
+    
+    // Level bonus
+    bonus += level / 4;
+    
+    // Weapon parry bonus
+    object weapon = query_wielded();
+    if (weapon && function_exists("query_parry_bonus", weapon)) {
+        bonus += weapon->query_parry_bonus();
+    }
+    
+    return bonus;
+}
+
+// Query dodge bonus
+int query_dodge_bonus() {
+    int bonus = 0;
+    
+    // PP bonus (every 3 points above 10)
+    int pp = query_stat("PP");
+    if (pp > 10) {
+        bonus += (pp - 10) / 3;
+    }
+    
+    // SPD bonus (speed/agility, every 5 points above 10)
+    int spd = query_stat("SPD");
+    if (spd > 10) {
+        bonus += (spd - 10) / 5;
+    }
+    
+    // Level bonus
+    bonus += level / 4;
+    
+    return bonus;
+}
+
+// Query damage type (SDC or MDC)
+int query_damage_type() {
+    // Check wielded weapon
+    object weapon = query_wielded();
+    if (weapon && function_exists("query_is_mega_damage", weapon)) {
+        return weapon->query_is_mega_damage() ? 1 : 0;
+    }
+    
+    // Check if MDC creature with natural MDC attacks
+    if (health_type == 1) {
+        // MDC creature - check if race has MDC natural attacks
+        object race_ob = query_race_ob();
+        if (race_ob && function_exists("query_mdc_natural_attacks", race_ob)) {
+            if (race_ob->query_mdc_natural_attacks()) return 1;
+        }
+    }
+    
+    // Default to SDC damage
+    return 0;
+}
+
+// Query wielded weapon
+object query_wielded() {
+    // Check equipment mapping
+    mapping equipped = query_equipped();
+    if (equipped && equipped["wielded"]) {
+        return equipped["wielded"];
+    }
+    
+    // No weapon yielded
+    return 0;
+}
+
+// Query race object
+object query_race_ob() {
+    // This should return the race object
+    // For now, try to load based on race_name
+    if (race_name && race_name != "") {
+        string race_path = "/races/" + lower_case(replace_string(race_name, " ", "_"));
+        catch {
+            return load_object(race_path);
+        };
+    }
+    return 0;
+}
+
+// Query subjective pronoun (he/she/they/it)
+string query_subjective() {
+    // For players, check gender preference
+    // For NPCs, default based on name or "it"
+    // Simplified version for now
+    if (interactive(this_object())) {
+        // Player - try to get gender setting
+        // For now, default to "they" (gender-neutral)
+        return "they";
+    } else {
+        // NPC - default to "it"
+        return "it";
+    }
+}
+//=============================================================================
+// Experience and Leveling System (Levels 0-15)
+//=============================================================================
+
+// Experience thresholds for levels 0-15
+static int *exp_table = ({
+    0,      // Level 0 (shouldn't happen)
+    0,      // Level 1 (starting level)
+    1000,   // Level 2
+    2500,   // Level 3
+    5000,   // Level 4
+    10000,  // Level 5
+    20000,  // Level 6
+    35000,  // Level 7
+    55000,  // Level 8
+    80000,  // Level 9
+    115000, // Level 10
+    160000, // Level 11
+    220000, // Level 12
+    300000, // Level 13
+    400000, // Level 14
+    550000  // Level 15 (max level, super powerful and rare)
+});
+
+int query_exp() {
+    return experience;
+}
+
+int query_exp_to_level() {
+    if (level >= 15) return 0;  // Max level
+    return exp_table[level + 1] - experience;
+}
+
+int query_exp_for_level(int lev) {
+    if (lev < 1 || lev > 15) return 0;
+    return exp_table[lev];
+}
+
+// Add experience and check for level up
+void add_exp(int amount) {
+    if (level >= 15) return;  // Max level reached
+    
+    experience += amount;
+    
+    // Check for level up
+    while (level < 15 && experience >= exp_table[level + 1]) {
+        level_up();
+    }
+}
+
+// Level up the character
+void level_up() {
+    int old_level;
+    
+    old_level = level;
+    level++;
+    
+    // Calculate lives gained:
+    // - Levels 1-10: +1 life per level
+    // - Levels 12, 14: +1 life (every 2 levels)
+    // - Max lives caps at 15
+    if (level <= 10) {
+        lives++;
+        max_lives++;
+        tell_object(this_object(), "\n*** LEVEL UP! You are now level " + level + "! ***");
+        tell_object(this_object(), "You gain 1 life! (Lives: " + lives + "/" + max_lives + ")\n");
+    } else if (level == 12 || level == 14) {
+        lives++;
+        max_lives++;
+        tell_object(this_object(), "\n*** LEVEL UP! You are now level " + level + "! ***");
+        tell_object(this_object(), "You gain 1 life! (Lives: " + lives + "/" + max_lives + ")\n");
+    } else {
+        tell_object(this_object(), "\n*** LEVEL UP! You are now level " + level + "! ***\n");
+    }
+    
+    // Notify room
+    tell_room(environment(this_object()), 
+              query_cap_name() + " has gained a level!",
+              ({ this_object() }));
+    
+    // Increase stats slightly
+    int hp_gain = random(6) + 5;  // 5-10 HP per level
+    int sdc_gain = random(10) + 5; // 5-14 SDC per level
+    
+    max_hp += hp_gain;
+    hp += hp_gain;
+    
+    if (health_type == 0) {  // SDC creature
+        max_sdc += sdc_gain;
+        sdc += sdc_gain;
+        tell_object(this_object(), "HP +" + hp_gain + ", SDC +" + sdc_gain + "\n");
+    } else {  // MDC creature
+        int mdc_gain = random(10) + 10;  // 10-19 MDC per level
+        max_mdc += mdc_gain;
+        mdc += mdc_gain;
+        tell_object(this_object(), "HP +" + hp_gain + ", MDC +" + mdc_gain + "\n");
+    }
+}
+
+//=============================================================================
+// Lives and Death System (Rifts style with scars and corpse recovery)
+//=============================================================================
+
+int query_lives() {
+    return lives;
+}
+
+int query_max_lives() {
+    return max_lives;
+}
+
+void set_lives(int num) {
+    lives = num;
+    if (lives > max_lives) lives = max_lives;
+}
+
+void add_lives(int num) {
+    lives += num;
+    if (lives > max_lives) lives = max_lives;
+}
+
+string *query_scars() {
+    if (!scars) scars = ({});
+    return scars;
+}
+
+void add_scar(string scar_desc) {
+    if (!scars) scars = ({});
+    scars += ({ scar_desc });
+}
+
+// Death handler - called when HP/MDC reaches 0
+void die(object killer) {
+    object corpse, death_room;
+    string *scar_types;
+    
+    // Lose a life
+    lives--;
+    
+    tell_object(this_object(), "\n*** YOU HAVE DIED! ***\n");
+    
+    if (lives <= 0) {
+        // Permanent death - no more lives
+        tell_object(this_object(), "You have no lives remaining!\n");
+        tell_object(this_object(), "Your character is permanently dead.\n");
+        // Could implement permadeath logic here
+        // For now, just respawn with 1 life as a mercy
+        lives = 1;
+    }
+    
+    tell_object(this_object(), "Lives remaining: " + lives + "/" + max_lives + "\n");
+    
+    // Create corpse with player's items
+    corpse = clone_object("/std/corpse");
+    if (corpse) {
+        corpse->set_corpse_name(query_name());
+        corpse->set_property("corpse_owner", query_name());
+        corpse->move(environment(this_object()));
+        
+        // Transfer items to corpse
+        object *inv = all_inventory(this_object());
+        if (inv && sizeof(inv) > 0) {
+            foreach (object item : inv) {
+                if (item && environment(item) == this_object()) {
+                    item->move(corpse);
+                }
+            }
+        }
+    }
+    
+    // Notify room
+    tell_room(environment(this_object()),
+              query_cap_name() + " collapses to the ground, lifeless!",
+              ({ this_object() }));
+    
+    // Add a random scar
+    scar_types = ({
+        "a jagged scar across your left cheek",
+        "a deep scar on your right arm",
+        "claw marks across your chest",
+        "a burn scar on your shoulder",
+        "a puncture wound scar on your leg",
+        "blade scars across your back",
+        "a scarred left hand from severe trauma",
+        "burn marks covering your forearms"
+    });
+    
+    add_scar(scar_types[random(sizeof(scar_types))]);
+    
+    // Move to death/recovery room
+    death_room = load_object("/domains/death/recovery_room");
+    if (death_room) {
+        move(death_room);
+        tell_object(this_object(), "\n");
+        // Room will describe the recovery
+    } else {
+        // Fallback if death room doesn't exist
+        tell_object(this_object(), "\nYou awaken in a haze, patched up but bearing a new scar: " + scars[sizeof(scars)-1] + "\n");
+    }
+    
+    // Restore some health
+    if (health_type == 0) {  // SDC creature
+        hp = max_hp / 2;
+        sdc = max_sdc / 2;
+    } else {  // MDC creature
+        mdc = max_mdc / 2;
+    }
+    
+    // End combat
+    if (combat_target) {
+        set_combat_target(0);
+    }
 }

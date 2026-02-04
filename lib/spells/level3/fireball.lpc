@@ -1,0 +1,92 @@
+// /lib/spells/level3/fireball.lpc
+// Fireball - Level 3 Fire/Combat Spell
+// Throws an explosive fireball at target
+
+inherit "/std/spell";
+
+void create() {
+    ::create();
+    
+    set_spell_id("fireball");
+    set_spell_name("Fireball");
+    set_spell_level(3);
+    set_ppe_cost(10);
+    set_casting_time(2);
+    set_duration(0); // Instant
+    set_range(90); // 90 feet
+    set_spell_type("combat");
+    
+    set_short_description("Hurls an explosive ball of fire at a target.");
+    set_long_description(
+        "The caster conjures a sphere of magical flame and hurls it at a target, "
+        "where it explodes on impact. The fireball inflicts 4d6 damage to the "
+        "primary target and splash damage to nearby enemies.\n\n"
+        "Duration: Instant\n"
+        "Range: 90 feet\n"
+        "Damage: 4d6 S.D.C.\n"
+        "P.P.E.: 10\n"
+    );
+}
+
+int cast(object caster, object target, string args) {
+    int damage, i, dice_roll;
+    
+    if (!target) {
+        tell_object(caster, "Cast fireball at whom?");
+        return 0;
+    }
+    
+    if (!living(target)) {
+        tell_object(caster, "That is not a valid target.");
+        return 0;
+    }
+    
+    // Can't fireball yourself
+    if (target == caster) {
+        tell_object(caster, "You cannot cast fireball on yourself!");
+        return 0;
+    }
+    
+    // Roll 4d6 damage
+    damage = 0;
+    for (i = 0; i < 4; i++) {
+        dice_roll = random(6) + 1;
+        damage += dice_roll;
+    }
+    
+    // Visual effects
+    tell_object(caster,
+                "You conjure a sphere of roaring flame!");
+    tell_object(caster,
+                "You hurl the fireball at " + target->query_cap_name() + "!");
+    
+    tell_room(environment(caster),
+              "" + caster->query_cap_name() + " hurls a blazing fireball!",
+              ({ caster, target }));
+    
+    tell_object(target,
+                "A FIREBALL EXPLODES AGAINST YOU!");
+    
+    // Apply damage
+    if (function_exists("take_damage", target)) {
+        target->take_damage(damage, 0); // 0 = SDC damage
+    }
+    
+    write("Your fireball inflicts " + damage + " damage to " + 
+          target->query_cap_name() + "!");
+    
+    tell_object(target,
+                "The fireball hits you for " + damage + " damage!");
+    
+    tell_room(environment(target),
+              "The fireball explodes in a burst of flame and heat!",
+              ({ caster, target }));
+    
+    // Start combat if not already in combat
+    object combat_daemon = load_object("/daemon/combat");
+    if (combat_daemon && !target->query_property("in_combat")) {
+        combat_daemon->start_combat(caster, target);
+    }
+    
+    return 1;
+}

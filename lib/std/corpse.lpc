@@ -1,0 +1,73 @@
+// /lib/std/corpse.lpc
+// Corpse object - contains dead player's items
+
+inherit "/std/object";
+
+string corpse_name;
+
+void create() {
+    ::create();
+    
+    set_name("corpse");
+    set_id(({"corpse", "body"}));
+    corpse_name = "someone";
+    
+    set_short("the corpse of " + corpse_name);
+    set_long(
+        "This is the lifeless body of " + corpse_name + ". It lies motionless on "
+        "the ground. You can search it to recover items.\n"
+    );
+    
+    set_weight(100);
+    set_value(0);
+    set_property("is_corpse", 1);
+}
+
+void set_corpse_name(string name) {
+    corpse_name = name;
+    set_short("the corpse of " + corpse_name);
+    set_long(
+        "This is the lifeless body of " + corpse_name + ". It lies motionless on "
+        "the ground. You can search it to recover items.\n"
+    );
+}
+
+string query_corpse_name() {
+    return corpse_name;
+}
+
+void init() {
+    ::init();
+    add_action("search_corpse", "search");
+    add_action("get_from_corpse", "get");
+}
+
+int search_corpse(string str) {
+    object *contents;
+    
+    if (!str || (str != "corpse" && str != "body")) {
+        return 0;
+    }
+    
+    write("You search the corpse of " + corpse_name + ".\n");
+    
+    contents = all_inventory(this_object());
+    
+    if (!contents || sizeof(contents) == 0) {
+        write("The corpse is empty.\n");
+        return 1;
+    }
+    
+    write("The corpse contains:\n");
+    foreach (object item : contents) {
+        write("  " + item->query_short() + "\n");
+    }
+    
+    return 1;
+}
+
+int get_from_corpse(string str) {
+    // Allow getting items from corpse
+    // Format: "get sword from corpse"
+    return 0;  // Let normal get handle it
+}

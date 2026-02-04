@@ -124,6 +124,18 @@ void create() {
     set_homeland("Wastelands of Rifts Earth");
     set_languages(({ "american", "psi_stalker_sign" }));  // Sign language for silent communication
     set_primary_language("american");
+    
+    // Phase 2: Combat System Configuration
+    set_attacks_per_round(1);           // Psi-Stalkers get 2 attacks total (predator reflexes)
+    set_parries_per_round(3);           // 3 parries per round (excellent combat training)
+    set_auto_parry(1);                  // Automatic parry
+    set_auto_dodge(1);                  // Automatic dodge (hunter instincts)
+    set_combat_archetype("humanoid_unarmed");  // Humanoid style when unarmed
+    set_mdc_natural_attacks(0);         // SDC damage
+    
+    // Natural attacks - fists/kicks when unarmed
+    add_natural_weapon("punch", 1, 4, 1);   // 1d4+1 punch (slightly stronger)
+    add_natural_weapon("kick", 1, 6, 1);    // 1d6+1 kick
 }
 
 // Psi-Stalkers get a tracking bonus
