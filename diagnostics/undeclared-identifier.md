@@ -94,7 +94,7 @@ strcpy(str, "hello");
 
 ## Affected Files in AMLP (FIXED)
 
-### ✅ src/vm.c:871 (FIXED)
+###  src/vm.c:871 (FIXED)
 
 **Before**:
 ```c
@@ -106,7 +106,7 @@ char *empty_str = (char *)gc_alloc(vm->gc, 1, GC_STRING);
 char *empty_str = (char *)gc_alloc(vm->gc, 1, GC_TYPE_STRING);
 ```
 
-### ✅ src/vm.c:879 (FIXED)
+###  src/vm.c:879 (FIXED)
 
 **Before**:
 ```c
@@ -118,7 +118,7 @@ char *slice = (char *)gc_alloc(vm->gc, slice_len + 1, GC_STRING);
 char *slice = (char *)gc_alloc(vm->gc, slice_len + 1, GC_TYPE_STRING);
 ```
 
-### ✅ src/vm.c:889 (FIXED)
+###  src/vm.c:889 (FIXED)
 
 **Before**:
 ```c
@@ -296,9 +296,9 @@ int len = array_length(my_array);
 
 | File | Line | Wrong Identifier | Correct Identifier | Status |
 |------|------|------------------|-------------------|--------|
-| src/vm.c | 871 | `GC_STRING` | `GC_TYPE_STRING` | ✅ Fixed |
-| src/vm.c | 879 | `GC_STRING` | `GC_TYPE_STRING` | ✅ Fixed |
-| src/vm.c | 889 | `array_size` | `array_length` | ✅ Fixed |
+| src/vm.c | 871 | `GC_STRING` | `GC_TYPE_STRING` |  Fixed |
+| src/vm.c | 879 | `GC_STRING` | `GC_TYPE_STRING` |  Fixed |
+| src/vm.c | 889 | `array_size` | `array_length` |  Fixed |
 
 **Total**: 3 errors (all fixed)
 

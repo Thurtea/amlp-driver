@@ -281,11 +281,11 @@ Get-ChildItem -Recurse -Filter "*.c" | Rename-Item -NewName {$_.Name -replace '\
 ## Why .lpc Extension?
 
 **Benefits:**
-- ✅ Clear separation between C driver code and LPC library code
-- ✅ Proper syntax highlighting for LPC-specific constructs
-- ✅ No confusion between what's compiled (C) vs interpreted (LPC)
-- ✅ Better tooling support and IDE features
-- ✅ Follows modern best practices for language-specific extensions
+-  Clear separation between C driver code and LPC library code
+-  Proper syntax highlighting for LPC-specific constructs
+-  No confusion between what's compiled (C) vs interpreted (LPC)
+-  Better tooling support and IDE features
+-  Follows modern best practices for language-specific extensions
 
 ## Troubleshooting
 

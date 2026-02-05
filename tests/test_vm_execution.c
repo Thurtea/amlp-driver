@@ -29,12 +29,12 @@ static int tests_passed = 0;
 #define TEST_PASS() \
     do { \
         tests_passed++; \
-        printf("✅ PASS\n"); \
+        printf(" PASS\n"); \
     } while(0)
 
 #define TEST_FAIL(msg) \
     do { \
-        printf("❌ FAIL: %s\n", msg); \
+        printf(" FAIL: %s\n", msg); \
     } while(0)
 
 /* ========== Test Programs ========== */
@@ -279,7 +279,7 @@ void test_entry_point() {
     TEST_START("entry_point");
     
     /* Skip test: parser doesn't support function parameter lists yet */
-    printf("⚠️  SKIP (parser limitation)\n");
+    printf("  SKIP (parser limitation)\n");
 }
 
 /* ========== Main Test Runner ========== */

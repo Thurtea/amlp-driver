@@ -328,11 +328,11 @@ library/**/*.c
 
 ## Next Steps
 
-1. ✅ Install extension
-2. ✅ Rename library files to .lpc
-3. ✅ Test with void.lpc
-4. ✅ Try snippets
-5. 🚀 Build your MUD!
+1.  Install extension
+2.  Rename library files to .lpc
+3.  Test with void.lpc
+4.  Try snippets
+5.  Build your MUD!
 
 ---
 

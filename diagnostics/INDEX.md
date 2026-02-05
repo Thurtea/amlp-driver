@@ -4,7 +4,7 @@
 
 This directory provides comprehensive documentation for all compiler warnings and errors that occur during the AMLP MUD driver build process.
 
-## 📋 What You'll Find Here
+##  What You'll Find Here
 
 - **Explanations** of what each warning/error means
 - **Why it matters** (or doesn't) for your MUD
@@ -12,7 +12,7 @@ This directory provides comprehensive documentation for all compiler warnings an
 - **Code examples** showing before/after fixes
 - **Testing impact** - does it affect gameplay?
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### When Your Build Shows Warnings
 
@@ -45,7 +45,7 @@ After running `make`, you'll see:
 
 **Click the diagnostics path** to see solutions for common errors.
 
-## 📁 File Structure
+##  File Structure
 
 ```
 diagnostics/
@@ -61,7 +61,7 @@ diagnostics/
 └── undeclared-identifier.md           ← Compilation error guide
 ```
 
-## 🎯 Recommended Reading Order
+##  Recommended Reading Order
 
 ### If You're New to AMLP
 
@@ -84,7 +84,7 @@ Just click the file path from the compilation output, or:
 
 Start with: [undeclared-identifier.md](diagnostics/undeclared-identifier.md)
 
-## 🎨 Warning Priority System
+##  Warning Priority System
 
 Each guide has a priority indicator:
 
@@ -93,7 +93,7 @@ Each guide has a priority indicator:
 - 🔴 **High** - Fix soon, likely bugs or inefficiencies
 - ⛔ **Critical** - Must fix, blocks compilation
 
-## 🔍 How to Use
+##  How to Use
 
 ### From Terminal Output
 
@@ -125,7 +125,7 @@ grep -l "Wunused-parameter" *.md
 grep -h "Priority:" *.md
 ```
 
-## 📊 Current Build Status
+##  Current Build Status
 
 **Last Analysis**: February 4, 2026  
 **Total Warnings**: 50+  
@@ -141,7 +141,7 @@ grep -h "Priority:" *.md
 | 🔴 High | ~5 | Yes |
 | ⛔ Critical | 0 | N/A (no errors) |
 
-## 🛠️ Common Fixes
+##  Common Fixes
 
 ### Fix All Unused Parameter Warnings
 
@@ -178,7 +178,7 @@ But fixing them:
 
 See each guide's "Testing Impact" section for specifics.
 
-## 📝 Contributing
+##  Contributing
 
 When adding new code:
 
@@ -187,13 +187,13 @@ When adding new code:
 3. **Follow the guide** to fix or suppress appropriately
 4. **Update documentation** if you encounter new warning types
 
-## 🔗 Related Documentation
+##  Related Documentation
 
 - [../docs/DEBUGGING_GUIDE.md](../docs/DEBUGGING_GUIDE.md) - Runtime debugging
 - [../docs/COMBAT_TESTING_GUIDE.md](../docs/COMBAT_TESTING_GUIDE.md) - Feature testing
 - [../README.md](../README.md) - Main project documentation
 
-## 💡 Tips
+##  Tips
 
 ### Suppress Warnings Temporarily
 

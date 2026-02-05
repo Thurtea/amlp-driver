@@ -67,7 +67,7 @@ void cmd_stats(PlayerSession *sess, const char *args) {
 
 ### Phase 1: Critical Fixes (Do Now)
 These prevent compilation or cause runtime bugs:
-- [ ] [vm.c] Fix undeclared identifiers ✅ **DONE**
+- [ ] [vm.c] Fix undeclared identifiers  **DONE**
 - [ ] [server.c:119] Replace zero-length format string
 - [ ] [driver.c, combat.c, room.c] Remove array NULL checks
 
@@ -105,12 +105,12 @@ To see which warnings matter most: `make 2>&1 | grep "error:"` (0 results = good
 
 | Warning Type | Affects MUD? | Severity |
 |--------------|--------------|----------|
-| Unused parameters | ❌ No | Safe |
-| Sign comparisons | ⚠️ Rare edge cases | Loop may terminate early if negative |
-| Format truncation | ⚠️ Path too long | File operations might fail |
-| Address checks | ❌ No | Redundant but harmless |
-| Missing initializers | ✅ Yes | Fields may have garbage values |
-| Zero-length format | ❌ No | Just inefficient |
+| Unused parameters |  No | Safe |
+| Sign comparisons |  Rare edge cases | Loop may terminate early if negative |
+| Format truncation |  Path too long | File operations might fail |
+| Address checks |  No | Redundant but harmless |
+| Missing initializers |  Yes | Fields may have garbage values |
+| Zero-length format |  No | Just inefficient |
 
 **Bottom line**: The current 50 warnings won't prevent the MUD from running, but fixing Phase 1 and Phase 2 items prevents future bugs.
 
