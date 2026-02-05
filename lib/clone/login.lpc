@@ -11,6 +11,49 @@ void create() {
 }
 
 void logon() {
+    string *files;
+    int needs_installation;
+    
+    // Check if this is first-time setup (no player files exist)
+    needs_installation = 0;
+    catch {
+        files = get_dir(DIR_SAVE + "/players/*.o");
+        if (!files || sizeof(files) == 0) {
+            needs_installation = 1;
+        }
+    };
+    
+    // If first-time setup, launch installation wizard
+    if (needs_installation) {
+        write("\n╔════════════════════════════════════════════════════════════════╗\n");
+        write("║                                                                ║\n");
+        write("║         FIRST-TIME SETUP DETECTED                             ║\n");
+        write("║         Loading Installation Wizard...                        ║\n");
+        write("║                                                                ║\n");
+        write("╚════════════════════════════════════════════════════════════════╝\n\n");
+        
+        object install_wizard;
+        mixed err;
+        
+        err = catch {
+            install_wizard = new("/secure/install");
+        };
+        
+        if (err || !install_wizard) {
+            write("[ERROR] Could not load installation wizard!\n");
+            write("Error: " + err + "\n");
+            write("Installation file should be at: /lib/secure/install.lpc\n");
+            destruct(this_object());
+            return;
+        }
+        
+        // Transfer control to installation wizard
+        exec(install_wizard, this_object());
+        destruct(this_object());
+        return;
+    }
+    
+    // Normal login flow
     write("\n");
     write("========================================\n");
     write("       Welcome to AMLP-MUD\n");

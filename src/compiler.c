@@ -392,6 +392,58 @@ static void compiler_codegen_expression(compiler_state_t *state, ASTNode *node) 
             break;
         }
 
+        case NODE_ARRAY_ACCESS: {
+            ArrayAccessNode *access = (ArrayAccessNode *)node->data;
+            if (access && access->array && access->index) {
+                // Emit array expression
+                compiler_codegen_expression(state, access->array);
+                // Emit index expression
+                compiler_codegen_expression(state, access->index);
+                
+                if (access->is_range && access->end_index) {
+                    // Range access: array[start..end]
+                    compiler_codegen_expression(state, access->end_index);
+                    compiler_emit(state, OP_SLICE_RANGE, node->line);
+                } else {
+                    // Single index: array[index]
+                    compiler_emit(state, OP_INDEX_ARRAY, node->line);
+                }
+            }
+            break;
+        }
+
+        case NODE_ASSIGNMENT: {
+            AssignmentNode *assign = (AssignmentNode *)node->data;
+            if (assign && assign->target && assign->value) {
+                // For now, only handle simple assignment (=), not +=, -=, etc.
+                if (assign->operator && strcmp(assign->operator, "=") == 0) {
+                    // Check if target is array access: array[index] = value
+                    if (assign->target->type == NODE_ARRAY_ACCESS) {
+                        ArrayAccessNode *access = (ArrayAccessNode *)assign->target->data;
+                        if (access && access->array && access->index) {
+                            // Emit: array, index, value, then OP_STORE_ARRAY
+                            compiler_codegen_expression(state, access->array);
+                            compiler_codegen_expression(state, access->index);
+                            compiler_codegen_expression(state, assign->value);
+                            compiler_emit(state, OP_STORE_ARRAY, node->line);
+                        }
+                    } 
+                    // Handle simple variable assignment: var = value
+                    else if (assign->target->type == NODE_IDENTIFIER) {
+                        // For now, just compile value and pop it (placeholder)
+                        // Full implementation would need symbol table lookup
+                        compiler_codegen_expression(state, assign->value);
+                        compiler_emit(state, OP_POP, node->line);
+                    }
+                    // For other targets (member access, etc.), emit placeholder
+                    else {
+                        compiler_codegen_expression(state, assign->value);
+                    }
+                }
+            }
+            break;
+        }
+
         default:
             // Unsupported expression type - push null as placeholder
             compiler_emit(state, OP_PUSH_NULL, node->line);

@@ -1,0 +1,371 @@
+// /lib/secure/install.lpc
+// AMLP MUD Installation Wizard
+// Runs ONLY on first-time setup to create the first admin account
+// Based on Dead Souls installation pattern
+
+#include <globals.h>
+
+private string admin_name;
+private string admin_capname;
+private string admin_password;
+private string admin_email;
+private string admin_gender;
+private int screen_reader;
+
+void logon() {
+    write("\n");
+    write("╔════════════════════════════════════════════════════════════════╗\n");
+    write("║                                                                ║\n");
+    write("║              AMLP MUD - INSTALLATION WIZARD                    ║\n");
+    write("║                                                                ║\n");
+    write("╚════════════════════════════════════════════════════════════════╝\n");
+    write("\n");
+    write("Welcome to the AMLP MUD Installation Process!\n\n");
+    write("You will be asked a series of questions to create the first\n");
+    write("administrator account for this MUD.\n\n");
+    write("This wizard will only run ONCE - on the first connection.\n");
+    write("After setup, normal login will be activated.\n\n");
+    write("═══════════════════════════════════════════════════════════════\n\n");
+    
+    input_name();
+}
+
+void input_name() {
+    write("What is your MUD admin username?\n");
+    write("(lowercase, 3-12 characters, alphanumeric only)\n");
+    write("Username: ");
+    input_to("get_name");
+}
+
+void get_name(string name) {
+    if (!name || name == "") {
+        write("\nYou must enter a name.\n");
+        input_name();
+        return;
+    }
+    
+    // Validate name
+    name = lower_case(name);
+    
+    if (strlen(name) < 3) {
+        write("\nUsername must be at least 3 characters.\n");
+        input_name();
+        return;
+    }
+    
+    if (strlen(name) > 12) {
+        write("\nUsername must be 12 characters or less.\n");
+        input_name();
+        return;
+    }
+    
+    // Check alphanumeric
+    for (int i = 0; i < strlen(name); i++) {
+        int c = name[i];
+        if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))) {
+            write("\nUsername must contain only lowercase letters and numbers.\n");
+            input_name();
+            return;
+        }
+    }
+    
+    // Reserved names check
+    if (name == "guest" || name == "test" || name == "admin") {
+        write("\nThat name is reserved. Please choose another.\n");
+        input_name();
+        return;
+    }
+    
+    admin_name = name;
+    admin_capname = capitalize(name);
+    
+    write("\n");
+    input_password();
+}
+
+void input_password() {
+    write("Create a password for " + admin_capname + "\n");
+    write("(minimum 5 characters)\n");
+    write("Password: ");
+    input_to("get_password", 1);  // 1 = hide input
+}
+
+void get_password(string pass) {
+    if (!pass || strlen(pass) < 5) {
+        write("\nPassword must be at least 5 characters.\n");
+        input_password();
+        return;
+    }
+    
+    admin_password = pass;
+    write("\nConfirm password: ");
+    input_to("confirm_password", 1);
+}
+
+void confirm_password(string pass) {
+    if (pass != admin_password) {
+        write("\nPasswords do not match.\n");
+        input_password();
+        return;
+    }
+    
+    // Encrypt password
+    admin_password = crypt(admin_password, 0);
+    
+    write("\n");
+    input_capname();
+}
+
+void input_capname() {
+    write("Enter your display name (default: " + admin_capname + ")\n");
+    write("(This is how your name appears in-game)\n");
+    write("Display name: ");
+    input_to("get_capname");
+}
+
+void get_capname(string name) {
+    if (!name || name == "") {
+        name = admin_capname;
+    }
+    
+    // Validate that lowercase version matches admin_name
+    if (lower_case(name) != admin_name) {
+        write("\nDisplay name must be a capitalized version of your username.\n");
+        write("(e.g., if username is 'john', display name could be 'John' or 'JOHN')\n");
+        input_capname();
+        return;
+    }
+    
+    admin_capname = name;
+    write("\n");
+    input_gender();
+}
+
+void input_gender() {
+    write("Choose a gender for your character:\n");
+    write("  1) Male\n");
+    write("  2) Female\n");
+    write("  3) Neutral\n");
+    write("  4) None\n");
+    write("Gender: ");
+    input_to("get_gender");
+}
+
+void get_gender(string choice) {
+    choice = lower_case(choice || "");
+    
+    if (choice == "1" || choice == "male" || choice == "m") {
+        admin_gender = "male";
+    } else if (choice == "2" || choice == "female" || choice == "f") {
+        admin_gender = "female";
+    } else if (choice == "3" || choice == "neutral" || choice == "n") {
+        admin_gender = "neutral";
+    } else if (choice == "4" || choice == "none") {
+        admin_gender = "neuter";
+    } else {
+        write("\nInvalid choice. Please enter 1, 2, 3, or 4.\n");
+        input_gender();
+        return;
+    }
+    
+    write("\n");
+    input_email();
+}
+
+void input_email() {
+    write("What is your email address?\n");
+    write("(This is optional - press Enter to skip)\n");
+    write("Email: ");
+    input_to("get_email");
+}
+
+void get_email(string email) {
+    if (!email || email == "") {
+        admin_email = "unknown@localhost";
+    } else {
+        admin_email = email;
+    }
+    
+    write("\n");
+    input_screen_reader();
+}
+
+void input_screen_reader() {
+    write("Do you use a screen reader for the visually impaired? (y/n)\n");
+    write("(This will disable visual maps and optimize for text-only display)\n");
+    write("Screen reader: ");
+    input_to("get_screen_reader");
+}
+
+void get_screen_reader(string response) {
+    response = lower_case(response || "");
+    
+    if (response == "y" || response == "yes") {
+        screen_reader = 1;
+        write("\nOk, disabling visual maps for accessibility.\n");
+    } else {
+        screen_reader = 0;
+        write("\nOk, visual features will be enabled.\n");
+    }
+    
+    write("\n");
+    create_admin();
+}
+
+void create_admin() {
+    object admin;
+    mixed err;
+    string workroom_path;
+    
+    write("═══════════════════════════════════════════════════════════════\n");
+    write("                   CREATING ADMIN ACCOUNT\n");
+    write("═══════════════════════════════════════════════════════════════\n\n");
+    
+    // Create admin character
+    write("Creating user object...\n");
+    
+    err = catch(admin = new(USER_OB));
+    if (err || !admin) {
+        write("\nERROR: Failed to create user object!\n");
+        write("Error: " + err + "\n");
+        write("\nInstallation failed. The MUD will shut down.\n");
+        write("Please contact technical support.\n");
+        shutdown();
+        destruct(this_object());
+        return;
+    }
+    
+    // Set basic properties
+    write("Setting character properties...\n");
+    admin->set_name(admin_capname);
+    admin->set_password(admin_password);
+    admin->set_gender(admin_gender);
+    admin->set_race("human");
+    admin->set_language("american", 98);
+    
+    if (admin_email) {
+        admin->set_email(admin_email);
+    }
+    
+    if (screen_reader) {
+        admin->set_property("screen_reader", 1);
+        admin->set_property("wizmapping", 0);
+        admin->set_property("minimapping", 0);
+    }
+    
+    // Grant maximum wizard privileges
+    write("Granting administrator privileges...\n");
+    admin->set_wizard_level(ADMIN_LEVEL);
+    
+    // Attach wiztool
+    write("Attaching wizard tools...\n");
+    catch {
+        object wt = clone_object(WIZTOOL);
+        if (wt) {
+            if (function_exists("attach_wiztool", admin)) {
+                admin->attach_wiztool(wt);
+            } else if (function_exists("attach", wt)) {
+                wt->attach(admin);
+            }
+        }
+    };
+    
+    // Create admin workroom
+    write("Creating admin workroom...\n");
+    workroom_path = create_workroom(admin_name);
+    
+    if (workroom_path) {
+        write("  Workroom created at: " + workroom_path + "\n");
+        admin->set_home(workroom_path);
+    }
+    
+    // Save the admin character
+    write("Saving admin character...\n");
+    admin->save_player();
+    
+    write("\n");
+    write("═══════════════════════════════════════════════════════════════\n");
+    write("              INSTALLATION COMPLETE!\n");
+    write("═══════════════════════════════════════════════════════════════\n\n");
+    write("Admin account created successfully!\n\n");
+    write("Username: " + admin_name + "\n");
+    write("Display Name: " + admin_capname + "\n");
+    write("Gender: " + admin_gender + "\n");
+    write("Email: " + admin_email + "\n");
+    write("Wizard Level: Administrator\n");
+    if (workroom_path) {
+        write("Workroom: " + workroom_path + "\n");
+    }
+    write("\n");
+    write("The installation wizard will now:\n");
+    write("  1. Back up itself as install.first.lpc\n");
+    write("  2. Activate normal login system\n");
+    write("  3. Shut down the MUD\n\n");
+    write("After restart, you can login with:\n");
+    write("  Username: " + admin_name + "\n");
+    write("  Password: (the password you just created)\n\n");
+    write("═══════════════════════════════════════════════════════════════\n\n");
+    write("Shutting down in 5 seconds...\n");
+    
+    // Execute the one-time setup lockout
+    call_out("lockout_install", 5);
+}
+
+void lockout_install() {
+    string install_dir = "/lib/secure";
+    
+    write("\nLocking installation wizard...\n");
+    
+    // Create backup of install wizard
+    catch(cp(install_dir + "/install.lpc", install_dir + "/install.first.lpc"));
+    write("  Backed up: install.first.lpc\n");
+    
+    // Mark installation as complete
+    write_file("/data/setup_complete", "Installation completed on: " + ctime(time()) + "\n");
+    write_file("/data/setup_complete", "First admin: " + admin_name + "\n");
+    
+    write("\nInstallation wizard locked. Normal login is now active.\n");
+    write("The MUD will now shut down.\n");
+    write("Please restart the MUD to login as " + admin_capname + ".\n\n");
+    write("Goodbye!\n\n");
+    
+    // Shut down the MUD
+    shutdown();
+    destruct(this_object());
+}
+
+string create_workroom(string owner) {
+    string workroom_dir = "/domains/staff_castle/" + owner;
+    string workroom_file = workroom_dir + "/workroom.lpc";
+    string workroom_code;
+    
+    // Create directory if it doesn't exist
+    if (!file_exists(workroom_dir)) {
+        mkdir(workroom_dir);
+    }
+    
+    // Create workroom file
+    workroom_code = "// " + owner + "'s Workroom\n"
+                  + "// Auto-created during installation\n\n"
+                  + "inherit \"/std/room\";\n\n"
+                  + "void create() {\n"
+                  + "    ::create();\n"
+                  + "    set_short(\"" + capitalize(owner) + "'s Workroom\");\n"
+                  + "    set_long(\"This is " + capitalize(owner) + "'s personal workroom. \"\n"
+                  + "             \"As an administrator, you can modify this room or create \"\n"
+                  + "             \"new areas anywhere in the MUD. Use 'help wizard' for a \"\n"
+                  + "             \"list of wizard commands.\");\n"
+                  + "    set_property(\"no attack\", 1);\n"
+                  + "    set_property(\"no magic\", 0);\n"
+                  + "    set_climate(\"indoors\");\n"
+                  + "    set_light(2);\n"
+                  + "}\n";
+    
+    catch(write_file(workroom_file, workroom_code));
+    
+    if (file_exists(workroom_file)) {
+        return workroom_file;
+    }
+    
+    return 0;
+}
